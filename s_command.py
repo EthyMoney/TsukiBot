@@ -3,7 +3,7 @@ import numpy as np
 
 from datetime import datetime, timedelta
 
-TIME_FRAME = 30
+TIME_FRAME = 10
 
 class s_command():
 
@@ -37,6 +37,6 @@ class s_command():
 
         # Write the format
         
-        response = '\n**' + self.coin + '** (since approx. ' + str(TIME_FRAME) + ' min. ago)\n__Volume__ (BTC)\n :large_blue_circle: BUY: `' + str(arr[0]) + "` \n :red_circle: SELL: `" + str(arr[1]) + "` \n\nNet change: `" + str(arr[0]-arr[1]) + '`'
+        response = '\n**' + self.coin + '** (since approx. ' + str(TIME_FRAME) +' min. ago)\n__Volume__ (BTC)\n :large_blue_circle: BUY: `' + str(arr[0]) + "` \n :red_circle: SELL: `" + str(arr[1]) + "` \n\nNet difference: `" + str(arr[0]-arr[1]) + '`\nRatio: `' + str((arr[0]-arr[1])/(arr[0]+arr[1]) * 100) + ' %`';
 
         return response 

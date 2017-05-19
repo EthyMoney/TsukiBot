@@ -1,4 +1,4 @@
-const pairs = ['ETH', 'GNT', 'XRP', 'STEEM'];
+const pairs = ['ETH', 'GNT', 'XRP', 'LTC'];
 
 // Create an array to keep track of current programs running
 var active = [];
