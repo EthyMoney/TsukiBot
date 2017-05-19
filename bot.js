@@ -2,13 +2,13 @@
 
 var fs = require('fs');	
 var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
+var prefix = '.tb'
 
-
-const pairs = ['ETH', 'GNT', 'XRP', 'LTC', 'BTC'];
+const pairs = ['ETH', 'ETC', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT'];
 //const helpStr = '__**TsukiBot**__ :moon: \nCheck Kraken spot price in X: !\'tb gdax {ETH,LTC,BTC,XRP}\nCheck GDAX spot price in USD: !\'tb gdax {ETH,LTC,BTC}\nCheck large trades: !\'tb wh TICKER \nCheck volume records: !\'tb vol TICKER\n\n__Available tickers__\n'+pairs;
 
 
-const helpStr = '__**TsukiBot**__ :full_moon: \n```Markdown\n* !\'tb krkn XXX YYY [op. base price]\n* !\'tb gdax XXX [op. base price]\n* !\'tb wh XXX (poloniex)\n* !\'tb vol XXX (poloniex)```\n__Available tickers__\n`'+pairs + '`';
+const helpStr = '__**TsukiBot**__ :full_moon: \n```Markdown\n* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n* ' + prefix + ' (g)dax XXX [op. base price]\n* ' + prefix + ' (w)h XXX (poloniex)\n* ' + prefix + ' (v)ol XXX (poloniex)```\n__Available tickers__\n`'+pairs + '`';
 
 // Include discord.js
 const Discord = require('discord.js');
@@ -111,7 +111,7 @@ client.on('message', message => {
 	var code_in = message.content.split(' ');
 	
 	// Check for bot prefix <!'m>
-	if(code_in[0] === "!'tb") {
+	if(code_in[0] === ".tb") {
 
 		// Remove the command prefix
 		code_in.splice(0,1);	
@@ -120,16 +120,14 @@ client.on('message', message => {
 		if(code_in.length > 1 && pairs.filter(function(value){return value == code_in[1].toUpperCase();}).length > 0){ 
 		
 			// vol (s) command: get the volume change for a period	
-			if(code_in[0] === 'vol'){
+			if(code_in[0] === 'vol' || code_in[0] === 'v'){
 				executeCommand('s', code_in[1])
-			// wh (p) command: get the market TX that are outside normal levels. Forcing the period to 5 minutes
-			// for now. Call the python program that checks over the last 5 minutes. 
-			} else if(code_in[0] === 'wh'){
+			} else if(code_in[0] === 'wh' || code_in[0] === 'w'){
 				executeCommand('p', code_in[1])
-			} else if(code_in[0] === 'gdax') {
+			} else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
 				getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1))
-			} else if(code_in[0] === 'krkn') {
-				getPriceKraken(code_in[1], code_in[2], (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1))
+			} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
+				getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1))
 			} else if(code_in[0] === 'trk'){
 				console.log('trk called.');
 			} else {
