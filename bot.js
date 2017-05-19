@@ -4,16 +4,55 @@ var fs = require('fs');
 var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 
 
-const pairs = ['ETH', 'GNT', 'XRP', 'STEEM'];
-const helpStr = '```__TsukiBot Commands__\nCheck large trades: !\'tb wh TICKER \nCheck volume records: !\'tb vol TICKER\n\n__Available pairs__\n'+pairs+'```';
+const pairs = ['ETH', 'GNT', 'XRP', 'LTC', 'BTC'];
+//const helpStr = '__**TsukiBot**__ :moon: \nCheck Kraken spot price in X: !\'tb gdax {ETH,LTC,BTC,XRP}\nCheck GDAX spot price in USD: !\'tb gdax {ETH,LTC,BTC}\nCheck large trades: !\'tb wh TICKER \nCheck volume records: !\'tb vol TICKER\n\n__Available tickers__\n'+pairs;
+
+
+const helpStr = '__**TsukiBot**__ :full_moon: \n```Markdown\n* !\'tb krkn XXX YYY [op. base price]\n* !\'tb gdax XXX [op. base price]\n* !\'tb wh XXX (poloniex)\n* !\'tb vol XXX (poloniex)```\n__Available tickers__\n`'+pairs + '`';
 
 // Include discord.js
 const Discord = require('discord.js');
+
+const Client = require('coinbase').Client;
+const KrakenClient = require('kraken-api');
 
 
 // Declare channel and the channel to broadcast
 var channel;
 var channelName = 'general';
+
+var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
+var clientKraken = new KrakenClient();
+
+//-----
+//-----
+
+
+function getPriceGDAX(coin1, coin2, base) {
+	clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
+		if(err) {channel.send('Unsupported currency')}
+		else {
+			var per = "";
+			if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
+			channel.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
+			+ '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
+		}
+	});
+}
+
+function getPriceKraken(coin1, coin2, base) {
+	clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
+		if(error) {channel.send('Unsupported pair')}
+	    	else {
+			var per = ""
+			var s = (data.result[Object.keys(data.result)]['c'][0]);
+			if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
+			channel.send('__Kraken__ Price for **'  + coin1.toUpperCase()
+			+ '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
+
+		} 
+	});
+}
 
 
 //------
@@ -54,8 +93,8 @@ client.on('ready', () => {
 	createLogger('eth');
 	createLogger('gnt');	
 	createLogger('xrp');
-	createLogger('steem');
-
+	createLogger('ltc');
+	
 	// Get the channel
 	channel = client.channels.find("name", channelName);
 });
@@ -87,8 +126,12 @@ client.on('message', message => {
 			// for now. Call the python program that checks over the last 5 minutes. 
 			} else if(code_in[0] === 'wh'){
 				executeCommand('p', code_in[1])
+			} else if(code_in[0] === 'gdax') {
+				getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1))
+			} else if(code_in[0] === 'krkn') {
+				getPriceKraken(code_in[1], code_in[2], (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1))
 			} else if(code_in[0] === 'trk'){
-				console.log('trk execute');
+				console.log('trk called.');
 			} else {
 				const channel = client.channels.find("name", channelName);
 				channel.send(helpStr);
