@@ -36,7 +36,7 @@ class server():
         
         elif command[0] == 'p':
             # I need to rename writeToFile to something like 'on_demand'
-            s = pcom.spikeCheck(writeToFile=True)
+            s = pcom.spikeCheck()
             
             # Writing to stdout gives the answer to bot.js
             print s

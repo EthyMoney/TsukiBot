@@ -16,12 +16,12 @@ var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
 var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
 var poloniexhelp	= '* ' + prefix + ' (w)h XXX (poloniex)\n'
 var escanhelp		= '* ' + prefix + ' (e)scan address\n'
-var shortcuts		= prefix + 'g = GDAX ETH-USD\n' + prefix + 'k = Kraken ETH-USD'
+var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'k = Kraken ETH-USD`\n'
 var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
 var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
-var tips		= '`ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d';
+var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
 
-const helpStr = title + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + shortcuts + ticker + volumehelp + tips;
+const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips;
 
 //const helpStr = '__**TsukiBot**__ :full_moon: \n```Markdown\n* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n* ' + prefix + ' (g)dax XXX [op. base price]\n* ' + prefix + ' (w)h XXX (poloniex)\n* ' + prefix + ' (v)ol XXX [minutes] (poloniex)\n* ' + prefix +' (e)scan address\n' + prefix +'g = ' + prefix + ' gdax eth\n' + prefix +'k = ' + prefix + ' krkn eth usd```\n__Available tickers__\n`'+pairs + '`\n__Available vol. records__\n`ETH,GNT,XRP,SC`\n`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
 
