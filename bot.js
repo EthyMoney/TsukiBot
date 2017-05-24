@@ -6,8 +6,9 @@ var prefix = '.tb'
 
 
 // Allowed coins in commands
-const pairs = ['ETH', 'ETC', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN'];
-const volcoins = ['ETH', 'GNT', 'XRP', 'XMR', 'LTC']
+const pairs 		= ['ETH', 'ETC', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN'];
+const volcoins 		= ['ETH', 'GNT']
+const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD']
 
 // Help string
 //
@@ -32,6 +33,7 @@ const Discord 		= require('discord.js');
 const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
 const Gdax 		= require('gdax');
+const bittrex 		= require('node.bittrex.api');
 const api = require('etherscan-api').init('7VWN4TVXM92WN56TW57ZD474R5S88JA4HF');
 
 
@@ -43,13 +45,20 @@ var PythonShell = require('python-shell');
 var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 
 // Declare channels and the channels to broadcast
-var channel, channelGDAX;
+var channel, priceLiveCh;
 var channelName = 'general';
-var gdaxchannel = 'live-prices';
+var priceschannel = 'live-prices';
 
 // ID for block removal
 var lastblockid;
-var gdaxhandle;
+
+//GDAX vars
+var gdaxhandle, gdaxhandle2;
+var seconds = 0;
+var btcusd = 0;
+
+// Bittrex handle
+var bittrexhandle = {};
 
 // Initialize api things
 var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
@@ -70,7 +79,7 @@ function getPriceGDAX(coin1, coin2, base) {
 
 	// Get the spot price and send it to general
 	clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
-		if(err) {channel.send('Unsupported currency')}
+		if(err) {channel.send('API Error.')}
 		else {
 			var per = "";
 			if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
@@ -105,20 +114,31 @@ function getPriceKraken(coin1, coin2, base) {
 
 //------------------------------------------
 //------------------------------------------
-/*
+
+// Bittrex API v2 for BTC-GNT test.
+
 bittrex.options({
-    'apikey' : API_KEY,
-    'apisecret' : API_SECRET, 
     'stream' : true,
-    'verbose' : true,
-    'cleartext' : false 
+    'verbose' : false,
+    'cleartext' : true,
 });
 
-*/
+function getPriceBittrex() { 
+	setInterval( function() {
+		for(var i in bittrexcoins) {
+			bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=BTC-' + bittrexcoins[i], function( data ) {
+				if(data['Last']){
+					c = (data['MarketName'])
+					c = c.substring(c.indexOf('-')+1)
 
-
-
-
+					bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
+						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
+			   	}
+			}, true );
+		}
+	
+	}, 5000);
+}
 
 
 //------------------------------------------
@@ -193,25 +213,59 @@ client.on('ready', () => {
 	
 	// Get the channel handles
 	channel = client.channels.find("name", channelName);
-	channelGDAX = client.channels.find("name", gdaxchannel);
+	priceLiveCh = client.channels.find("name", priceschannel);
 	
+	priceLiveCh.send('**Live Prices**\n'+
+				'`——————————Main Coins——————————`\n');
+
 	
 	// Start the websocket and edit the message when new data comes.
-	channelGDAX.send('__GDAX__ Price for **'  + 'ETH'
+	priceLiveCh.send('```\nETH: '+ '...' + ' USD\n```').then(message =>  gdaxhandle = message)
+	priceLiveCh.send('```\nBTC: '+ '...' + ' USD\n```').then(message =>  gdaxhandle2 = message)
+	
+	/*
+	priceLiveCh.send('__GDAX__ Price for **'  + 'ETH'
 		+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle = message)
 	
-	channelGDAX.send('__GDAX__ Price for **'  + 'BTC'
+	priceLiveCh.send('__GDAX__ Price for **'  + 'BTC'
 		+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle2 = message)
-	
-	websocket.on('message', function(data) { if(data.type === 'match')
-							if(data.product_id === 'BTC-USD')
-								gdaxhandle2.edit('__GDAX__ Price for **'  + 'BTC'
-								+ '-' + 'USD' + '** is : `'  + data.price + ' ' + 'USD' + "`.")
-							else
-								gdaxhandle.edit('__GDAX__ Price for **'  + 'ETH'
-								+ '-' + 'USD' + '** is : `'  + data.price + ' ' + 'USD' + "`.")
+	*/
 
+	websocket.on('message', function(data) {
+						var unix_ts = Math.floor((new Date).getTime() / 1000);
+						
+						if(unix_ts > seconds && data.type === 'match'){
+							seconds = unix_ts;
+							if(data.product_id === 'BTC-USD'){
+								if(!(gdaxhandle2 == null)) {
+									btcusd = data.price;
+									gdaxhandle2.edit('```\nBTC: '+ data.price + ' USD\n```')
+								}
+							} else {
+								if(!(gdaxhandle == null)){
+									gdaxhandle.edit('```\nETH: '+ data.price + ' USD\n```')
+								}
+							}
+						}
 						});
+
+	
+	priceLiveCh.send('')
+
+	priceLiveCh.send('`——————————Alt  Coins——————————`\n');
+
+	// Start Bittrex handle
+	for(var i in bittrexcoins){
+		priceLiveCh.send('```\n' + bittrexcoins[i] + ': '+ '...' + ' BTC\n```').then(message => {
+					msg = message.content;
+					c = msg.substring(4,msg.indexOf(':'));
+					bittrexhandle[c] = message;
+					
+					if(Object.keys(bittrexhandle).length == bittrexcoins.length){
+						getPriceBittrex();
+					}
+				});
+	}
 });
 
 
@@ -282,7 +336,7 @@ client.on('message', message => {
 		"            :zap:  8=:punch: =D:sweat_drops:"+'\n' + 
 		"         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
 		"          :boot:    :boot:");
-		
+	}	
 	// Or XRP joke	
 	/*} else if (code_in.indexOf('xrp') > -1) {
 		message.react('🌑')
