@@ -252,8 +252,8 @@ client.on('message', message => {
 		
 	// Or XRP joke	
 	} else if (code_in.indexOf('xrp') > -1) {
-		message.react('🔭')
 		message.react('🌑')
+		message.react('🔭')
 		message.react('🐑')
 	}
 });
