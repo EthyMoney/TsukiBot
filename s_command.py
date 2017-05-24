@@ -13,7 +13,7 @@ class s_command():
         conn = psycopg2.connect("dbname=volumes user=tsukibot")   
         cur = conn.cursor()    
         
-        SQL = "SELECT sub.type, SUM(sub.volumebtc) FROM (SELECT * FROM poloniex WHERE coin = %s and time > CURRENT_TIMESTAMP - INTERVAL '%s minutes') sub GROUP BY type;"
+        SQL = "SELECT sub.type, SUM(sub.volumebtc) FROM (SELECT * FROM poloniex WHERE coin = %s and time > CURRENT_TIMESTAMP - INTERVAL '%s minutes') sub GROUP BY type ORDER BY sub.type DESC;"
 
         cur.execute(SQL, (self.coin, int(timef)))
          
