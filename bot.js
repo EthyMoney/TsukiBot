@@ -131,7 +131,7 @@ function getPriceBittrex() {
 					c = (data['MarketName'])
 					c = c.substring(c.indexOf('-')+1)
 
-					bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
+					if(bittrexhandle[c]) bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
 						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
 			   	}
 			}, true );
@@ -215,22 +215,70 @@ client.on('ready', () => {
 	channel = client.channels.find("name", channelName);
 	priceLiveCh = client.channels.find("name", priceschannel);
 	
-	priceLiveCh.send('**Live Prices**\n'+
-				'`——————————Main Coins——————————`\n');
+
+	if(fs.existsSync('./common/msg_id')){
+
+		data = fs.readFileSync('./common/msg_id');
+		
+		msg_id = JSON.parse(data)
+	
+		
+		priceLiveCh.fetchMessage(msg_id['GDAXeth']).then(message => gdaxhandle = message)
+		priceLiveCh.fetchMessage(msg_id['GDAXbtc']).then(message => gdaxhandle2 = message)
+	
+		
+		for(var i in bittrexcoins)
+			priceLiveCh.fetchMessage(msg_id[bittrexcoins[i]]).then(message => bittrexhandle[bittrexcoins[i]] = message)
+	
+		getPriceBittrex();
+	
+	} else {	
+		priceLiveCh.send('**Live Prices**\n'+
+					'`—————————— Main Coins ——————————`\n');
+		
+		ids = {}
+		
+
+		// Start the websocket and edit the message when new data comes.
+		priceLiveCh.send('```\nETH: '+ '...' + ' USD\n```').then(message =>  {gdaxhandle = message; ids['GDAXeth'] = message['id']})
+		priceLiveCh.send('```\nBTC: '+ '...' + ' USD\n```').then(message =>  {gdaxhandle2 = message; ids['GDAXbtc'] = message['id']})
+		
+		/*
+		priceLiveCh.send('__GDAX__ Price for **'  + 'ETH'
+			+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle = message)
+		
+		priceLiveCh.send('__GDAX__ Price for **'  + 'BTC'
+			+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle2 = message)
+		*/
+
+
+		
+		priceLiveCh.send('')
+
+		priceLiveCh.send('`—————————— Alt  Coins ——————————`\n');
+
+		// Start Bittrex handle
+		for(var i in bittrexcoins){
+			priceLiveCh.send('```\n' + bittrexcoins[i] + ': '+ '...' + ' BTC\n```').then(message => {
+						msg = message.content;
+						c = msg.substring(4,msg.indexOf(':'));
+						bittrexhandle[c] = message;
+						
+						if(Object.keys(bittrexhandle).length == bittrexcoins.length){
+							for(var key in bittrexhandle){
+								if(bittrexhandle.hasOwnProperty(key)){
+									ids[key] = bittrexhandle[key]['id']
+								}
+							}
+							
+							fs.writeFile("./common/msg_id", JSON.stringify(ids));
+							getPriceBittrex();
+						}
+					});
+		}
+	}
 
 	
-	// Start the websocket and edit the message when new data comes.
-	priceLiveCh.send('```\nETH: '+ '...' + ' USD\n```').then(message =>  gdaxhandle = message)
-	priceLiveCh.send('```\nBTC: '+ '...' + ' USD\n```').then(message =>  gdaxhandle2 = message)
-	
-	/*
-	priceLiveCh.send('__GDAX__ Price for **'  + 'ETH'
-		+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle = message)
-	
-	priceLiveCh.send('__GDAX__ Price for **'  + 'BTC'
-		+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle2 = message)
-	*/
-
 	websocket.on('message', function(data) {
 						var unix_ts = Math.floor((new Date).getTime() / 1000);
 						
@@ -248,26 +296,13 @@ client.on('ready', () => {
 							}
 						}
 						});
-
-	
-	priceLiveCh.send('')
-
-	priceLiveCh.send('`——————————Alt  Coins——————————`\n');
-
-	// Start Bittrex handle
-	for(var i in bittrexcoins){
-		priceLiveCh.send('```\n' + bittrexcoins[i] + ': '+ '...' + ' BTC\n```').then(message => {
-					msg = message.content;
-					c = msg.substring(4,msg.indexOf(':'));
-					bittrexhandle[c] = message;
-					
-					if(Object.keys(bittrexhandle).length == bittrexcoins.length){
-						getPriceBittrex();
-					}
-				});
-	}
 });
 
+
+function postHelp(){
+	const channel = client.channels.find("name", channelName);
+	channel.send(helpStr).then(message => {message.react("\u274E"); lastblockid = message.id;});
+}
 
 
 // Event goes off every time a message is read.
@@ -303,8 +338,7 @@ client.on('message', message => {
 					console.log('trk called.');
 				
 				} else {
-					const channel = client.channels.find("name", channelName);
-					channel.send(helpStr);
+					postHelp();
 				}
 
 			// If is it not a price command, check if the address is 42 chars long
@@ -313,21 +347,20 @@ client.on('message', message => {
 					getEtherBalance(code_in[1]);
 				}
 			} else {	
-				const channel = client.channels.find("name", channelName);
-				channel.send(helpStr);
+				postHelp();
 			}
 		}
 
 	// Shortcut section
 	} else if (code_in[0] === '.tbg') {
 		getPriceGDAX('ETH', 'USD', -1);
+	
 	} else if (code_in[0] === '.tbk') {
 		getPriceKraken('ETH','USD',-1)
+	
 	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
-		const channel = client.channels.find("name", channelName);
-		channel.send(helpStr);
-
-	// Or dank command	
+		postHelp();
+	
 	} else if (code_in[0] === '.dank') {
 		const channel = client.channels.find("name", channelName);
 		channel.send(":ok_hand:           :tiger:"+ '\n' + 
