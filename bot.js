@@ -42,15 +42,27 @@ var fs = require('fs');
 var PythonShell = require('python-shell');
 
 // Get the api keys
-var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
+var keys = JSON.parse(fs.readFileSync('keys.api','utf8'));
 
 // Declare channels and the channels to broadcast
 var channel, priceLiveCh;
 var channelName = 'general';
 var priceschannel = 'live-prices';
 
-// ID for block removal
-var lastblockid;
+// array of IDs for block removal
+var blockIDs = [];
+
+// blockIDs remove function
+function removeID(id) {
+    // index of the passed message.id
+    var index = blockIDs.indexOf(id);
+
+    // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
+    if (index > -1) {
+        // removes id from array
+        blockIDs.splice(index, 1);
+    }
+}
 
 //GDAX vars
 var gdaxhandle, gdaxhandle2;
@@ -172,7 +184,13 @@ function executeCommand(c, coin, par) {
 	// Add a react that allows the users to delete the message.
 	pyshell.stdout.on('data', function (data) {
 		console.log(data); 	
-		channel.send(data).then(message => {message.react("\u274E"); lastblockid = message.id;});
+		channel.send(data).then(message => {
+            message.react("\u274E"); 
+            blockIDs.push(message.id); 
+
+            // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+            setTimeout(function(){ removeID(message.id); }, 120000);
+        });
 	});
 }
 
@@ -301,7 +319,13 @@ client.on('ready', () => {
 
 function postHelp(){
 	const channel = client.channels.find("name", channelName);
-	channel.send(helpStr).then(message => {message.react("\u274E"); lastblockid = message.id;});
+	channel.send(helpStr).then(message => {
+        message.react("\u274E"); 
+        blockIDs.push(message.id); 
+
+        // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+        setTimeout(function(){ removeID(message.id); }, 120000);
+    });
 }
 
 
@@ -381,8 +405,8 @@ client.on('message', message => {
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 client.on('messageReactionAdd', messageReaction => {
-	if(messageReaction.message.id == lastblockid && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
-		messageReaction.message.delete().catch(console.error)
+	if (blockIDs.includes(messageReaction.message.id) && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count >= 3) {
+		messageReaction.message.delete().catch(console.error);
 	}
 });
 
