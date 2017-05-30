@@ -54,14 +54,14 @@ var blockIDs = [];
 
 // blockIDs remove function
 function removeID(id) {
-    // index of the passed message.id
-    var index = blockIDs.indexOf(id);
+	// index of the passed message.id
+	var index = blockIDs.indexOf(id);
 
-    // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
-    if (index > -1) {
-        // removes id from array
-        blockIDs.splice(index, 1);
-    }
+	// .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
+	if (index > -1) {
+		// removes id from array
+		blockIDs.splice(index, 1);
+	}
 }
 
 //GDAX vars
@@ -112,7 +112,7 @@ function getPriceKraken(coin1, coin2, base) {
 	// Get the spot price of the pair and send it to general
 	clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
 		if(error) {channel.send('Unsupported pair')}
-	    	else {
+			else {
 			var per = ""
 			var s = (data.result[Object.keys(data.result)]['c'][0]);
 			if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
@@ -130,9 +130,9 @@ function getPriceKraken(coin1, coin2, base) {
 // Bittrex API v2 for BTC-GNT test.
 
 bittrex.options({
-    'stream' : true,
-    'verbose' : false,
-    'cleartext' : true,
+	'stream' : true,
+	'verbose' : false,
+	'cleartext' : true,
 });
 
 function getPriceBittrex() { 
@@ -145,7 +145,7 @@ function getPriceBittrex() {
 
 					if(bittrexhandle[c]) bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
 						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
-			   	}
+				}
 			}, true );
 		}
 	
@@ -185,12 +185,12 @@ function executeCommand(c, coin, par) {
 	pyshell.stdout.on('data', function (data) {
 		console.log(data); 	
 		channel.send(data).then(message => {
-            message.react("\u274E"); 
-            blockIDs.push(message.id); 
+			message.react("\u274E"); 
+			blockIDs.push(message.id); 
 
-            // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
-            setTimeout(function(){ removeID(message.id); }, 120000);
-        });
+			// if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+			setTimeout(function(){ removeID(message.id); }, 120000);
+		});
 	});
 }
 
@@ -320,12 +320,12 @@ client.on('ready', () => {
 function postHelp(){
 	const channel = client.channels.find("name", channelName);
 	channel.send(helpStr).then(message => {
-        message.react("\u274E"); 
-        blockIDs.push(message.id); 
+		message.react("\u274E"); 
+		blockIDs.push(message.id); 
 
-        // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
-        setTimeout(function(){ removeID(message.id); }, 120000);
-    });
+		// if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+		setTimeout(function(){ removeID(message.id); }, 120000);
+	});
 }
 
 
