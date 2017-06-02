@@ -417,7 +417,7 @@ client.on('message', message => {
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 client.on('messageReactionAdd', messageReaction => {
-	if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
+	if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
 		messageReaction.message.delete().catch(console.error)
 	}
 });
