@@ -8,7 +8,9 @@ var prefix = '.tb'
 // Allowed coins in commands
 const pairs 		= ['ETH', 'ETC', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN'];
 const volcoins 		= ['ETH', 'GNT']
-const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD']
+const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
+const trexthrottle	= 5000
+const gdaxthrottle	= 2
 
 // Help string
 //
@@ -42,7 +44,7 @@ var fs = require('fs');
 var PythonShell = require('python-shell');
 
 // Get the api keys
-var keys = JSON.parse(fs.readFileSync('keys.api','utf8'));
+var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 
 // Declare channels and the channels to broadcast
 var channel, priceLiveCh;
@@ -75,7 +77,8 @@ var bittrexhandle = {};
 // Initialize api things
 var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
 var clientKraken = new KrakenClient();
-var websocket = new Gdax.WebsocketClient(['ETH-USD', 'BTC-USD']);
+var websocket = new Gdax.WebsocketClient(['ETH-USD', 'BTC-USD'], true);
+
 
 //------------------------------------------
 //------------------------------------------
@@ -112,7 +115,7 @@ function getPriceKraken(coin1, coin2, base) {
 	// Get the spot price of the pair and send it to general
 	clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
 		if(error) {channel.send('Unsupported pair')}
-			else {
+	    	else {
 			var per = ""
 			var s = (data.result[Object.keys(data.result)]['c'][0]);
 			if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
@@ -130,9 +133,9 @@ function getPriceKraken(coin1, coin2, base) {
 // Bittrex API v2 for BTC-GNT test.
 
 bittrex.options({
-	'stream' : true,
-	'verbose' : false,
-	'cleartext' : true,
+    'stream' : true,
+    'verbose' : false,
+    'cleartext' : true,
 });
 
 function getPriceBittrex() { 
@@ -145,11 +148,11 @@ function getPriceBittrex() {
 
 					if(bittrexhandle[c]) bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
 						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
-				}
+			   	}
 			}, true );
 		}
 	
-	}, 5000);
+	}, trexthrottle);
 }
 
 
@@ -296,11 +299,12 @@ client.on('ready', () => {
 		}
 	}
 
+	websocket.on('error', function(err) {console.log(err)});
 	
 	websocket.on('message', function(data) {
 						var unix_ts = Math.floor((new Date).getTime() / 1000);
 						
-						if(unix_ts > seconds && data.type === 'match'){
+						if(unix_ts > seconds+gdaxthrottle && data.type === 'match'){
 							seconds = unix_ts;
 							if(data.product_id === 'BTC-USD'){
 								if(!(gdaxhandle2 == null)) {
@@ -377,10 +381,15 @@ client.on('message', message => {
 
 	// Shortcut section
 	} else if (code_in[0] === '.tbg') {
-		getPriceGDAX('ETH', 'USD', -1);
-	
+		if(code_in[1] && code_in[1].toUpperCase() == 'EUR')
+			getPriceGDAX('ETH', 'EUR', -1);
+		else
+			getPriceGDAX('ETH', 'USD', -1);
 	} else if (code_in[0] === '.tbk') {
-		getPriceKraken('ETH','USD',-1)
+		if(code_in[1] && code_in[1].toUpperCase() == 'EUR')
+			getPriceKraken('ETH','EUR',-1)
+		else
+			getPriceKraken('ETH','USD',-1)
 	
 	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
 		postHelp();
@@ -393,7 +402,10 @@ client.on('message', message => {
 		"            :zap:  8=:punch: =D:sweat_drops:"+'\n' + 
 		"         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
 		"          :boot:    :boot:");
-	}	
+	} else if (code_in[0] === '.moonwhen') {
+		const channel = client.channels.find("name", channelName);
+		channel.send('Soon™')
+	}
 	// Or XRP joke	
 	/*} else if (code_in.indexOf('xrp') > -1) {
 		message.react('🌑')
@@ -405,8 +417,8 @@ client.on('message', message => {
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 client.on('messageReactionAdd', messageReaction => {
-	if (blockIDs.includes(messageReaction.message.id) && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count >= 3) {
-		messageReaction.message.delete().catch(console.error);
+	if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
+		messageReaction.message.delete().catch(console.error)
 	}
 });
 
