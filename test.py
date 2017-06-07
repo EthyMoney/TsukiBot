@@ -1,4 +1,6 @@
-import db_fetch as db
+import gdax_fetch as db
 
-f = db.fetcher(['eth','btm'])
+f = db.fetcher(['eth'])
+
+
 #f.close()

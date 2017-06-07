@@ -1,6 +1,7 @@
 import poloapi
 import json
 import psycopg2
+import GDAX
 
 import numpy as np
 
@@ -31,12 +32,7 @@ class fetcher():
         self.UpdateData()
 
 
-    def close(self):
-        cur = self.conn.cursor()
-        cur.execute("DELETE FROM poloniex;")
-        cur.close()
         
-        self.conn.close()
 
     # Data from Poloniex starting after the last saved ID
     def getTradeHistory(self, coin):

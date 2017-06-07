@@ -10,9 +10,10 @@ import p_command as pc
 
 
 class server():
-    def __init__(self, coin, par):
+    def __init__(self, coin, par, ex):
         self.coin = coin
         self.par = par
+        self.ex = ex
 
     def run(self):
 
@@ -23,13 +24,11 @@ class server():
         # Wait for the command input from bot.js
         command = raw_input()
             
-        # Check each case. No switch because yolo
-
         if command[0] == 's':
             # Get the latest DataFrame from the CSV
             
             self.par = (60 if (int(self.par) > 61 or int(self.par) == -1) else self.par)
-            s = scom.writeToFile(self.par)
+            s = scom.writeToFile(self.par,self.ex)
             
             # Writing to stdout gives the answer to bot.js
             print s
@@ -48,7 +47,7 @@ class server():
 
 
 def main():
-    s = server(str(sys.argv[1]).upper(), sys.argv[2])
+    s = server(str(sys.argv[1]).upper(), sys.argv[2], sys.argv[3])
     s.run()
 
 
