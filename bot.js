@@ -26,25 +26,25 @@ var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
 
 const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips;
 
-//const helpStr = '__**TsukiBot**__ :full_moon: \n```Markdown\n* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n* ' + prefix + ' (g)dax XXX [op. base price]\n* ' + prefix + ' (w)h XXX (poloniex)\n* ' + prefix + ' (v)ol XXX [minutes] (poloniex)\n* ' + prefix +' (e)scan address\n' + prefix +'g = ' + prefix + ' gdax eth\n' + prefix +'k = ' + prefix + ' krkn eth usd```\n__Available tickers__\n`'+pairs + '`\n__Available vol. records__\n`ETH,GNT,XRP,SC`\n`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
+
+// File read for JSON
+var fs = require('fs');	
+
+// Get the api keys
+var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 
 
 // Include api things
-//const bittrex 		= require('./node.bittrex.api.js');
 const Discord 		= require('discord.js');
 const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
 const Gdax 		= require('gdax');
 const bittrex 		= require('node.bittrex.api');
-const api = require('etherscan-api').init('7VWN4TVXM92WN56TW57ZD474R5S88JA4HF');
+const api = require('etherscan-api').init(keys['etherscan']);
 
 
 // Include stuff
-var fs = require('fs');	
 var PythonShell = require('python-shell');
-
-// Get the api keys
-var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 
 // Declare channels and the channels to broadcast
 var channel, priceLiveCh;
@@ -101,6 +101,7 @@ function getPriceGDAX(coin1, coin2, base) {
 			channel.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
 			+ '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
 		}
+
 	});
 }
 
@@ -133,7 +134,7 @@ function getPriceKraken(coin1, coin2, base) {
 // Bittrex API v2 for BTC-GNT test.
 
 bittrex.options({
-    'stream' : true,
+    'stream' : false,
     'verbose' : false,
     'cleartext' : true,
 });
@@ -148,10 +149,9 @@ function getPriceBittrex() {
 
 					if(bittrexhandle[c]) bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
 						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
-			   	}
+				}
 			}, true );
 		}
-	
 	}, trexthrottle);
 }
 
@@ -180,8 +180,14 @@ function createLogger(coins){
 // tsukiserver, which will call either the
 // s command or the p command.
 
-function executeCommand(c, coin, par) {
-	var pyshell = new PythonShell('./tsukiserver.py', {args:[coin, par]});
+function executeCommand(c, opts) {
+	console.log(opts)
+	
+	coin = opts.coin;
+	arg1 = opts.arg1 || -1;
+	arg2 = opts.arg2 || 'p';
+
+	var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
 	pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});		
 
 	// Add a react that allows the users to delete the message.
@@ -299,6 +305,7 @@ client.on('ready', () => {
 		}
 	}
 
+
 	websocket.on('error', function(err) {console.log(err)});
 	
 	websocket.on('message', function(data) {
@@ -352,16 +359,25 @@ client.on('message', message => {
 			if(pairs.filter(function(value){return value == code_in[1].toUpperCase();}).length > 0){ 		
 				
 				if(code_in[0] === 'vol' || code_in[0] === 'v'){
-					executeCommand('s', code_in[1], (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1))
+					executeCommand('s',
+						{
+							'coin' 	: code_in[1],
+							'arg1' 	: (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1),
+							'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
+						})
 			
 				} else if(code_in[0] === 'wh' || code_in[0] === 'w'){
-					executeCommand('p', code_in[1] )
+					executeCommand('p',
+						{
+							'coin' 	: code_in[1],
+						})
 				
 				} else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
 					getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1))
 				
 				} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
 					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1))
+				
 				} else if(code_in[0] === 'trk'){
 					console.log('trk called.');
 				
