@@ -1,5 +1,7 @@
 # TsukiBot 🌑 
-*Discord bot with cryptocurrency functionalities*
+**Discord bot with cryptocurrency functionalities**
+
+Crypto trading is an unfriendly task. May this aid you in your journey to Woyakland.
 
 ## Features
 + Get the volume for buy and sell orders.
@@ -49,7 +51,7 @@ ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`
 + Naked
 + discord.js
 
-Clone the repo.
+*Clone the repo.*
 
 ```bash
 git clone https://github.com/OFRBG/TsukiBot.git
@@ -57,27 +59,27 @@ cd TsukiBot
 mkdir common
 ```
 
-Install the dependencies.
+*Install the dependencies.*
 
 ```bash
 npm install discord.js --save
 npm install python-shell
 ```
 
-Create a `virtualenv` for the project.
+*Create a `virtualenv` for the project.*
 
 ```bash
 virtualenv TsukiBot
 source TsukiBot/bin/activate
 ```
 
-Install python dependencies.
+*Install python dependencies.*
 
 ```bash
 pip install pandas Naked
 ```
 
-Create a keys file.
+*Create a keys file.*
 
 ```bash
 nano keys.api
@@ -91,7 +93,7 @@ Inside keys.api add the following JSON substituting with your keys.
     "poloniex short key",
     "poloniex long key"
   ],
-  "discord": "discord token (long with mixed chars)"
+  "discord": "discord token (long with mixed chars)",
   "bittrex" : [
     "bittrex short key",
     "bittrex long key"
