@@ -1,15 +1,12 @@
-# TsukiBot
+# TsukiBot 🌑 
 *Discord bot with cryptocurrency functionalities*
 
 ## Features
 + Get the volume for buy and sell orders.
-+ Get large market trades from the last 5 minutes.
-+ Register a tracker to notify of an extra large trade.
++ Check prices from various exchanges in real time.
++ Fetch volume data on selected pairs.
 
-## Usage
-
-# TsukiBot 🌑
-
+# Usage
 
 ## Command Table
 
