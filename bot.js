@@ -1,4 +1,4 @@
-//const pairs = ['AMP', 'ARDR', 'BCN', 'BCY', 'BELA', 'BLK', 'BTCD', 'BTM', 'BTS', 'BURST', 'CLAM', 'DASH', 'DCR', 'DGB', 'DOGE', 'EMC2', 'ETC', 'ETH', 'EXP', 'FCT', 'FLDC', 'FLO', 'GAME', 'GNO', 'GNT', 'GRC', 'HUC', 'LBC', 'LSK', 'LTC', 'MAID', 'NAUT', 'NAV', 'NEOS', 'NMC', 'NOTE', 'NXC', 'NXT', 'OMNI', 'PASC', 'PINK', 'POT', 'PPC', 'RADS', 'REP', 'RIC', 'SBD', 'SC', 'SJCX', 'STEEM', 'STR', 'STRAT', 'SYS', 'VIA', 'VRC', 'VTC', 'XBC', 'XCP', 'XEM', 'XMR', 'XPM', 'XRP', 'XVC', 'ZEC'];
+//var pairs = ['AMP', 'ARDR', 'BCN', 'BCY', 'BELA', 'BLK', 'BTCD', 'BTM', 'BTS', 'BURST', 'CLAM', 'DASH', 'DCR', 'DGB', 'DOGE', 'EMC2', 'ETC', 'ETH', 'EXP', 'FCT', 'FLDC', 'FLO', 'GAME', 'GNO', 'GNT', 'GRC', 'HUC', 'LBC', 'LSK', 'LTC', 'MAID', 'NAUT', 'NAV', 'NEOS', 'NMC', 'NOTE', 'NXC', 'NXT', 'OMNI', 'PASC', 'PINK', 'POT', 'PPC', 'RADS', 'REP', 'RIC', 'SBD', 'SC', 'SJCX', 'STEEM', 'STR', 'STRAT', 'SYS', 'VIA', 'VRC', 'VTC', 'XBC', 'XCP', 'XEM', 'XMR', 'XPM', 'XRP', 'XVC', 'ZEC'];
 
 
 // Set the prefix
@@ -6,8 +6,8 @@ var prefix = '.tb'
 
 
 // Allowed coins in commands
-const pairs 		= ['ETH', 'ETC', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN'];
-const volcoins 		= ['ETH', 'GNT']
+const pairs 		= ['ETH', 'ETHX', 'ETC', 'EOS', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN', 'STEEM', 'USDT']
+const volcoins 		= ['ETH', 'GNT', 'LTC', 'ETHX']
 const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
 const trexthrottle	= 5000
 const gdaxthrottle	= 2
@@ -17,9 +17,10 @@ const gdaxthrottle	= 2
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
 var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
-var poloniexhelp	= '* ' + prefix + ' (w)h XXX (poloniex)\n'
+var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
+var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
 var escanhelp		= '* ' + prefix + ' (e)scan address\n'
-var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'k = Kraken ETH-USD`\n\n'
+var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'b = Bittrex BTC-ETH\n' + prefix + 'k = Kraken ETH-USD\n' + prefix + 'p = Poloniex BTC-ETH`\n\n'
 var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
 var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
 var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
@@ -29,6 +30,9 @@ const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp +
 
 // File read for JSON
 var fs = require('fs');	
+
+// HTTP request
+var request = require("request")
 
 // Get the api keys
 var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
@@ -90,15 +94,15 @@ var websocket = new Gdax.WebsocketClient(['ETH-USD', 'BTC-USD'], true);
 // change on a base price.
 
 // Function that gets GDAX spot prices
-function getPriceGDAX(coin1, coin2, base) {
+function getPriceGDAX(coin1, coin2, base, chn) {
 
 	// Get the spot price and send it to general
 	clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
-		if(err) {channel.send('API Error.')}
+		if(err) {msg.channel.send('API Error.')}
 		else {
 			var per = "";
 			if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
-			channel.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
+			chn.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
 			+ '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
 		}
 
@@ -111,16 +115,16 @@ function getPriceGDAX(coin1, coin2, base) {
 
 
 // Function that gets Kraken prices
-function getPriceKraken(coin1, coin2, base) {
+function getPriceKraken(coin1, coin2, base, chn) {
 
 	// Get the spot price of the pair and send it to general
 	clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
-		if(error) {channel.send('Unsupported pair')}
+		if(error) {chn.send('Unsupported pair')}
 	    	else {
 			var per = ""
 			var s = (data.result[Object.keys(data.result)]['c'][0]);
 			if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
-			channel.send('__Kraken__ Price for **'  + coin1.toUpperCase()
+			chn.send('__Kraken__ Price for **'  + coin1.toUpperCase()
 			+ '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
 
 		} 
@@ -131,7 +135,29 @@ function getPriceKraken(coin1, coin2, base) {
 //------------------------------------------
 //------------------------------------------
 
-// Bittrex API v2 for BTC-GNT test.
+
+// Function that gets Poloniex prices
+function getPricePolo(coin1, coin2, chn) {
+	var url = "https://poloniex.com/public?command=returnTicker";
+	coin2 = coin2.toUpperCase();
+
+	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
+		request({
+			url: url,
+			json: true
+		}, function(error, response, body){
+				var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
+				var s = body[pair]['last']
+				chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
+				+ '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
+			});
+	}
+}
+
+//------------------------------------------
+//------------------------------------------
+
+// Bittrex API v2
 
 bittrex.options({
     'stream' : false,
@@ -139,20 +165,24 @@ bittrex.options({
     'cleartext' : true,
 });
 
-function getPriceBittrex() { 
-	setInterval( function() {
-		for(var i in bittrexcoins) {
-			bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=BTC-' + bittrexcoins[i], function( data ) {
-				if(data['Last']){
-					c = (data['MarketName'])
-					c = c.substring(c.indexOf('-')+1)
+function getPriceBittrex(coin1, coin2, chn) { 
+	coin1 = coin1.toUpperCase()
+	coin2 = coin2.toUpperCase()
+	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
+		bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
+			data = JSON.parse(data)	
 
-					if(bittrexhandle[c]) bittrexhandle[c].edit('```\n' + c + ': '+ (Math.floor(data['Last'] * 100000000) / 100000000) 
-						+ ' BTC || ' +  (Math.floor(data['Last'] * btcusd * 100) / 100) + ' USD\n```');
-				}
-			}, true );
-		}
-	}, trexthrottle);
+			if(data['result']){
+				p = data['result'];
+				chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
+					+ '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
+			} else {
+				chn.send('Bittrex API error.')	
+			}
+		});
+	} else {
+		chn.send('Invalid pair. (Use `ETHX, BTCX, USDTX` only.)')
+	}
 }
 
 
@@ -180,7 +210,7 @@ function createLogger(coins){
 // tsukiserver, which will call either the
 // s command or the p command.
 
-function executeCommand(c, opts) {
+function executeCommand(c, opts, chn) {
 	console.log(opts)
 	
 	coin = opts.coin;
@@ -193,7 +223,7 @@ function executeCommand(c, opts) {
 	// Add a react that allows the users to delete the message.
 	pyshell.stdout.on('data', function (data) {
 		console.log(data); 	
-		channel.send(data).then(message => {
+		chn.send(data).then(message => {
 			message.react("\u274E"); 
 			blockIDs.push(message.id); 
 
@@ -212,10 +242,10 @@ function executeCommand(c, opts) {
 // for a given address. The balance is returned
 // in weis.
 
-function getEtherBalance(address){
+function getEtherBalance(address, chn){
 	var balance = api.account.balance(address);
 	balance.then(function(res){
-		channel.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
+		chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
 	});
 }
 
@@ -239,72 +269,8 @@ client.on('ready', () => {
 	createLogger(volcoins);
 	
 	// Get the channel handles
-	channel = client.channels.find("name", channelName);
 	priceLiveCh = client.channels.find("name", priceschannel);
 	
-
-	if(fs.existsSync('./common/msg_id')){
-
-		data = fs.readFileSync('./common/msg_id');
-		
-		msg_id = JSON.parse(data)
-	
-		
-		priceLiveCh.fetchMessage(msg_id['GDAXeth']).then(message => gdaxhandle = message)
-		priceLiveCh.fetchMessage(msg_id['GDAXbtc']).then(message => gdaxhandle2 = message)
-	
-		
-		for(var i in bittrexcoins)
-			priceLiveCh.fetchMessage(msg_id[bittrexcoins[i]]).then(message => bittrexhandle[bittrexcoins[i]] = message)
-	
-		getPriceBittrex();
-	
-	} else {	
-		priceLiveCh.send('**Live Prices**\n'+
-					'`—————————— Main Coins ——————————`\n');
-		
-		ids = {}
-		
-
-		// Start the websocket and edit the message when new data comes.
-		priceLiveCh.send('```\nETH: '+ '...' + ' USD\n```').then(message =>  {gdaxhandle = message; ids['GDAXeth'] = message['id']})
-		priceLiveCh.send('```\nBTC: '+ '...' + ' USD\n```').then(message =>  {gdaxhandle2 = message; ids['GDAXbtc'] = message['id']})
-		
-		/*
-		priceLiveCh.send('__GDAX__ Price for **'  + 'ETH'
-			+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle = message)
-		
-		priceLiveCh.send('__GDAX__ Price for **'  + 'BTC'
-			+ '-' + 'USD' + '** is : `'  + '...' + ' ' + 'USD' + "`.").then(message =>  gdaxhandle2 = message)
-		*/
-
-
-		
-		priceLiveCh.send('')
-
-		priceLiveCh.send('`—————————— Alt  Coins ——————————`\n');
-
-		// Start Bittrex handle
-		for(var i in bittrexcoins){
-			priceLiveCh.send('```\n' + bittrexcoins[i] + ': '+ '...' + ' BTC\n```').then(message => {
-						msg = message.content;
-						c = msg.substring(4,msg.indexOf(':'));
-						bittrexhandle[c] = message;
-						
-						if(Object.keys(bittrexhandle).length == bittrexcoins.length){
-							for(var key in bittrexhandle){
-								if(bittrexhandle.hasOwnProperty(key)){
-									ids[key] = bittrexhandle[key]['id']
-								}
-							}
-							
-							fs.writeFile("./common/msg_id", JSON.stringify(ids));
-							getPriceBittrex();
-						}
-					});
-		}
-	}
-
 
 	websocket.on('error', function(err) {console.log(err)});
 	
@@ -328,9 +294,8 @@ client.on('ready', () => {
 });
 
 
-function postHelp(){
-	const channel = client.channels.find("name", channelName);
-	channel.send(helpStr).then(message => {
+function postHelp(chn){
+	chn.send(helpStr).then(message => {
 		message.react("\u274E"); 
 		blockIDs.push(message.id); 
 
@@ -342,6 +307,13 @@ function postHelp(){
 
 // Event goes off every time a message is read.
 client.on('message', message => {
+
+	var channel;
+
+	if(message.guild.id == '305198230272999434')
+		channel = message.guild.channels.find("name", "bot_commands_output");
+	else
+		channel = message.channel;
 
 	// Split the message by spaces.
 	var code_in = message.content.split(' ');
@@ -364,54 +336,71 @@ client.on('message', message => {
 							'coin' 	: code_in[1],
 							'arg1' 	: (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1),
 							'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
-						})
+						}, channel)
 			
 				} else if(code_in[0] === 'wh' || code_in[0] === 'w'){
 					executeCommand('p',
 						{
 							'coin' 	: code_in[1],
-						})
+						}, channel)
 				
 				} else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
-					getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1))
+					getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
 				
 				} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
-					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1))
+					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
 				
 				} else if(code_in[0] === 'trk'){
 					console.log('trk called.');
+			
+				} else if(code_in[0] === 'polo' || code_in[0] === 'p'){
+					getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
 				
+				} else if(code_in[0] === 'bit' || code_in[0] === 'b'){
+					getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
+
 				} else {
-					postHelp();
+					postHelp(channel);
 				}
 
 			// If is it not a price command, check if the address is 42 chars long
 			} else if(code_in[1].length == 42){
 				if(code_in[0] === 'escan' || code_in[0] === 'e') {
-					getEtherBalance(code_in[1]);
+					getEtherBalance(code_in[1], channel);
 				}
 			} else {	
-				postHelp();
+				postHelp(channel);;
 			}
 		}
 
 	// Shortcut section
 	} else if (code_in[0] === '.tbg') {
-		if(code_in[1] && code_in[1].toUpperCase() == 'EUR')
-			getPriceGDAX('ETH', 'EUR', -1);
+		if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+			getPriceGDAX('ETH', 'EUR', -1, channel);
+		else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+			getPriceGDAX('BTC', 'USD', -1, channel);
 		else
-			getPriceGDAX('ETH', 'USD', -1);
+			getPriceGDAX('ETH', 'USD', -1, channel);
+
 	} else if (code_in[0] === '.tbk') {
-		if(code_in[1] && code_in[1].toUpperCase() == 'EUR')
-			getPriceKraken('ETH','EUR',-1)
+		if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+			getPriceKraken('ETH','EUR',-1, channel)
+		else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+			getPriceKraken('XBT', 'USD', -1, channel);
 		else
-			getPriceKraken('ETH','USD',-1)
+			getPriceKraken('ETH','USD',-1, channel);
+	
+	} else if (code_in[0] === '.tbp') {
+		getPricePolo('ETH', 'BTC', channel)
+
+	} else if (code_in[0] === '.tbb') {
+		getPriceBittrex('ETH', channel)
 	
 	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
-		postHelp();
+		postHelp(channel);
 	
 	} else if (code_in[0] === '.dank') {
-		const channel = client.channels.find("name", channelName);
+		const channel = message.channel; 
 		channel.send(":ok_hand:           :tiger:"+ '\n' + 
 		" :eggplant: :zzz: :necktie: :eggplant:"+'\n' + 
 		"                  :oil:     :nose:"+'\n' + 
@@ -419,7 +408,7 @@ client.on('message', message => {
 		"         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
 		"          :boot:    :boot:");
 	} else if (code_in[0] === '.moonwhen') {
-		const channel = client.channels.find("name", channelName);
+		const channel = message.channel;
 		channel.send('Soon™')
 	}
 	// Or XRP joke	
@@ -433,7 +422,7 @@ client.on('message', message => {
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 client.on('messageReactionAdd', messageReaction => {
-	if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
+	if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
 		messageReaction.message.delete().catch(console.error)
 	}
 });

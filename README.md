@@ -8,13 +8,40 @@
 
 ## Usage
 
-`!'tb` is the bot prefix.
+# TsukiBot 🌑
 
-`vol XXX` gets the volume of trade of the pair BTCXXX.
 
-`wh XXX` gets the largest trades in the last 5 minutes of BTCXXX.
+## Command Table
 
-`trk XX` creates a tracker for coin XXX. When a large trade happens, the bot reports if it's buy or sell, rate and size.
+|  Command Name   |  Command Call    |  Options    | Shortcuts |
+|------|------|------|------|
+|   Kraken   | `k` or `krkn`     |  `XXX`, [`YYY`], [base price]    | `.tbk`, `.tbk eur`, `.tbk btc`|
+|   GDAX   | `g` or `gdax`     |  `XXX`, [`YYY`], [base price]    | `.tbg`, `.tbg eur`, `.tbg btc`|
+|   Poloniex   | `p` or `polo`     |  `XXX`, [`YYY`]    | `.tbp`|
+|   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
+|   Etherscan   | `e` or `escan`     |  hex address   |  n.a. |
+|   Help   | `.help` or `.th`     |  n.a.   |  n.a. |
+
+[`YYY`] defaults to the main fiat pair. Usually `USD` or `USDT`.
+
+If a [base price] is provided, the result will return the percent change from that price to the current one.
+
+### _Available Tickers_
+```
+ETH, ETHX, ETC, EOS, GNT, XRP, LTC, BTC, XBT, MLN, ICN, STEEM, USDT
+```
+
+This may change on later versions.
+
+### _Available Volume Records_
+```
+ETH, GNT, LTC, ETHX
+```
+
+`ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
+
+ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`
+
 
 ## Installation
 
@@ -68,6 +95,15 @@ Inside keys.api add the following JSON substituting with your keys.
     "poloniex long key"
   ],
   "discord": "discord token (long with mixed chars)"
+  "bittrex" : [
+    "bittrex short key",
+    "bittrex long key"
+  ],
+  "coinbase" : [
+    "coinbase short key",
+    "coinbase long key"
+  ],
+  "etherscan" : "api key"
 }
 ```
 
@@ -77,10 +113,4 @@ To run the main bot:
 
 ```bash
 node bot.js
-```
-
-To run the bot with tracking features:
-
-```bash
-node tracker.js
 ```

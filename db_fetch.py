@@ -20,6 +20,7 @@ class fetcher():
     def __init__(self,coins):
 
         self.coins = coins
+    
 
         with open('keys.api') as json_data:
             keys = json.load(json_data)
@@ -36,7 +37,10 @@ class fetcher():
 
     # Data from Poloniex starting after the last saved ID
     def getTradeHistory(self, coin):
-        return self.p.returnMarketTradeHistory('BTC_' + coin)
+        if coin[-1] == 'X':
+            return self.p.returnMarketTradeHistory('USDT_' + coin[:-1]);
+        else:
+            return self.p.returnMarketTradeHistory('BTC_' + coin)
          
 
 
@@ -62,6 +66,10 @@ class fetcher():
         for coin in self.coins:
             
             coin = coin.upper()
+            
+            if coin[-1] == 'X':
+                coin[:-1]
+
             lt = self.LastTradeID(coin)
 
             arr = np.array(self.getTradeHistory(coin)),
