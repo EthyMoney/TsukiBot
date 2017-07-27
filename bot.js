@@ -6,8 +6,8 @@ var prefix = '.tb'
 
 
 // Allowed coins in commands
-const pairs 		= ['ETH', 'ETHX', 'ETC', 'EOS', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN', 'STEEM', 'USDT']
-const volcoins 		= ['ETH', 'GNT', 'LTC', 'ETHX']
+const pairs 		= ['ETH', 'ANT', 'ETHX', 'ETC', 'EOS', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN', 'STEEM', 'USDT']
+const volcoins 		= ['ETH', 'ETHX']
 const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
 const trexthrottle	= 5000
 const gdaxthrottle	= 2
@@ -15,18 +15,19 @@ const gdaxthrottle	= 2
 // Help string
 //
 var title 		= '__**TsukiBot**__ :full_moon: \n'
-var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
-var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
-var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
-var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
-var escanhelp		= '* ' + prefix + ' (e)scan address\n'
-var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'b = Bittrex BTC-ETH\n' + prefix + 'k = Kraken ETH-USD\n' + prefix + 'p = Poloniex BTC-ETH`\n\n'
-var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
-var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
-var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`';
+//var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
+//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
+//var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
+//var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
+//var escanhelp		= '* ' + prefix + ' (e)scan address\n'
+//var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'b = Bittrex BTC-ETH\n' + prefix + 'k = Kraken ETH-USD\n' + prefix + 'p = Poloniex BTC-ETH`\n\n'
+//var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
+//var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
+//var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`\n';
+var github		= 'Check the GitHub repo for more detailed information. https://github.com/OFRBG/TsukiBot#command-table'
 
-const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips;
-
+//const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
+const helpStr = title + github;
 
 // File read for JSON
 var fs = require('fs');	
@@ -329,6 +330,11 @@ client.on('message', message => {
 			
 			// Check if the command exists and it uses a valid pair
 			if(pairs.filter(function(value){return value == code_in[1].toUpperCase();}).length > 0){ 		
+			
+				
+				if(code_in.length > 2 && !pairs.filter(function(value){return value == code_in[2].toUpperCase();}).length > 0)	
+					postHelp(channel);
+				
 				
 				if(code_in[0] === 'vol' || code_in[0] === 'v'){
 					executeCommand('s',
@@ -369,7 +375,7 @@ client.on('message', message => {
 					getEtherBalance(code_in[1], channel);
 				}
 			} else {	
-				postHelp(channel);;
+				postHelp(channel);
 			}
 		}
 

@@ -1,4 +1,4 @@
-# TsukiBot 🌑 
+# TsukiBot 🌑 V0.8 
 **Discord bot with cryptocurrency functionalities**
 
 Crypto trading is an unfriendly task. May this aid you in your journey to Woyakland.
@@ -34,7 +34,7 @@ This may change on later versions.
 
 ### _Available Volume Records_
 ```
-ETH, GNT, LTC, ETHX
+ETH, ETHX (<-ETHUSD)
 ```
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
