@@ -1,4 +1,4 @@
-# TsukiBot 🌑 V0.8 
+# TsukiBot 🌑 
 **Discord bot with cryptocurrency functionalities**
 
 Crypto trading is an unfriendly task. May this aid you in your journey to Woyakland.
@@ -17,6 +17,7 @@ Crypto trading is an unfriendly task. May this aid you in your journey to Woyakl
 |   Kraken   | `k` or `krkn`     |  `XXX`, [`YYY`], [base price]    | `.tbk`, `.tbk eur`, `.tbk btc`|
 |   GDAX   | `g` or `gdax`     |  `XXX`, [`YYY`], [base price]    | `.tbg`, `.tbg eur`, `.tbg btc`|
 |   Poloniex   | `p` or `polo`     |  `XXX`, [`YYY`]    | `.tbp`|
+| CryptoCompare | `c` or `crcp` | `XXX` [`YYY` ... `ZZZ`] | n.a. |
 |   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
 |   Etherscan   | `e` or `escan`     |  hex address   |  n.a. |
 |   Help   | `.help` or `.th`     |  n.a.   |  n.a. |
@@ -34,7 +35,7 @@ This may change on later versions.
 
 ### _Available Volume Records_
 ```
-ETH, ETHX (<-ETHUSD)
+ETH, GNT, LTC, ETHX
 ```
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.

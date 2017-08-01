@@ -1,12 +1,15 @@
 //var pairs = ['AMP', 'ARDR', 'BCN', 'BCY', 'BELA', 'BLK', 'BTCD', 'BTM', 'BTS', 'BURST', 'CLAM', 'DASH', 'DCR', 'DGB', 'DOGE', 'EMC2', 'ETC', 'ETH', 'EXP', 'FCT', 'FLDC', 'FLO', 'GAME', 'GNO', 'GNT', 'GRC', 'HUC', 'LBC', 'LSK', 'LTC', 'MAID', 'NAUT', 'NAV', 'NEOS', 'NMC', 'NOTE', 'NXC', 'NXT', 'OMNI', 'PASC', 'PINK', 'POT', 'PPC', 'RADS', 'REP', 'RIC', 'SBD', 'SC', 'SJCX', 'STEEM', 'STR', 'STRAT', 'SYS', 'VIA', 'VRC', 'VTC', 'XBC', 'XCP', 'XEM', 'XMR', 'XPM', 'XRP', 'XVC', 'ZEC'];
 
+// File read for JSON
+var fs = require('fs');	
 
 // Set the prefix
 var prefix = '.tb'
 
 
 // Allowed coins in commands
-const pairs 		= ['ETH', 'ANT', 'ETHX', 'ETC', 'EOS', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN', 'STEEM', 'USDT']
+//const pairs 		= ['ETH', 'ANT', 'ETHX', 'ETC', 'EOS', 'GNT', 'XRP', 'LTC', 'BTC', 'XBT', 'MLN', 'ICN', 'STEEM', 'USDT']
+const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
 const volcoins 		= ['ETH', 'ETHX']
 const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
 const trexthrottle	= 5000
@@ -29,8 +32,6 @@ var github		= 'Check the GitHub repo for more detailed information. https://gith
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
 const helpStr = title + github;
 
-// File read for JSON
-var fs = require('fs');	
 
 // HTTP request
 var request = require("request")
@@ -45,7 +46,11 @@ const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
 const Gdax 		= require('gdax');
 const bittrex 		= require('node.bittrex.api');
-const api = require('etherscan-api').init(keys['etherscan']);
+const api 		= require('etherscan-api').init(keys['etherscan']);
+const cc 		= require('cryptocompare');
+
+// CryptoCompare requires global fetch
+global.fetch = require('node-fetch');
 
 
 // Include stuff
@@ -82,7 +87,6 @@ var bittrexhandle = {};
 // Initialize api things
 var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
 var clientKraken = new KrakenClient();
-var websocket = new Gdax.WebsocketClient(['ETH-USD', 'BTC-USD'], true);
 
 
 //------------------------------------------
@@ -111,6 +115,31 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 }
 
 
+
+//------------------------------------------
+//------------------------------------------
+
+
+// Function that gets CryptoCompare prices
+function getPriceCC(coins, chn) {
+
+	// Get the spot price of the pair and send it to general
+	cc.priceMulti(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
+	then(prices => {
+		var msg = '__CryptoCompare__\n';
+		
+		for(var i = 0; i < coins.length; i++)
+			msg += '- **' + coins[i].toUpperCase() + '-USD** is : `' + prices[coins[i].toUpperCase()]['USD'] + ' USD`.\n';
+		
+
+		chn.send(msg);
+		})
+	.catch(console.error);
+}
+
+
+//------------------------------------------
+//------------------------------------------
 //------------------------------------------
 //------------------------------------------
 
@@ -271,27 +300,7 @@ client.on('ready', () => {
 	
 	// Get the channel handles
 	priceLiveCh = client.channels.find("name", priceschannel);
-	
 
-	websocket.on('error', function(err) {console.log(err)});
-	
-	websocket.on('message', function(data) {
-						var unix_ts = Math.floor((new Date).getTime() / 1000);
-						
-						if(unix_ts > seconds+gdaxthrottle && data.type === 'match'){
-							seconds = unix_ts;
-							if(data.product_id === 'BTC-USD'){
-								if(!(gdaxhandle2 == null)) {
-									btcusd = data.price;
-									gdaxhandle2.edit('```\nBTC: '+ data.price + ' USD\n```')
-								}
-							} else {
-								if(!(gdaxhandle == null)){
-									gdaxhandle.edit('```\nETH: '+ data.price + ' USD\n```')
-								}
-							}
-						}
-						});
 });
 
 
@@ -336,7 +345,7 @@ client.on('message', message => {
 					postHelp(channel);
 				
 				
-				if(code_in[0] === 'vol' || code_in[0] === 'v'){
+				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1]) > -1){
 					executeCommand('s',
 						{
 							'coin' 	: code_in[1],
@@ -344,7 +353,7 @@ client.on('message', message => {
 							'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
 						}, channel)
 			
-				} else if(code_in[0] === 'wh' || code_in[0] === 'w'){
+				} else if(false && code_in[0] === 'wh' || code_in[0] === 'w'){
 					executeCommand('p',
 						{
 							'coin' 	: code_in[1],
@@ -355,6 +364,10 @@ client.on('message', message => {
 				
 				} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
 					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
+				
+				} else if(code_in[0] === 'crcp' || code_in[0] === 'c') {
+					code_in.splice(0,1);
+					getPriceCC(code_in, channel);
 				
 				} else if(code_in[0] === 'trk'){
 					console.log('trk called.');
