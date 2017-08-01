@@ -27,7 +27,7 @@ var title 		= '__**TsukiBot**__ :full_moon: \n'
 //var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
 //var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
 //var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`\n';
-var github		= 'Check the GitHub repo for more detailed information. https://github.com/OFRBG/TsukiBot#command-table'
+var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
 const helpStr = title + github;
@@ -197,7 +197,7 @@ bittrex.options({
 
 function getPriceBittrex(coin1, coin2, chn) { 
 	coin1 = coin1.toUpperCase()
-	coin2 = coin2.toUpperCase()
+	coin2 = coin2.toUpperCase() || 'BTC'
 	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
 		bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
 			data = JSON.parse(data)	
@@ -412,8 +412,11 @@ client.on('message', message => {
 	} else if (code_in[0] === '.tbp') {
 		getPricePolo('ETH', 'BTC', channel)
 
+	} else if (code_in[0] === '.tbpop') {
+		getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
+
 	} else if (code_in[0] === '.tbb') {
-		getPriceBittrex('ETH', channel)
+		getPriceBittrex('ETH', 'BTC', channel)
 	
 	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
 		postHelp(channel);
