@@ -333,19 +333,15 @@ client.on('message', message => {
 
 		// Remove the prefix
 		code_in.splice(0,1);
-			
+		
+
 		// Check if there is content	
 		if(code_in.length > 1) {
-			
+
 			// Check if the command exists and it uses a valid pair
-			if(pairs.filter(function(value){return value == code_in[1].toUpperCase();}).length > 0){ 		
-			
+			if((code_in.slice(1,code_in.length).filter(function(value){ return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;  }).length + 1  == code_in.length)) {
 				
-				if(code_in.length > 2 && !pairs.filter(function(value){return value == code_in[2].toUpperCase();}).length > 0)	
-					postHelp(channel);
-				
-				
-				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1]) > -1){
+				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
 					executeCommand('s',
 						{
 							'coin' 	: code_in[1],

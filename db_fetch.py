@@ -1,7 +1,7 @@
 import poloapi
 import json
 import psycopg2
-import GDAX
+import gdax 
 
 import numpy as np
 

@@ -1,7 +1,7 @@
 import poloapi
 import json
 import psycopg2
-import GDAX
+import gdax 
 
 import numpy as np
 
@@ -16,7 +16,7 @@ from Naked.toolshed.shell import execute_js, muterun_js
 from datetime import datetime, timedelta
 
 
-class GDAXDB(GDAX.WebsocketClient):
+class GDAXDB(gdax.WebsocketClient):
     def mapType(self,typer):
         return 1 if typer == 'sell' else -1
     
