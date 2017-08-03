@@ -28,14 +28,14 @@ If a [base price] is provided, the result will return the percent change from th
 
 ### _Available Tickers_
 ```
-Almost every currency.
+ETH, ETHX, ETC, EOS, GNT, XRP, LTC, BTC, XBT, MLN, ICN, STEEM, USDT
 ```
 
 This may change on later versions.
 
 ### _Available Volume Records_
 ```
-ETH, ETHX
+ETH, GNT, LTC, ETHX
 ```
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
@@ -48,13 +48,16 @@ ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`
 ### Depends:
 + python 2.7.x
 + node.js >= 6.0.0
-+ 
++ python-shell
++ Naked
++ discord.js
 
 *Clone the repo.*
 
 ```bash
 git clone https://github.com/OFRBG/TsukiBot.git
 cd TsukiBot
+mkdir common
 ```
 
 *Install the dependencies.*
@@ -83,7 +86,7 @@ pip install psycopg2 pandas Naked
 nano keys.api
 ```
 
-*Inside keys.api add the following JSON substituting with your keys.*
+Inside keys.api add the following JSON substituting with your keys.
 
 ```json
 {

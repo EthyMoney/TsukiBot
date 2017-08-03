@@ -177,10 +177,16 @@ function getPricePolo(coin1, coin2, chn) {
 			json: true
 		}, function(error, response, body){
 				var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
-				var s = body[pair]['last']
-				chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
-				+ '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
-			});
+				
+                                try {
+                                    var s = body[pair]['last']
+                                    chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
+                                    + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
+			        } catch (err) {
+                                    console.log(err);
+                                    chn.send("Poloniex API Error.")
+                                }
+                        });
 	}
 }
 
@@ -373,20 +379,15 @@ client.on('message', message => {
 				
 				} else if(code_in[0] === 'bit' || code_in[0] === 'b'){
 					getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
-
-				} else {
+				
+                                } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
+                                         getEtherBalance(code_in[1], channel);
+				
+                                } else {
 					postHelp(channel);
 				}
-
-			// If is it not a price command, check if the address is 42 chars long
-			} else if(code_in[1].length == 42){
-				if(code_in[0] === 'escan' || code_in[0] === 'e') {
-					getEtherBalance(code_in[1], channel);
-				}
-			} else {	
-				postHelp(channel);
-			}
-		}
+		    }	
+	    }
 
 	// Shortcut section
 	} else if (code_in[0] === '.tbg') {
