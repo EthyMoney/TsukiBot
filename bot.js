@@ -19,7 +19,7 @@ const gdaxthrottle	= 2
 //
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 //var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
-//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
+//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX[op. base price]\n' 
 //var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
 //var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
 //var escanhelp		= '* ' + prefix + ' (e)scan address\n'
@@ -124,12 +124,15 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 function getPriceCC(coins, chn) {
 
 	// Get the spot price of the pair and send it to general
-	cc.priceMulti(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
+	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
 	then(prices => {
-		var msg = '__CryptoCompare__\n';
-		
+		var msg = '__**CryptoCompare**__\n';
+                
 		for(var i = 0; i < coins.length; i++)
-			msg += '- **' + coins[i].toUpperCase() + '-USD** is : `' + prices[coins[i].toUpperCase()]['USD'] + ' USD`.\n';
+			msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
+                            prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+                            Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+                            );
 		
 
 		chn.send(msg);
@@ -208,7 +211,7 @@ function getPriceBittrex(coin1, coin2, chn) {
 		bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
 			data = JSON.parse(data)	
 
-			if(data['result']){
+			if(data && data['result']){
 				p = data['result'];
 				chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
 					+ '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
