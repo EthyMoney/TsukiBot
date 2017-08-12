@@ -57,9 +57,7 @@ global.fetch = require('node-fetch');
 var PythonShell = require('python-shell');
 
 // Declare channels and the channels to broadcast
-var channel, priceLiveCh;
 var channelName = 'general';
-var priceschannel = 'live-prices';
 
 // array of IDs for block removal
 var blockIDs = [];
@@ -307,8 +305,6 @@ client.on('ready', () => {
 	// When ready, start a logging script for the coins in the array.
 	createLogger(volcoins);
 	
-	// Get the channel handles
-	priceLiveCh = client.channels.find("name", priceschannel);
 
 });
 
@@ -327,12 +323,7 @@ function postHelp(chn){
 // Event goes off every time a message is read.
 client.on('message', message => {
 
-	var channel;
-
-	if(message.guild.id == '305198230272999434')
-		channel = message.guild.channels.find("name", "bot_commands_output");
-	else
-		channel = message.channel;
+        channel = message.channel;
 
 	// Split the message by spaces.
 	var code_in = message.content.split(' ');
@@ -433,12 +424,8 @@ client.on('message', message => {
 		const channel = message.channel;
 		channel.send('Soon™')
 	}
-	// Or XRP joke	
-	/*} else if (code_in.indexOf('xrp') > -1) {
-		message.react('🌑')
-		message.react('🔭')
-		message.react('🐑')
-	}*/
+
+        delete channel;
 });
 
 
