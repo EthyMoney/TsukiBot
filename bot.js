@@ -19,7 +19,7 @@ const gdaxthrottle	= 2
 //
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 //var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
-//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX [op. base price]\n' 
+//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX[op. base price]\n' 
 //var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
 //var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
 //var escanhelp		= '* ' + prefix + ' (e)scan address\n'
@@ -27,7 +27,7 @@ var title 		= '__**TsukiBot**__ :full_moon: \n'
 //var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
 //var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
 //var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`\n';
-var github		= 'Check the GitHub repo for more detailed information. https://github.com/OFRBG/TsukiBot#command-table'
+var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
 const helpStr = title + github;
@@ -57,9 +57,7 @@ global.fetch = require('node-fetch');
 var PythonShell = require('python-shell');
 
 // Declare channels and the channels to broadcast
-var channel, priceLiveCh;
 var channelName = 'general';
-var priceschannel = 'live-prices';
 
 // array of IDs for block removal
 var blockIDs = [];
@@ -73,7 +71,9 @@ function removeID(id) {
 	if (index > -1) {
 		// removes id from array
 		blockIDs.splice(index, 1);
-	}
+	        blockIDs = blockIDs.splice(0,4);
+        }
+
 }
 
 //GDAX vars
@@ -103,15 +103,21 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 
 	// Get the spot price and send it to general
 	clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
-		if(err) {msg.channel.send('API Error.')}
+		if(err) {chn.send('API Error.')}
 		else {
 			var per = "";
 			if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
 			chn.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
 			+ '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
 		}
+                
+                delete coin1;
+                delete coin2;
+                delete base;
+                delete chn;
 
 	});
+
 }
 
 
@@ -124,17 +130,27 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 function getPriceCC(coins, chn) {
 
 	// Get the spot price of the pair and send it to general
-	cc.priceMulti(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
+	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
 	then(prices => {
-		var msg = '__CryptoCompare__\n';
-		
+		var msg = '__**CryptoCompare**__\n';
+                
 		for(var i = 0; i < coins.length; i++)
-			msg += '- **' + coins[i].toUpperCase() + '-USD** is : `' + prices[coins[i].toUpperCase()]['USD'] + ' USD`.\n';
+			msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
+                            prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+                            Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+                            );
 		
 
 		chn.send(msg);
-		})
+                
+                delete chn;
+                delete coins;
+                delete msg;
+                delete prices;
+		
+                })
 	.catch(console.error);
+    
 }
 
 
@@ -158,7 +174,13 @@ function getPriceKraken(coin1, coin2, base, chn) {
 			+ '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
 
 		} 
+                
+                delete chn;
+                delete base;
+                delete coin1;
+                delete coin2;
 	});
+        
 }
 
 
@@ -168,7 +190,7 @@ function getPriceKraken(coin1, coin2, base, chn) {
 
 // Function that gets Poloniex prices
 function getPricePolo(coin1, coin2, chn) {
-	var url = "https://poloniex.com/public?command=returnTicker";
+        url = "https://poloniex.com/public?command=returnTicker";
 	coin2 = coin2.toUpperCase();
 
 	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
@@ -177,11 +199,27 @@ function getPricePolo(coin1, coin2, chn) {
 			json: true
 		}, function(error, response, body){
 				var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
-				var s = body[pair]['last']
-				chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
-				+ '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
-			});
+				
+                                try {
+                                    var s = body[pair]['last']
+                                    chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
+                                    + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
+			        } catch (err) {
+                                    console.log(err);
+                                    chn.send("Poloniex API Error.")
+                                }
+
+                                delete url;
+                                delete coin1;
+                                delete coin2;
+                                delete chn;
+                                
+                                delete error;
+                                delete response;
+                                delete body;
+                        });
 	}
+       
 }
 
 //------------------------------------------
@@ -197,18 +235,21 @@ bittrex.options({
 
 function getPriceBittrex(coin1, coin2, chn) { 
 	coin1 = coin1.toUpperCase()
-	coin2 = coin2.toUpperCase()
+	coin2 = coin2.toUpperCase() || 'BTC'
 	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
 		bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
 			data = JSON.parse(data)	
 
-			if(data['result']){
-				p = data['result'];
+			if(data && data['result']){
+				var p = data['result'];
 				chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
 					+ '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
 			} else {
 				chn.send('Bittrex API error.')	
 			}
+
+                        delete data;
+                        delete chn;
 		});
 	} else {
 		chn.send('Invalid pair. (Use `ETHX, BTCX, USDTX` only.)')
@@ -261,6 +302,8 @@ function executeCommand(c, opts, chn) {
 			setTimeout(function(){ removeID(message.id); }, 120000);
 		});
 	});
+
+
 }
 
 
@@ -298,8 +341,6 @@ client.on('ready', () => {
 	// When ready, start a logging script for the coins in the array.
 	createLogger(volcoins);
 	
-	// Get the channel handles
-	priceLiveCh = client.channels.find("name", priceschannel);
 
 });
 
@@ -318,34 +359,25 @@ function postHelp(chn){
 // Event goes off every time a message is read.
 client.on('message', message => {
 
-	var channel;
-
-	if(message.guild.id == '305198230272999434')
-		channel = message.guild.channels.find("name", "bot_commands_output");
-	else
-		channel = message.channel;
+        channel = message.channel;
 
 	// Split the message by spaces.
-	var code_in = message.content.split(' ');
+        code_in = message.content.split(' ');
 	
 	// Check for bot prefix
 	if(code_in[0] === prefix) {
 
 		// Remove the prefix
 		code_in.splice(0,1);
-			
+		
+
 		// Check if there is content	
 		if(code_in.length > 1) {
-			
+
 			// Check if the command exists and it uses a valid pair
-			if(pairs.filter(function(value){return value == code_in[1].toUpperCase();}).length > 0){ 		
-			
+			if((code_in.slice(1,code_in.length).filter(function(value){ return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;  }).length + 1  == code_in.length)) {
 				
-				if(code_in.length > 2 && !pairs.filter(function(value){return value == code_in[2].toUpperCase();}).length > 0)	
-					postHelp(channel);
-				
-				
-				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1]) > -1){
+				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
 					executeCommand('s',
 						{
 							'coin' 	: code_in[1],
@@ -360,7 +392,7 @@ client.on('message', message => {
 						}, channel)
 				
 				} else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
-					getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
+					 getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
 				
 				} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
 					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
@@ -377,20 +409,15 @@ client.on('message', message => {
 				
 				} else if(code_in[0] === 'bit' || code_in[0] === 'b'){
 					getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
-
-				} else {
+				
+                                } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
+                                         getEtherBalance(code_in[1], channel);
+				
+                                } else {
 					postHelp(channel);
 				}
-
-			// If is it not a price command, check if the address is 42 chars long
-			} else if(code_in[1].length == 42){
-				if(code_in[0] === 'escan' || code_in[0] === 'e') {
-					getEtherBalance(code_in[1], channel);
-				}
-			} else {	
-				postHelp(channel);
-			}
-		}
+		    }	
+	    }
 
 	// Shortcut section
 	} else if (code_in[0] === '.tbg') {
@@ -412,14 +439,16 @@ client.on('message', message => {
 	} else if (code_in[0] === '.tbp') {
 		getPricePolo('ETH', 'BTC', channel)
 
+	} else if (code_in[0] === '.tbpop') {
+		getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
+
 	} else if (code_in[0] === '.tbb') {
-		getPriceBittrex('ETH', channel)
+		getPriceBittrex('ETH', 'BTC', channel)
 	
 	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
 		postHelp(channel);
 	
 	} else if (code_in[0] === '.dank') {
-		const channel = message.channel; 
 		channel.send(":ok_hand:           :tiger:"+ '\n' + 
 		" :eggplant: :zzz: :necktie: :eggplant:"+'\n' + 
 		"                  :oil:     :nose:"+'\n' + 
@@ -427,15 +456,12 @@ client.on('message', message => {
 		"         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
 		"          :boot:    :boot:");
 	} else if (code_in[0] === '.moonwhen') {
-		const channel = message.channel;
 		channel.send('Soon™')
 	}
-	// Or XRP joke	
-	/*} else if (code_in.indexOf('xrp') > -1) {
-		message.react('🌑')
-		message.react('🔭')
-		message.react('🐑')
-	}*/
+
+        delete code_in;
+        delete channel;
+        delete message;
 });
 
 

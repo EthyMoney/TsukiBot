@@ -64,7 +64,7 @@ mkdir common
 
 ```bash
 npm install discord.js --save
-npm install python-shell
+npm install coinbase kraken-api gdax node.bittrex.api etherscan-api cryptocompare node-fetch request python-shell
 ```
 
 *Create a `virtualenv` for the project.*
@@ -77,7 +77,7 @@ source TsukiBot/bin/activate
 *Install python dependencies.*
 
 ```bash
-pip install pandas Naked
+pip install psycopg2 pandas Naked
 ```
 
 *Create a keys file.*
