@@ -20,6 +20,7 @@ Crypto trading is an unfriendly task. May this aid you in your journey to Woyakl
 | CryptoCompare | `c` or `crcp` | `XXX` [`YYY` ... `ZZZ`] | n.a. |
 |   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
 |   Etherscan   | `e` or `escan`     |  hex address   |  n.a. |
+| Personal Arrays  | `pa`| to set: [`XXX` ... `ZZZ`] | .tbpa |
 |   Help   | `.help` or `.th`     |  n.a.   |  n.a. |
 
 [`YYY`] defaults to the main fiat pair. Usually `USD` or `USDT`.
