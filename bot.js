@@ -15,18 +15,6 @@ const gdaxthrottle	= 2
 
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
-<<<<<<< HEAD
-=======
-//var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
-//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX[op. base price]\n' 
-//var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
-//var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
-//var escanhelp		= '* ' + prefix + ' (e)scan address\n'
-//var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'b = Bittrex BTC-ETH\n' + prefix + 'k = Kraken ETH-USD\n' + prefix + 'p = Poloniex BTC-ETH`\n\n'
-//var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
-//var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
-//var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`\n';
->>>>>>> master
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
@@ -125,25 +113,15 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 function getPriceCC(coins, chn) {
 
 	// Get the spot price of the pair and send it to general
-<<<<<<< HEAD
 	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
         .then(prices => {
-=======
-	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
-	then(prices => {
->>>>>>> master
 		var msg = '__**CryptoCompare**__\n';
                 
 		for(var i = 0; i < coins.length; i++)
 			msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
                             prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
                             Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
-<<<<<<< HEAD
                             );		
-=======
-                            );
-		
->>>>>>> master
 
 		chn.send(msg);
                 
@@ -201,11 +179,8 @@ function getPricePolo(coin1, coin2, chn) {
                                     console.log(err);
                                     chn.send("Poloniex API Error.")
                                 }
-<<<<<<< HEAD
 
                                 
-=======
->>>>>>> master
                         });
 	}
        
@@ -230,11 +205,7 @@ function getPriceBittrex(coin1, coin2, chn) {
 			data = JSON.parse(data)	
 
 			if(data && data['result']){
-<<<<<<< HEAD
 				var p = data['result'];
-=======
-				p = data['result'];
->>>>>>> master
 				chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
 					+ '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
 			} else {
@@ -445,6 +416,8 @@ client.on('message', message => {
 	    }
 
 	// Shortcut section
+        } else if(code_in[0] === '.tbid'){
+                message.author.send("Your ID is `" + message.author.id + "`.");
         } else if(code_in[0] === '.tbpa'){
                 getCoinArray(message.author.id, channel);
 
@@ -487,11 +460,7 @@ client.on('message', message => {
 		channel.send('Soon™')
 	}
 
-<<<<<<< HEAD
         channel = null;
-=======
-        delete channel;
->>>>>>> master
 });
 
 
