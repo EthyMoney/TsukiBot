@@ -46,6 +46,14 @@ ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`
 
 ## Installation
 
+### Use `npm` 
+
+(Not fully tested.)
+
+```
+npm install tsukibot
+```
+
 ### Depends:
 + python 2.7.x
 + node.js >= 6.0.0
@@ -64,8 +72,7 @@ mkdir common
 *Install the dependencies.*
 
 ```bash
-npm install discord.js --save
-npm install coinbase kraken-api gdax node.bittrex.api etherscan-api cryptocompare node-fetch request python-shell
+npm install
 ```
 
 *Create a `virtualenv` for the project.*
@@ -115,3 +122,5 @@ To run the main bot:
 ```bash
 node bot.js
 ```
+
+Also recommended: use pm2 to keep the bot running.

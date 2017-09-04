@@ -1,11 +1,8 @@
 {
-  "name": "TsukiBot",
+  "name": "tsukibot",
   "version": "0.1.0",
   "description": "**Discord bot with cryptocurrency functionalities**",
   "main": "bot.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "Oscar Fonseca",
   "license": "MIT",
   "dependencies": {
