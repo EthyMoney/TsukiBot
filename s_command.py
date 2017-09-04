@@ -12,7 +12,7 @@ class s_command():
     def writeToFile(self, timef, ex):
         conn = psycopg2.connect("dbname=volumes user=tsukibot")   
         cur = conn.cursor()    
-        
+
         SQL = ""
         response = ""
 
@@ -25,7 +25,7 @@ class s_command():
             cur.execute(SQL, (self.coin, int(timef)))
             response += "__Poloniex Volume__"
 
-         
+
         buy = cur.fetchone()
         sell = cur.fetchone()
 
@@ -33,12 +33,12 @@ class s_command():
             buy = 1
         else:
             buy = buy[1]
-    
+
         if sell is None:
             sell = 1
         else:
             sell = sell[1]
-        
+
         # Write the format
 
         response += '\n**' + self.coin + '** (since approx. ' + str(timef) +' min. ago)\n :large_blue_circle: BUY: `' + str(buy) + "` \n :red_circle: SELL: `" + str(sell) + "` \n\nNet difference: `" + str(buy-sell) + '`\nRatio: `' + str(   int((buy-sell)/(buy+sell) * 10000)/100.0  ) + ' %`';

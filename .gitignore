@@ -1,3 +1,6 @@
+.gitignore
+node_modules
+
 keys.api
 test.*
 *.pyc

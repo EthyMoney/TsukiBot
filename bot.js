@@ -15,18 +15,6 @@ const gdaxthrottle	= 2
 
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
-<<<<<<< HEAD
-=======
-//var krakenhelp 		= '* ' + prefix + ' (k)rkn XXX [YYY] [op. base price]\n'
-//var gdaxhelp		= '* ' + prefix + ' (g)dax XXX[op. base price]\n' 
-//var poloniexhelp	= '* ' + prefix + ' (p)olo XXX [YYY]\n'
-//var trexhelp		= '* ' + prefix + ' (b)it XXX [YYY]\n' 
-//var escanhelp		= '* ' + prefix + ' (e)scan address\n'
-//var shortcuts		= '`' + prefix + 'g = GDAX ETH-USD\n' + prefix + 'b = Bittrex BTC-ETH\n' + prefix + 'k = Kraken ETH-USD\n' + prefix + 'p = Poloniex BTC-ETH`\n\n'
-//var ticker		= '__Available Tickers__\n`' + pairs + '`\n'
-//var volumehelp		= '__Available vol. records__\n`' + volcoins + '`\n'
-//var tips		= '`ETH tips to: 0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`\n';
->>>>>>> master
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
@@ -63,15 +51,15 @@ var blockIDs = [];
 
 // blockIDs remove function
 function removeID(id) {
-	// index of the passed message.id
-	var index = blockIDs.indexOf(id);
+  // index of the passed message.id
+  var index = blockIDs.indexOf(id);
 
-	// .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
-	if (index > -1) {
-		// removes id from array
-		blockIDs.splice(index, 1);
-	        blockIDs = blockIDs.splice(0,4);
-        }
+  // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
+  if (index > -1) {
+    // removes id from array
+    blockIDs.splice(index, 1);
+    blockIDs = blockIDs.splice(0,4);
+  }
 
 }
 
@@ -100,21 +88,20 @@ var clientKraken = new KrakenClient();
 // Function that gets GDAX spot prices
 function getPriceGDAX(coin1, coin2, base, chn) {
 
-	// Get the spot price and send it to general
-	clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
-		if(err) {chn.send('API Error.')}
-		else {
-			var per = "";
-			if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
-			chn.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
-			+ '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
-		}
-                
+  // Get the spot price and send it to general
+  clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
+    if(err) {chn.send('API Error.')}
+    else {
+      var per = "";
+      if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
+      chn.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
+          + '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
+    }
 
-	});
+
+  });
 
 }
-
 
 
 //------------------------------------------
@@ -124,32 +111,22 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 // Function that gets CryptoCompare prices
 function getPriceCC(coins, chn) {
 
-	// Get the spot price of the pair and send it to general
-<<<<<<< HEAD
-	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
-        .then(prices => {
-=======
-	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR']).
-	then(prices => {
->>>>>>> master
-		var msg = '__**CryptoCompare**__\n';
-                
-		for(var i = 0; i < coins.length; i++)
-			msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
-                            prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-                            Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
-<<<<<<< HEAD
-                            );		
-=======
-                            );
-		
->>>>>>> master
+  // Get the spot price of the pair and send it to general
+  cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
+    .then(prices => {
+      var msg = '__**CryptoCompare**__\n';
 
-		chn.send(msg);
-                
-                })
-	.catch(console.error);
-    
+      for(var i = 0; i < coins.length; i++)
+        msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
+            prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+              Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+            );		
+
+      chn.send(msg);
+
+    })
+  .catch(console.error);
+
 }
 
 
@@ -160,20 +137,20 @@ function getPriceCC(coins, chn) {
 // Function that gets Kraken prices
 function getPriceKraken(coin1, coin2, base, chn) {
 
-	// Get the spot price of the pair and send it to general
-	clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
-		if(error) {chn.send('Unsupported pair')}
-	    	else {
-			var per = ""
-			var s = (data.result[Object.keys(data.result)]['c'][0]);
-			if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
-			chn.send('__Kraken__ Price for **'  + coin1.toUpperCase()
-			+ '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
+  // Get the spot price of the pair and send it to general
+  clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
+    if(error) {chn.send('Unsupported pair')}
+    else {
+      var per = ""
+        var s = (data.result[Object.keys(data.result)]['c'][0]);
+      if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
+      chn.send('__Kraken__ Price for **'  + coin1.toUpperCase()
+          + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
 
-		} 
-                
-	});
-        
+    } 
+
+  });
+
 }
 
 
@@ -183,68 +160,63 @@ function getPriceKraken(coin1, coin2, base, chn) {
 
 // Function that gets Poloniex prices
 function getPricePolo(coin1, coin2, chn) {
-        url = "https://poloniex.com/public?command=returnTicker";
-	coin2 = coin2.toUpperCase();
+  url = "https://poloniex.com/public?command=returnTicker";
+  coin2 = coin2.toUpperCase();
 
-	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
-		request({
-			url: url,
-			json: true
-		}, function(error, response, body){
-				var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
-				
-                                try {
-                                    var s = body[pair]['last']
-                                    chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
-                                    + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
-			        } catch (err) {
-                                    console.log(err);
-                                    chn.send("Poloniex API Error.")
-                                }
-<<<<<<< HEAD
+  if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
+    request({
+      url: url,
+      json: true
+    }, function(error, response, body){
+      var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
 
-                                
-=======
->>>>>>> master
-                        });
-	}
-       
+      try {
+        var s = body[pair]['last']
+          chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
+              + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
+      } catch (err) {
+        console.log(err);
+        chn.send("Poloniex API Error.")
+      }
+
+
+    });
+  }
+
 }
 
+
 //------------------------------------------
 //------------------------------------------
+
 
 // Bittrex API v2
 
 bittrex.options({
-    'stream' : false,
-    'verbose' : false,
-    'cleartext' : true,
+  'stream' : false,
+  'verbose' : false,
+  'cleartext' : true,
 });
 
 function getPriceBittrex(coin1, coin2, chn) { 
-	coin1 = coin1.toUpperCase()
-	coin2 = coin2.toUpperCase() || 'BTC'
-	if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
-		bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
-			data = JSON.parse(data)	
+  coin1 = coin1.toUpperCase()
+    coin2 = coin2.toUpperCase() || 'BTC'
+    if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
+      bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
+          data = JSON.parse(data)	
 
-			if(data && data['result']){
-<<<<<<< HEAD
-				var p = data['result'];
-=======
-				p = data['result'];
->>>>>>> master
-				chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
-					+ '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
-			} else {
-				chn.send('Bittrex API error.')	
-			}
+          if(data && data['result']){
+            var p = data['result'];
+            chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
+                + '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
+          } else {
+            chn.send('Bittrex API error.')	
+          }
 
-		});
-	} else {
-		chn.send('Invalid pair. (Use `ETHX, BTCX, USDTX` only.)')
-	}
+          });
+    } else {
+      chn.send('Invalid pair. (Use `ETHX, BTCX, USDTX` only.)')
+    }
 }
 
 
@@ -259,7 +231,7 @@ function getPriceBittrex(coin1, coin2, chn) {
 
 // Create a logger for a certain set of coins
 function createLogger(coins){
-	PythonShell.run('./tsukiserverlog.py', {args:coins}, function(err) {if(err) console.log(err);});
+  PythonShell.run('./tsukiserverlog.py', {args:coins}, function(err) {if(err) console.log(err);});
 }
 
 
@@ -273,25 +245,25 @@ function createLogger(coins){
 // s command or the p command.
 
 function executeCommand(c, opts, chn) {
-	console.log(opts)
-	
-	coin = opts.coin;
-	arg1 = opts.arg1 || -1;
-	arg2 = opts.arg2 || 'p';
+  console.log(opts)
 
-	var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
-	pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});		
+    coin = opts.coin;
+  arg1 = opts.arg1 || -1;
+  arg2 = opts.arg2 || 'p';
 
-	pyshell.stdout.on('data', function (data) {
-		console.log(data); 	
-		chn.send(data).then(message => {
-			message.react("\u274E"); 
-			blockIDs.push(message.id); 
+  var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
+  pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});		
 
-			// if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
-			setTimeout(function(){ removeID(message.id); }, 120000);
-		});
-	});
+  pyshell.stdout.on('data', function (data) {
+    console.log(data); 	
+    chn.send(data).then(message => {
+      message.react("\u274E"); 
+      blockIDs.push(message.id); 
+
+      // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+      setTimeout(function(){ removeID(message.id); }, 120000);
+    });
+  });
 
 
 }
@@ -306,47 +278,54 @@ function executeCommand(c, opts, chn) {
 // in weis.
 
 function getEtherBalance(address, chn){
-	var balance = api.account.balance(address);
-	balance.then(function(res){
-		chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
-	});
+  var balance = api.account.balance(address);
+  balance.then(function(res){
+    chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
+  });
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
+
+// This is a setup for users to create
+// their own arrays of coins. They can check
+// the price from they array by typing .tbpa
+// as a shortcut.
 
 function getCoinArray(id, chn, coins = ''){
-        const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-        coins = '{' + coins + '}';
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  coins = '{' + coins + '}';
 
-        var conn = new pg.Client(conString);
-        conn.connect();
+  var conn = new pg.Client(conString);
+  conn.connect();
 
-        var query;
-        if(coins === '{}') {
-            query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
-                if (err) {console.log(err);}
-                else {
-                    if(res.rows[0])
-                        getPriceCC(res.rows[0].coins,chn)
-                    else
-                        chn.send('Set your array with `.tb pa [array]`.')
-                }
+  var query;
+  if(coins === '{}') {
+    query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
+      if (err) {console.log(err);}
+      else {
+        if(res.rows[0])
+          getPriceCC(res.rows[0].coins,chn)
+        else
+          chn.send('Set your array with `.tb pa [array]`.')
+      }
 
-                conn.end();
-            });
-        } else {
-            query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
-                if (err) {console.log(err);}
+      conn.end();
+    });
+  } else {
+    query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
+      if (err) {console.log(err);}
 
-                conn.end();
-            });
-        }
+      conn.end();
+    });
+  }
 
 }
+
+
+
 //------------------------------------------
 //------------------------------------------
 //------------------------------------------
@@ -360,146 +339,168 @@ const token = keys['discord'];
 
 // Wait for the client to be ready.
 client.on('ready', () => {
-	console.log('ready');	
+  console.log('ready');	
 
-	// When ready, start a logging script for the coins in the array.
-	createLogger(volcoins);
-	
+  // When ready, start a logging script for the coins in the array.
+  createLogger(volcoins);
+
 
 });
 
 
 function postHelp(chn){
-	chn.send(helpStr).then(message => {
-		message.react("\u274E"); 
-		blockIDs.push(message.id); 
+  chn.send(helpStr).then(message => {
+    message.react("\u274E"); 
+    blockIDs.push(message.id); 
 
-		// if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
-		setTimeout(function(){ removeID(message.id); }, 120000);
-	});
+    // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
+    setTimeout(function(){ removeID(message.id); }, 120000);
+  });
 }
 
 
 // Event goes off every time a message is read.
 client.on('message', message => {
 
-        channel = message.channel;
+  // Get the channel where the bot will answer.
+  channel = message.channel;
 
-	// Split the message by spaces.
-        code_in = message.content.split(' ');
-	
-	// Check for bot prefix
-	if(code_in[0] === prefix) {
+  // Split the message by spaces.
+  code_in = message.content.split(' ');
 
-		// Remove the prefix
-		code_in.splice(0,1);
-		
+  // Check for bot prefix
+  if(code_in[0] === prefix) {
 
-		// Check if there is content	
-		if(code_in.length > 1) {
+    // Remove the prefix
+    code_in.splice(0,1);
 
-			// Check if the command exists and it uses a valid pair
-			if((code_in.slice(1,code_in.length).filter(function(value){ return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;  }).length + 1  == code_in.length)) {
-				
-				if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
-					executeCommand('s',
-						{
-							'coin' 	: code_in[1],
-							'arg1' 	: (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1),
-							'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
-						}, channel)
-			
-				} else if(false && code_in[0] === 'wh' || code_in[0] === 'w'){
-					executeCommand('p',
-						{
-							'coin' 	: code_in[1],
-						}, channel)
-				
-				} else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
-					 getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
-				
-				} else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
-					getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
-				
-				} else if(code_in[0] === 'crcp' || code_in[0] === 'c') {
-					code_in.splice(0,1);
-					getPriceCC(code_in, channel);
-				
-				} else if(code_in[0] === 'pa'){
-                                        code_in.splice(0,1);
-                                        getCoinArray(message.author.id, channel, code_in);
+    // Check if there is content	
+    if(code_in.length > 1) {
 
-                                } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
-					getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
-				
-				} else if(code_in[0] === 'bit' || code_in[0] === 'b'){
-					getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
-				
-                                } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
-                                         getEtherBalance(code_in[1], channel);
-				
-                                } else {
-					postHelp(channel);
-				}
-		    }	
-	    }
+      // Check if the command exists and it uses a valid pair
+      if((code_in.slice(1,code_in.length).filter(function(value){ return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;  }).length + 1  == code_in.length)) {
 
-	// Shortcut section
-        } else if(code_in[0] === '.tbpa'){
-                getCoinArray(message.author.id, channel);
+        // Volume command
+        if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
+          executeCommand('s',
+              {
+                'coin' 	: code_in[1],
+                'arg1' 	: (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1),
+                'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
+              }, channel)
 
-	} else if (code_in[0] === '.tbg') {
-		if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
-			getPriceGDAX('ETH', 'EUR', -1, channel);
-		else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
-			getPriceGDAX('BTC', 'USD', -1, channel);
-		else
-			getPriceGDAX('ETH', 'USD', -1, channel);
+        // Whale command (inactive)
+        } else if(false && code_in[0] === 'wh' || code_in[0] === 'w'){
+          executeCommand('p',
+              {
+                'coin' 	: code_in[1],
+              }, channel)
 
-	} else if (code_in[0] === '.tbk') {
-		if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
-			getPriceKraken('ETH','EUR',-1, channel)
-		else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
-			getPriceKraken('XBT', 'USD', -1, channel);
-		else
-			getPriceKraken('ETH','USD',-1, channel);
-	
-	} else if (code_in[0] === '.tbp') {
-		getPricePolo('ETH', 'BTC', channel)
+        // GDAX call
+        } else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
+          getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
 
-	} else if (code_in[0] === '.tbpop') {
-		getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
+        // Kraken call
+        } else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
+          getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
 
-	} else if (code_in[0] === '.tbb') {
-		getPriceBittrex('ETH', 'BTC', channel)
-	
-	} else if (code_in[0] === '.help' || code_in[0] === '.th') {
-		postHelp(channel);
-	
-	} else if (code_in[0] === '.dank') {
-		channel.send(":ok_hand:           :tiger:"+ '\n' + 
-		" :eggplant: :zzz: :necktie: :eggplant:"+'\n' + 
-		"                  :oil:     :nose:"+'\n' + 
-		"            :zap:  8=:punch: =D:sweat_drops:"+'\n' + 
-		"         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
-		"          :boot:    :boot:");
-	} else if (code_in[0] === '.moonwhen') {
-		channel.send('Soon™')
-	}
+        // CryptoCompare call
+        } else if(code_in[0] === 'crcp' || code_in[0] === 'c') {
+          code_in.splice(0,1);
+          getPriceCC(code_in, channel);
 
-<<<<<<< HEAD
-        channel = null;
-=======
-        delete channel;
->>>>>>> master
+        // Set personal array
+        } else if(code_in[0] === 'pa'){
+          code_in.splice(0,1);
+          getCoinArray(message.author.id, channel, code_in);
+
+        // Poloniex call
+        } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
+          getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
+
+        // Bittrex call
+        } else if(code_in[0] === 'bit' || code_in[0] === 'b'){
+          getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
+
+        // Etherscan call
+        } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
+          getEtherBalance(code_in[1], channel);
+
+        // Catch-all help
+        } else {
+          postHelp(channel);
+        }
+      }	
+    }
+
+
+  // Shortcut section
+
+  // Get DiscordID via DM
+  } else if(code_in[0] === '.tbid'){
+    message.author.send("Your ID is `" + message.author.id + "`.");
+  
+  // Get personal array prices
+  } else if(code_in[0] === '.tbpa'){
+    getCoinArray(message.author.id, channel);
+
+  // Get GDAX ETHX
+  } else if (code_in[0] === '.tbg') {
+    if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+      getPriceGDAX('ETH', 'EUR', -1, channel);
+    else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+      getPriceGDAX('BTC', 'USD', -1, channel);
+    else
+      getPriceGDAX('ETH', 'USD', -1, channel);
+
+  // Get Kraken ETHX
+  } else if (code_in[0] === '.tbk') {
+    if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+      getPriceKraken('ETH','EUR',-1, channel)
+    else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+      getPriceKraken('XBT', 'USD', -1, channel);
+    else
+      getPriceKraken('ETH','USD',-1, channel);
+
+  // Get Poloniex ETHBTC
+  } else if (code_in[0] === '.tbp') {
+    getPricePolo('ETH', 'BTC', channel)
+
+  // Get prices of popular currencies
+  } else if (code_in[0] === '.tbpop') {
+    getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
+
+  // Get Bittrex ETHBTC
+  } else if (code_in[0] === '.tbb') {
+    getPriceBittrex('ETH', 'BTC', channel)
+
+  // Call help command
+  } else if (code_in[0] === '.help' || code_in[0] === '.th') {
+    postHelp(channel);
+
+  // Meme
+  } else if (code_in[0] === '.dank') {
+    channel.send(":ok_hand:           :tiger:"+ '\n' + 
+        " :eggplant: :zzz: :necktie: :eggplant:"+'\n' + 
+        "                  :oil:     :nose:"+'\n' + 
+        "            :zap:  8=:punch: =D:sweat_drops:"+'\n' + 
+        "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
+        "          :boot:    :boot:");
+  
+  // Another meme
+  } else if (code_in[0] === '.moonwhen') {
+    channel.send('Soon™')
+  }
+
+  channel = null;
 });
 
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 client.on('messageReactionAdd', messageReaction => {
-	if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
-		messageReaction.message.delete().catch(console.error)
-	}
+  if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
+    messageReaction.message.delete().catch(console.error)
+  }
 });
 
 

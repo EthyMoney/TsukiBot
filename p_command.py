@@ -2,9 +2,9 @@ import psycopg2
 
 import numpy as np
 import os.path as osp 
-  
+
 from datetime import datetime, timedelta
- 
+
 INTERVAL = 60
 
 class p_command():
@@ -20,17 +20,17 @@ class p_command():
         SQL = "SELECT sum(volume) as amount,  EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - time) / 60 as minutes, sum(type) as type FROM poloniex WHERE coin = %s and time > CURRENT_TIMESTAMP - INTERVAL '%s minutes' GROUP BY time HAVING sum(volume) > (SELECT %s*k.sd + k.m FROM (SELECT stddev_pop(t.sum) as sd, avg(t.sum) as m FROM (SELECT sub.time, sum(volume) as sum FROM (SELECT * FROM poloniex WHERE coin = %s and time > CURRENT_TIMESTAMP - INTERVAL '%s minutes') sub GROUP BY time) t) k) ORDER BY minutes DESC;"
 
         cur.execute(SQL, (self.coin, int(self.timef), sd, self.coin, INTERVAL))
-         
 
-        
-        
+
+
+
         response = ("__Large Market Trades for **" + self.coin + "**__\n\n`min ago || ` :red_circle: ` = SELL ` :large_blue_circle: ` = BUY || ETH`\n")
-        
+
         # Iterate over all the market trades in the DataFrame
         for row in cur:
             response += ((" :red_circle: : " if row[2] < 0 else " :large_blue_circle: : ") +
-                                "`" + str(int(row[1])) + "` - `" + str(row[0]) + "`\n")
-        #else:
+                    "`" + str(int(row[1])) + "` - `" + str(row[0]) + "`\n")
+            #else:
         #    # For the tracker it checks if the DataFrame is empty
         #    if not dfkj.empty:
         #        response += ("__:whale: Trade Alert__\n") 
@@ -43,6 +43,6 @@ class p_command():
         #    else:
         #        # If the DataFrame is empty, return an empty string
         #        response = ""
-        
+
         cur.close() 
         return (response)

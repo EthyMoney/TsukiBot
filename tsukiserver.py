@@ -19,31 +19,31 @@ class server():
 
         scom = sc.s_command(self.coin)
         pcom = pc.p_command(self.coin)
-        
+
 
         # Wait for the command input from bot.js
         command = raw_input()
-            
+
         if command[0] == 's':
             # Get the latest DataFrame from the CSV
-            
+
             self.par = (60 if (int(self.par) > 61 or int(self.par) == -1) else self.par)
             s = scom.writeToFile(self.par,self.ex)
-            
+
             # Writing to stdout gives the answer to bot.js
             print s
-        
+
         elif command[0] == 'p':
             # I need to rename writeToFile to something like 'on_demand'
             s = pcom.spikeCheck()
-            
+
             # Writing to stdout gives the answer to bot.js
             print s
-        
+
         elif command[0] == 'x':
             # Just in case
             thread.interrupt_main()
-         
+
 
 
 def main():
