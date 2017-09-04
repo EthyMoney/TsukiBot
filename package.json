@@ -1,20 +1,21 @@
 {
   "name": "tsukibot",
   "version": "0.1.0",
-  "description": "**Discord bot with cryptocurrency functionalities**",
+  "description": "Discord bot with cryptocurrency functionalities",
   "main": "bot.js",
   "author": "Oscar Fonseca",
+  "repository": "https://github.com/OFRBG/TsukiBot",
   "license": "MIT",
   "dependencies": {
     "coinbase": "^2.0.6",
     "cryptocompare": "^0.1.0",
-    "discord.js": "^11.1.0",
+    "discord.js": "^11.2.1",
     "etherscan-api": "^3.0.8",
     "gdax": "^0.4.2",
     "kraken-api": "^1.0.0",
     "node-fetch": "^1.7.2",
     "node.bittrex.api": "^0.5.1",
-    "pg": "^7.2.0",
+    "pg": "^7.3.0",
     "python-shell": "^0.4.0",
     "request": "^2.81.0"
   }
