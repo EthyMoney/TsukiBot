@@ -1,6 +1,0 @@
-.git*
-/test
-config.*.json
-!config.default.json
-tmp
-.nyc_output
