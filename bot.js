@@ -111,7 +111,6 @@ function getPriceGDAX(coin1, coin2, base, chn) {
 // Function that gets CryptoCompare prices
 function getPriceCC(coins, chn) {
 
-<<<<<<< HEAD
   // Get the spot price of the pair and send it to general
   cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
     .then(prices => {
@@ -128,24 +127,6 @@ function getPriceCC(coins, chn) {
     })
   .catch(console.error);
 
-=======
-	// Get the spot price of the pair and send it to general
-	cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
-        .then(prices => {
-		var msg = '__**CryptoCompare**__\n';
-                
-		for(var i = 0; i < coins.length; i++)
-			msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
-                            prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-                            Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
-                            );		
-
-		chn.send(msg);
-                
-                })
-	.catch(console.error);
-    
->>>>>>> master
 }
 
 
