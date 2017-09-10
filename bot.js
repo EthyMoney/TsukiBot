@@ -37,6 +37,14 @@ const bittrex 		= require('node.bittrex.api');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 
+
+// Web3
+const web3              = require('web3');
+const Web3              = new web3(new web3.providers.HttpProvider('https://kovan.infura.io/' + keys['infura']));
+
+var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0x1B6f90a42cc86749052B4C9ca9ae9343E8a90d17");
+
+
 // CryptoCompare requires global fetch
 global.fetch = require('node-fetch');
 
@@ -363,7 +371,14 @@ function postHelp(chn){
 
 // Event goes off every time a message is read.
 client.on('message', message => {
+  
+  commands(message);
+  
+})
 
+
+function commands(message) {
+  
   // Get the channel where the bot will answer.
   channel = message.channel;
 
@@ -439,12 +454,19 @@ client.on('message', message => {
   // Shortcut section
 
   // Get DiscordID via DM
-  } else if(code_in[0] === '.tbid'){
+  } else if(code_in[0] === '.tbid') {
     message.author.send("Your ID is `" + message.author.id + "`.");
   
   // Get personal array prices
-  } else if(code_in[0] === '.tbpa'){
-    getCoinArray(message.author.id, channel);
+  } else if(code_in[0] === '.tbpa') {
+    if(message.author.id !== client.user.id)
+      ProductRegister.methods.checkPayment(message.author.id).call()
+      .then((paid) => {
+            if(paid)
+              getCoinArray(message.author.id, channel);
+            else
+              channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
+      });
 
   // Get GDAX ETHX
   } else if (code_in[0] === '.tbg') {
@@ -494,8 +516,7 @@ client.on('message', message => {
     channel.send('Soon™')
   }
 
-  channel = null;
-});
+}
 
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.

@@ -17,6 +17,7 @@
     "node.bittrex.api": "^0.5.1",
     "pg": "^7.3.0",
     "python-shell": "^0.4.0",
-    "request": "^2.81.0"
+    "request": "^2.81.0",
+    "web3": "^1.0.0-beta.18"
   }
 }
