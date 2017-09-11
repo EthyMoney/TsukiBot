@@ -37,10 +37,12 @@ const bittrex 		= require('node.bittrex.api');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 
-
+// ----------------------------------------------------------------------------------------------------------------
 // Web3
 const web3              = require('web3');
 const Web3              = new web3(new web3.providers.HttpProvider('https://kovan.infura.io/' + keys['infura']));
+
+// ----------------------------------------------------------------------------------------------------------------
 
 var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0x1B6f90a42cc86749052B4C9ca9ae9343E8a90d17");
 
@@ -459,6 +461,8 @@ function commands(message) {
   
   // Get personal array prices
   } else if(code_in[0] === '.tbpa') {
+// ----------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------
     if(message.author.id !== client.user.id)
       ProductRegister.methods.checkPayment(message.author.id).call()
       .then((paid) => {
@@ -467,6 +471,8 @@ function commands(message) {
             else
               channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
       });
+// ----------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------
 
   // Get GDAX ETHX
   } else if (code_in[0] === '.tbg') {
