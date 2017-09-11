@@ -5,6 +5,8 @@ var pg = require('pg');
 // Set the prefix
 var prefix = '.tb'
 
+// Files allowed
+const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp'];
 
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
@@ -373,7 +375,14 @@ function postHelp(chn){
 
 // Event goes off every time a message is read.
 client.on('message', message => {
-  
+
+  for(let a of message.attachments){
+    if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
+      message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
+      break;
+    }
+  }
+
   commands(message);
   
 })
