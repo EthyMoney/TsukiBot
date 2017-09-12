@@ -1,4 +1,7 @@
 # TsukiBot 🌑 
+
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/9dc99ab109574f63ba09427dbde80886)](https://www.codacy.com/app/ofonsk/TsukiBot?utm_source=github.com&utm_medium=referral&utm_content=OFRBG/TsukiBot&utm_campaign=badger)
+
 **Discord bot with cryptocurrency functionalities**
 
 Crypto trading is an unfriendly task. May this aid you in your journey to Woyakland.
