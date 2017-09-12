@@ -1,5 +1,5 @@
 // File read for JSON and PostgreSQL
-var fs = require('fs');	
+var fs = require('fs');
 var pg = require('pg');
 
 // Set the prefix
@@ -66,7 +66,7 @@ function removeID(id) {
   // index of the passed message.id
   var index = blockIDs.indexOf(id);
 
-  // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs. 
+  // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs.
   if (index > -1) {
     // removes id from array
     blockIDs.splice(index, 1);
@@ -94,7 +94,7 @@ var clientKraken = new KrakenClient();
 
 // This methods are calls on the api of the
 // respective exchanges. The user can send
-// an optional parameter to calculate % 
+// an optional parameter to calculate %
 // change on a base price.
 
 // Function that gets GDAX spot prices
@@ -106,7 +106,7 @@ function getPriceGDAX(coin1, coin2, base, chn) {
     else {
       var per = "";
       if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
-      chn.send('__GDAX__ Price for **'  + coin1.toUpperCase() 
+      chn.send('__GDAX__ Price for **'  + coin1.toUpperCase()
           + '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
     }
 
@@ -129,10 +129,10 @@ function getPriceCC(coins, chn) {
       var msg = '__**CryptoCompare**__\n';
 
       for(var i = 0; i < coins.length; i++)
-        msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' + 
+        msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
             prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
               Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
-            );		
+            );
 
       chn.send(msg);
 
@@ -159,7 +159,7 @@ function getPriceKraken(coin1, coin2, base, chn) {
       chn.send('__Kraken__ Price for **'  + coin1.toUpperCase()
           + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
 
-    } 
+    }
 
   });
 
@@ -172,7 +172,7 @@ function getPriceKraken(coin1, coin2, base, chn) {
 
 // Function that gets Poloniex prices
 function getPricePolo(coin1, coin2, chn) {
-  
+
   url = "https://poloniex.com/public?command=returnTicker";
   coin2 = coin2.toUpperCase();
 
@@ -211,20 +211,20 @@ bittrex.options({
   'cleartext' : true,
 });
 
-function getPriceBittrex(coin1, coin2, chn) { 
+function getPriceBittrex(coin1, coin2, chn) {
 
   coin1 = coin1.toUpperCase()
     coin2 = coin2.toUpperCase() || 'BTC'
     if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
       bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
-          data = JSON.parse(data)	
+          data = JSON.parse(data)
 
           if(data && data['result']){
             var p = data['result'];
             chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
                 + '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
           } else {
-            chn.send('Bittrex API error.')	
+            chn.send('Bittrex API error.')
           }
 
           });
@@ -238,7 +238,7 @@ function getPriceBittrex(coin1, coin2, chn) {
 //------------------------------------------
 
 
-// This method runs the python script that 
+// This method runs the python script that
 // reads from the api's until it is killed
 // from outside bot.js. It runs
 // on its own.
@@ -266,13 +266,13 @@ function executeCommand(c, opts, chn) {
   arg2 = opts.arg2 || 'p';
 
   var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
-  pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});		
+  pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});
 
   pyshell.stdout.on('data', function (data) {
-    console.log(data); 	
+    console.log(data);
     chn.send(data).then(message => {
-      message.react("\u274E"); 
-      blockIDs.push(message.id); 
+      message.react("\u274E");
+      blockIDs.push(message.id);
 
       // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
       setTimeout(function(){ removeID(message.id); }, 120000);
@@ -353,7 +353,8 @@ const token = keys['discord'];
 
 // Wait for the client to be ready.
 client.on('ready', () => {
-  console.log('ready');	
+
+  console.log('ready');
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
@@ -364,8 +365,8 @@ client.on('ready', () => {
 
 function postHelp(chn){
   chn.send(helpStr).then(message => {
-    message.react("\u274E"); 
-    blockIDs.push(message.id); 
+    message.react("\u274E");
+    blockIDs.push(message.id);
 
     // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
     setTimeout(function(){ removeID(message.id); }, 120000);
@@ -384,12 +385,12 @@ client.on('message', message => {
   }
 
   commands(message);
-  
+
 })
 
 
 function commands(message) {
-  
+
   // Get the channel where the bot will answer.
   channel = message.channel;
 
@@ -402,7 +403,7 @@ function commands(message) {
     // Remove the prefix
     code_in.splice(0,1);
 
-    // Check if there is content	
+    // Check if there is content
     if(code_in.length > 1) {
 
       // Check if the command exists and it uses a valid pair
@@ -458,7 +459,7 @@ function commands(message) {
         } else {
           postHelp(channel);
         }
-      }	
+      }
     }
 
 
@@ -467,7 +468,7 @@ function commands(message) {
   // Get DiscordID via DM
   } else if(code_in[0] === '.tbid') {
     message.author.send("Your ID is `" + message.author.id + "`.");
-  
+
   // Get personal array prices
   } else if(code_in[0] === '.tbpa') {
 // ----------------------------------------------------------------------------------------------------------------
@@ -519,13 +520,13 @@ function commands(message) {
 
   // Meme
   } else if (code_in[0] === '.dank') {
-    channel.send(":ok_hand:           :tiger:"+ '\n' + 
-        " :eggplant: :zzz: :necktie: :eggplant:"+'\n' + 
-        "                  :oil:     :nose:"+'\n' + 
-        "            :zap:  8=:punch: =D:sweat_drops:"+'\n' + 
-        "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' + 
+    channel.send(":ok_hand:           :tiger:"+ '\n' +
+        " :eggplant: :zzz: :necktie: :eggplant:"+'\n' +
+        "                  :oil:     :nose:"+'\n' +
+        "            :zap:  8=:punch: =D:sweat_drops:"+'\n' +
+        "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' +
         "          :boot:    :boot:");
-  
+
   // Another meme
   } else if (code_in[0] === '.moonwhen') {
     channel.send('Soon™')
