@@ -39,7 +39,7 @@ This may change on later versions.
 
 ### _Available Volume Records_
 ```
-ETH, GNT, LTC, ETHX
+ETH, ETHX
 ```
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
