@@ -62,7 +62,7 @@ npm install tsukibot
 + Naked
 + discord.js
 
-*Clone the repo.*
+1. Clone the repo.
 
 ```bash
 git clone https://github.com/OFRBG/TsukiBot.git
@@ -70,32 +70,32 @@ cd TsukiBot
 mkdir common
 ```
 
-*Install the dependencies.*
+2. Install the dependencies.
 
 ```bash
 npm install
 ```
 
-*Create a `virtualenv` for the project.*
+3. Create a `virtualenv` for the project.
 
 ```bash
 virtualenv TsukiBot
 source TsukiBot/bin/activate
 ```
 
-*Install python dependencies.*
+4. Install python dependencies.
 
 ```bash
 pip install psycopg2 pandas Naked
 ```
 
-*Create a keys file.*
+5. Create a keys file.
 
 ```bash
 nano keys.api
 ```
 
-Inside keys.api add the following JSON substituting with your keys.
+6. Inside keys.api add the following JSON substituting with your keys.
 
 ```json
 {
@@ -112,9 +112,11 @@ Inside keys.api add the following JSON substituting with your keys.
     "coinbase short key",
     "coinbase long key"
   ],
-  "etherscan" : "api key"
+  "etherscan" : "api key",
+  …
 }
 ```
+
 
 ## Execution
 
@@ -124,4 +126,4 @@ To run the main bot:
 node bot.js
 ```
 
-Also recommended: use pm2 to keep the bot running.
+### Note: use pm2 to keep the bot running! Execute from the main directory with `pm2 start bot.js`.
