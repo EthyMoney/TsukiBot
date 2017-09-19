@@ -1,7 +1,8 @@
-# TsukiBot 🌑 
-**Discord bot with cryptocurrency functionalities**
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/9dc99ab109574f63ba09427dbde80886)](https://www.codacy.com/app/ofonsk/TsukiBot?utm_source=github.com&utm_medium=referral&utm_content=OFRBG/TsukiBot&utm_campaign=badger)
 
-Crypto trading is an unfriendly task. May this aid you in your journey to Woyakland.
+<p align="center">
+  <img src="https://github.com/CehhNet/TsukiBot-Web/blob/master/src/img/TsukiBotBanner.png?raw=true"/>
+</p>
 
 ## Features
 + Get the volume for buy and sell orders.
@@ -36,7 +37,7 @@ This may change on later versions.
 
 ### _Available Volume Records_
 ```
-ETH, GNT, LTC, ETHX
+ETH, ETHX
 ```
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
@@ -61,7 +62,7 @@ npm install tsukibot
 + Naked
 + discord.js
 
-*Clone the repo.*
+1. Clone the repo.
 
 ```bash
 git clone https://github.com/OFRBG/TsukiBot.git
@@ -69,32 +70,32 @@ cd TsukiBot
 mkdir common
 ```
 
-*Install the dependencies.*
+2. Install the dependencies.
 
 ```bash
 npm install
 ```
 
-*Create a `virtualenv` for the project.*
+3. Create a `virtualenv` for the project.
 
 ```bash
 virtualenv TsukiBot
 source TsukiBot/bin/activate
 ```
 
-*Install python dependencies.*
+4. Install python dependencies.
 
 ```bash
 pip install psycopg2 pandas Naked
 ```
 
-*Create a keys file.*
+5. Create a keys file.
 
 ```bash
 nano keys.api
 ```
 
-Inside keys.api add the following JSON substituting with your keys.
+6. Inside keys.api add the following JSON substituting with your keys.
 
 ```json
 {
@@ -111,9 +112,11 @@ Inside keys.api add the following JSON substituting with your keys.
     "coinbase short key",
     "coinbase long key"
   ],
-  "etherscan" : "api key"
+  "etherscan" : "api key",
+  …
 }
 ```
+
 
 ## Execution
 
@@ -123,4 +126,4 @@ To run the main bot:
 node bot.js
 ```
 
-Also recommended: use pm2 to keep the bot running.
+### Note: use pm2 to keep the bot running! Execute from the main directory with `pm2 start bot.js`.
