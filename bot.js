@@ -3,7 +3,7 @@ var fs = require('fs');
 var pg = require('pg');
 
 // Set the prefix
-var prefix = ['-t', '.tb'];
+var prefix = ['-t', '.tb', 'scottyisgay', 't'];
 
 // Files allowed
 const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
@@ -466,7 +466,7 @@ function commands(message) {
     // Shortcut section
 
 
-  } else {
+  } else if(code_in[0].length > 1) {
 
     hasPfx = "";
     prefix.map(pfx => hasPfx = (code_in[0].indexOf(pfx) === 0 ? pfx : hasPfx));
