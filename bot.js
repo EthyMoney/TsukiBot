@@ -6,7 +6,7 @@ var pg = require('pg');
 var prefix = '.tb'
 
 // Files allowed
-const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp'];
+const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
@@ -20,7 +20,7 @@ var title 		= '__**TsukiBot**__ :full_moon: \n'
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
 //const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
-const helpStr = title + github;
+const helpStr = fs.readFileSync('./common/help.txt','utf8');
 
 
 // HTTP request
@@ -137,7 +137,7 @@ function getPriceCC(coins, chn) {
       chn.send(msg);
 
     })
-  .catch(console.error);
+  .catch(chn.send('CryptoCompare API error.'));
 
 }
 
@@ -536,8 +536,9 @@ function commands(message) {
 
 
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
+// Update: Now it's only 2.
 client.on('messageReactionAdd', messageReaction => {
-  if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 3) {
+  if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2) {
     messageReaction.message.delete().catch(console.error)
   }
 });

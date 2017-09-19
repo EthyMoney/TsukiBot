@@ -1,0 +1,33 @@
+```php
+"TsukiBot Commands"
+```
+
+**Usage: ** `.tb ⤫ ↺` or `.tb»`
+
+`⤫` ⇒ command name　　　　 　
+`↺` ⇒ command parameters. ([optional])
+`»` ⇒ command shortcut.
+
+**Kraken**   　　　　　　　　 　　　　　   **GDAX**  
+`⤫` `k` or `krkn`   　　　　　　　　　　　 `⤫` `g` or `gdax`    
+`↺` `XXX`, [`YYY`], [`base price`]   　　　 　  `↺` `XXX`, [`YYY`], [`base price`]     
+`»` `.tbk`, `.tbk eur`, `.tbk btc`　　　　　`»` `.tbg`, `.tbg eur`, `.tbg btc`
+
+
+** Poloniex**   　　　　　　　　　　　　　 **CryptoCompare**
+`⤫` `p` or `polo`   　　　　　　　　　　　 `⤫` `c` or `crcp`
+`↺` `XXX`, [`YYY`]    　　　　　　　　　　   `↺` `XXX` [`YYY` ... `ZZZ`]
+`»` `.tbp`　　　　　　　　　　　 　　　`»` **n.a.**
+
+
+**Bittrex**   　　　　　　　　　　　　　　 **Etherscan**
+`⤫` `b` or `bit`   　　 　　　　　　　 　　 `⤫` `e` or `escan`
+`↺` `XXX`, [`YYY`]    　　　　　 　   　　　   `↺` [hex address]
+`»` `.tbb`　　　　　  　　　 　 　 　　　`»` **n.a.**
+
+**Personal Arrays** `(paid with CHS)`
+`⤫` `pa`
+`↺` set: `.tb pa `[`XXX` ... `ZZZ`]
+`»` read: `.tbpa`
+
+`I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available.`
