@@ -137,7 +137,7 @@ function getPriceCC(coins, chn) {
       chn.send(msg);
 
     })
-  .catch(chn.send('CryptoCompare API error.'));
+  .catch(console.log);
 
 }
 
