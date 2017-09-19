@@ -10,8 +10,8 @@ class s_command():
 
     # Update the current data to file
     def writeToFile(self, timef, ex):
-        conn = psycopg2.connect("dbname=volumes user=tsukibot")   
-        cur = conn.cursor()    
+        conn = psycopg2.connect("dbname=volumes user=tsukibot")
+        cur = conn.cursor()
 
         SQL = ""
         response = ""
@@ -19,7 +19,7 @@ class s_command():
         if ex == 'g':
             SQL = "SELECT sub.type, SUM(sub.volume) FROM (SELECT * FROM gdax WHERE time > CURRENT_TIMESTAMP - INTERVAL '%s minutes') sub GROUP BY type ORDER BY sub.type DESC;"
             cur.execute(SQL, (int(timef),))
-            response += "__GDAX Volume__"    
+            response += "__GDAX Volume__"
         else:
             SQL = "SELECT sub.type, SUM(sub.volume) FROM (SELECT * FROM poloniex WHERE coin = %s and time > CURRENT_TIMESTAMP - INTERVAL '%s minutes') sub GROUP BY type ORDER BY sub.type DESC;"
             cur.execute(SQL, (self.coin, int(timef)))
@@ -45,4 +45,4 @@ class s_command():
         response += '\n`Press cross to delete this message. Avoid spam.`'
 
         cur.close()
-        return response 
+        return response

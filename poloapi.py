@@ -22,7 +22,7 @@ class poloniex:
                     if(isinstance(after['return'][x], dict)):
                         if('datetime' in after['return'][x] and 'timestamp' not in after['return'][x]):
                             after['return'][x]['timestamp'] = float(createTimeStamp(after['return'][x]['datetime']))
-                            
+
         return after
 
     def api_query(self, command, req={}):
@@ -66,7 +66,7 @@ class poloniex:
 
 
     # Returns all of your balances.
-    # Outputs: 
+    # Outputs:
     # {"BTC":"0.59098578","LTC":"3.31117268", ... }
     def returnBalances(self):
         return self.api_query('returnBalances')
@@ -74,7 +74,7 @@ class poloniex:
     # Returns your open orders for a given market, specified by the "currencyPair" POST parameter, e.g. "BTC_XCP"
     # Inputs:
     # currencyPair  The currency pair e.g. "BTC_XCP"
-    # Outputs: 
+    # Outputs:
     # orderNumber   The order number
     # type          sell or buy
     # rate          Price the order is selling or buying at
@@ -87,7 +87,7 @@ class poloniex:
     # Returns your trade history for a given market, specified by the "currencyPair" POST parameter
     # Inputs:
     # currencyPair  The currency pair e.g. "BTC_XCP"
-    # Outputs: 
+    # Outputs:
     # date          Date in the form: "2014-02-19 03:44:59"
     # rate          Price the order is selling or buying at
     # amount        Quantity of order
@@ -101,7 +101,7 @@ class poloniex:
     # currencyPair  The curreny pair
     # rate          price the order is buying at
     # amount        Amount of coins to buy
-    # Outputs: 
+    # Outputs:
     # orderNumber   The order number
     def buy(self,currencyPair,rate,amount):
         return self.api_query('buy',{"currencyPair":currencyPair,"rate":rate,"amount":amount})
@@ -111,7 +111,7 @@ class poloniex:
     # currencyPair  The curreny pair
     # rate          price the order is selling at
     # amount        Amount of coins to sell
-    # Outputs: 
+    # Outputs:
     # orderNumber   The order number
     def sell(self,currencyPair,rate,amount):
         return self.api_query('sell',{"currencyPair":currencyPair,"rate":rate,"amount":amount})
@@ -120,17 +120,17 @@ class poloniex:
     # Inputs:
     # currencyPair  The curreny pair
     # orderNumber   The order number to cancel
-    # Outputs: 
+    # Outputs:
     # succes        1 or 0
     def cancel(self,currencyPair,orderNumber):
         return self.api_query('cancelOrder',{"currencyPair":currencyPair,"orderNumber":orderNumber})
 
-    # Immediately places a withdrawal for a given currency, with no email confirmation. In order to use this method, the withdrawal privilege must be enabled for your API key. Required POST parameters are "currency", "amount", and "address". Sample output: {"response":"Withdrew 2398 NXT."} 
+    # Immediately places a withdrawal for a given currency, with no email confirmation. In order to use this method, the withdrawal privilege must be enabled for your API key. Required POST parameters are "currency", "amount", and "address". Sample output: {"response":"Withdrew 2398 NXT."}
     # Inputs:
     # currency      The currency to withdraw
     # amount        The amount of this coin to withdraw
     # address       The withdrawal address
-    # Outputs: 
+    # Outputs:
     # response      Text containing message about the withdrawal
     def withdraw(self, currency, amount, address):
         return self.api_query('withdraw',{"currency":currency, "amount":amount, "address":address})
