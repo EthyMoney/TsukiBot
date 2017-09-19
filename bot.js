@@ -397,9 +397,17 @@ function commands(message) {
   // Split the message by spaces.
   code_in = message.content.split(' ');
 
-  // Check for bot prefix
-  if(prefix.indexOf(code_in[0].toLowerCase()) > -1) {
+  hasPfx = "";
+  prefix.map(pfx => hasPfx = (code_in[0].indexOf(pfx) === 0 ? pfx : hasPfx));
 
+  code_in_pre = code_in[0];
+  code_in[0] = code_in[0].replace(hasPfx,"");
+
+
+  // Check for bot prefix
+  if(hasPfx === "") {
+    return;
+  } else if(prefix.indexOf(code_in_pre) > -1) {
     // Remove the prefix
     code_in.splice(0,1);
 
@@ -462,16 +470,9 @@ function commands(message) {
       }
     }
 
-
     // Shortcut section
 
-
-  } else if(code_in[0].length > 1) {
-
-    hasPfx = "";
-    prefix.map(pfx => hasPfx = (code_in[0].indexOf(pfx) === 0 ? pfx : hasPfx));
-
-    code_in[0] = code_in[0].replace(hasPfx,"");
+  } else {
 
     // Get DiscordID via DM
     if(code_in[0] === 'id') {
