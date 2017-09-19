@@ -3,7 +3,7 @@ var fs = require('fs');
 var pg = require('pg');
 
 // Set the prefix
-var prefix = '.tb'
+var prefix = ['-t', '.tb'];
 
 // Files allowed
 const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
@@ -398,7 +398,7 @@ function commands(message) {
   code_in = message.content.split(' ');
 
   // Check for bot prefix
-  if(code_in[0] === prefix) {
+  if(prefix.indexOf(code_in[0].toLowerCase()) > -1) {
 
     // Remove the prefix
     code_in.splice(0,1);
@@ -418,44 +418,44 @@ function commands(message) {
                 'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
               }, channel)
 
-        // Whale command (inactive)
+          // Whale command (inactive)
         } else if(false && code_in[0] === 'wh' || code_in[0] === 'w'){
           executeCommand('p',
               {
                 'coin' 	: code_in[1],
               }, channel)
 
-        // GDAX call
+          // GDAX call
         } else if(code_in[0] === 'gdax' || code_in[0] === 'g') {
           getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
 
-        // Kraken call
+            // Kraken call
         } else if(code_in[0] === 'krkn' || code_in[0] === 'k') {
           getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
 
-        // CryptoCompare call
+            // CryptoCompare call
         } else if(code_in[0] === 'crcp' || code_in[0] === 'c') {
           code_in.splice(0,1);
           getPriceCC(code_in, channel);
 
-        // Set personal array
+          // Set personal array
         } else if(code_in[0] === 'pa'){
           code_in.splice(0,1);
           getCoinArray(message.author.id, channel, code_in);
 
-        // Poloniex call
+          // Poloniex call
         } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
           getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
 
-        // Bittrex call
+            // Bittrex call
         } else if(code_in[0] === 'bit' || code_in[0] === 'b'){
           getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
 
-        // Etherscan call
+            // Etherscan call
         } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
           getEtherBalance(code_in[1], channel);
 
-        // Catch-all help
+          // Catch-all help
         } else {
           postHelp(channel);
         }
@@ -463,73 +463,82 @@ function commands(message) {
     }
 
 
-  // Shortcut section
+    // Shortcut section
 
-  // Get DiscordID via DM
-  } else if(code_in[0] === '.tbid') {
-    message.author.send("Your ID is `" + message.author.id + "`.");
 
-  // Get personal array prices
-  } else if(code_in[0] === '.tbpa') {
-// ----------------------------------------------------------------------------------------------------------------
-// ----------------------------------------------------------------------------------------------------------------
-    if(message.author.id !== client.user.id)
-      ProductRegister.methods.checkPayment(message.author.id).call()
-      .then((paid) => {
+  } else {
+
+    hasPfx = "";
+    prefix.map(pfx => hasPfx = (code_in[0].indexOf(pfx) === 0 ? pfx : hasPfx));
+
+    code_in[0] = code_in[0].replace(hasPfx,"");
+
+    // Get DiscordID via DM
+    if(code_in[0] === 'id') {
+      message.author.send("Your ID is `" + message.author.id + "`.");
+
+      // Get personal array prices
+    } else if(code_in[0] === 'pa') {
+      // ----------------------------------------------------------------------------------------------------------------
+      // ----------------------------------------------------------------------------------------------------------------
+      if(message.author.id !== client.user.id)
+        ProductRegister.methods.checkPayment(message.author.id).call()
+          .then((paid) => {
             if(paid)
               getCoinArray(message.author.id, channel);
             else
               channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
-      });
-// ----------------------------------------------------------------------------------------------------------------
-// ----------------------------------------------------------------------------------------------------------------
+          });
+      // ----------------------------------------------------------------------------------------------------------------
+      // ----------------------------------------------------------------------------------------------------------------
 
-  // Get GDAX ETHX
-  } else if (code_in[0] === '.tbg') {
-    if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
-      getPriceGDAX('ETH', 'EUR', -1, channel);
-    else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
-      getPriceGDAX('BTC', 'USD', -1, channel);
-    else
-      getPriceGDAX('ETH', 'USD', -1, channel);
+      // Get GDAX ETHX
+    } else if (code_in[0] === 'g') {
+      if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+        getPriceGDAX('ETH', 'EUR', -1, channel);
+      else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+        getPriceGDAX('BTC', 'USD', -1, channel);
+      else
+        getPriceGDAX('ETH', 'USD', -1, channel);
 
-  // Get Kraken ETHX
-  } else if (code_in[0] === '.tbk') {
-    if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
-      getPriceKraken('ETH','EUR',-1, channel)
-    else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
-      getPriceKraken('XBT', 'USD', -1, channel);
-    else
-      getPriceKraken('ETH','USD',-1, channel);
+      // Get Kraken ETHX
+    } else if (code_in[0] === 'k') {
+      if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+        getPriceKraken('ETH','EUR',-1, channel)
+      else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+        getPriceKraken('XBT', 'USD', -1, channel);
+      else
+        getPriceKraken('ETH','USD',-1, channel);
 
-  // Get Poloniex ETHBTC
-  } else if (code_in[0] === '.tbp') {
-    getPricePolo('ETH', 'BTC', channel)
+      // Get Poloniex ETHBTC
+    } else if (code_in[0] === 'p') {
+      getPricePolo('ETH', 'BTC', channel)
 
-  // Get prices of popular currencies
-  } else if (code_in[0] === '.tbpop') {
-    getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
+        // Get prices of popular currencies
+    } else if (code_in[0] === 'pop') {
+      getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
 
-  // Get Bittrex ETHBTC
-  } else if (code_in[0] === '.tbb') {
-    getPriceBittrex('ETH', 'BTC', channel)
+        // Get Bittrex ETHBTC
+    } else if (code_in[0] === 'b') {
+      getPriceBittrex('ETH', 'BTC', channel)
 
-  // Call help command
-  } else if (code_in[0] === '.help' || code_in[0] === '.th') {
-    postHelp(channel);
+        // Call help command
+    } else if (code_in[0] === 'bothelp' || code_in[0] === 'th') {
+      postHelp(channel);
 
-  // Meme
-  } else if (code_in[0] === '.dank') {
-    channel.send(":ok_hand:           :tiger:"+ '\n' +
-        " :eggplant: :zzz: :necktie: :eggplant:"+'\n' +
-        "                  :oil:     :nose:"+'\n' +
-        "            :zap:  8=:punch: =D:sweat_drops:"+'\n' +
-        "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' +
-        "          :boot:    :boot:");
+      // Meme
+    } else if (code_in[0] === '.dank') {
+      channel.send(":ok_hand:           :tiger:"+ '\n' +
+          " :eggplant: :zzz: :necktie: :eggplant:"+'\n' +
+          "                  :oil:     :nose:"+'\n' +
+          "            :zap:  8=:punch: =D:sweat_drops:"+'\n' +
+          "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' +
+          "          :boot:    :boot:");
 
-  // Another meme
-  } else if (code_in[0] === '.moonwhen') {
-    channel.send('Soon™')
+      // Another meme
+    } else if (code_in[0] === '.moonwhen') {
+      channel.send('Soon™')
+    }
   }
 
 }
