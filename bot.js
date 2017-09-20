@@ -213,25 +213,46 @@ bittrex.options({
 
 function getPriceBittrex(coin1, coin2, chn) {
 
-  coin1 = coin1.toUpperCase()
-    coin2 = coin2.toUpperCase() || 'BTC'
-    if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
-      bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
-          data = JSON.parse(data)
+  coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
+  coin1.push('BTC');
 
-          if(data && data['result']){
-            var p = data['result'];
-            chn.send('__Bittrex__ Price for **'  + coin2.toUpperCase()
-                + '-' + coin1.toUpperCase() + '** is : `'  + p['Last'] + ' ' + coin2.toUpperCase() + "`.");
-          } else {
-            chn.send('Bittrex API error.')
-          }
+  //bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ) {
+  bittrex.sendCustomRequest('https://bittrex.com/Api/v2.0/pub/Markets/GetMarketSummaries', function( data ) {
 
-          });
+    data = JSON.parse(data);
+
+    if(data && data['result']){
+      var p = data['result'];
+      var s = "__Bittrex__ Price for: \n";
+      var sn = [];
+
+      var markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1});
+
+      for(let idx in markets){
+        let c = markets[idx];
+
+        if(!sn[c.Market.MarketCurrency]) sn[c.Market.MarketCurrency] = [];
+        sn[c.Market.MarketCurrency].push("`" + c.Summary.Last + " " + c.Market.BaseCurrency + "`");
+      }
+
+
+
+      for(var coin in sn)
+        s += ("**" + coin + "**: " + sn[coin].join(" || ") 
+            + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" + 
+              Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000) / 100000 + " USDT`" : "" )
+            + "\n");
+
+
+      chn.send(s);
     } else {
-      chn.send('Invalid pair. (Use `ETHX, BTCX, USDTX` only.)')
+      chn.send('Bittrex API error.');
     }
+
+});
+
 }
+
 
 
 //------------------------------------------
@@ -457,7 +478,7 @@ function commands(message) {
 
             // Bittrex call
         } else if(code_in[0] === 'bit' || code_in[0] === 'b'){
-          getPriceBittrex(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
+          getPriceBittrex(code_in.slice(1,code_in.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
 
             // Etherscan call
         } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42) {
