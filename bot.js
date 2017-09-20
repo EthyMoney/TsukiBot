@@ -436,7 +436,12 @@ function commands(message) {
     if(code_in.length > 1) {
 
       // Check if the command exists and it uses a valid pair
-      if((code_in.slice(1,code_in.length).filter(function(value){ return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;  }).length + 1  == code_in.length)) {
+      if((code_in.slice(1,code_in.length).filter(function(value){
+                                                    if(pairs.indexOf(value.toUpperCase()) === -1)
+                                                      channel.send("**" + value + "** is not whitelisted.");
+                                                    
+                                                    return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
+                                                  }).length + 1  == code_in.length)) {
 
         // Volume command
         if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
