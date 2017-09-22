@@ -437,7 +437,7 @@ function commands(message) {
 
       // Check if the command exists and it uses a valid pair
       if((code_in.slice(1,code_in.length).filter(function(value){
-                                                    if(pairs.indexOf(value.toUpperCase()) === -1)
+                                                    if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e')
                                                       channel.send("**" + value + "** is not whitelisted.");
                                                     
                                                     return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
