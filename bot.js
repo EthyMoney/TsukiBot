@@ -405,6 +405,9 @@ client.on('message', message => {
     }
   }
 
+  if(Math.floor(Math.random() * 100) == 42)
+    console.log(client.guilds.size);
+
   commands(message);
 
 })
@@ -515,7 +518,8 @@ function commands(message) {
               getCoinArray(message.author.id, channel);
             else
               channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
-          });
+          })
+          .catch(channel.send("API Error. Try again in a few seconds."));
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
 
