@@ -519,7 +519,7 @@ function commands(message) {
             else
               channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
           })
-          .catch(channel.send("API Error. Try again in a few seconds."));
+          .catch(console.log);
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
 
@@ -554,8 +554,14 @@ function commands(message) {
       getPriceBittrex('ETH', 'BTC', channel)
 
         // Call help command
-    } else if (code_in[0] === 'bothelp' || code_in[0] === 'th') {
+    } else if (code_in[0] === 'help' || code_in[0] === 'h') {
       postHelp(channel);
+
+        // Statistics
+    } else if (code_in[0] === 'stat') {
+      const users = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
+      const guilds = (client.guilds.size);
+      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + client.uptime + "`.")
 
       // Meme
     } else if (code_in[0] === '.dank') {
