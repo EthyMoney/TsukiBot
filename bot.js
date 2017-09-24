@@ -443,6 +443,12 @@ function postHelp(chn){
 // Event goes off every time a message is read.
 client.on('message', message => {
 
+  if(process.argv[2] === "-d" && message.author.id !== "217327366102319106")
+    return;
+
+  if(message.author.id === "217327366102319106")
+    console.log(message);
+
   for(let a of message.attachments){
     if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
       message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
