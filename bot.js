@@ -377,10 +377,10 @@ function setSubscriptions(user, guild, coins){
 
   var sqlq;
 
-  const remove = coins === ['r'];
+  const remove = coins[0] === 'R';
 
   if(remove) 
-    sqlq = "SELECT UNNEST(coins) FROM allowedby WHERE guild = $3;";
+    sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
   else
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
@@ -397,7 +397,6 @@ function setSubscriptions(user, guild, coins){
     } else {
       const roles = guild.roles;
       const coinans = res.rows[0]['coins'].map(c => c + "Sub");
-      console.log(coinans)
 
       guild.fetchMember(user)
         .then(gm => {
@@ -408,34 +407,6 @@ function setSubscriptions(user, guild, coins){
     conn.end();
   });
 
-  /*
-  } else {
-    var sqlq = "WITH arr AS " +
-      "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
-      "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
-      "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
-      "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
-
-    var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
-
-    var query = conn.query(queryp);
-
-    var query = conn.query(queryp, (err, res) => {
-      if (err) {console.log(err);
-      } else {
-        const roles = guild.roles;
-        const coinans = res.rows[0]['coins'].map(c => c + "Sub");
-        guild.fetchMember(user)
-          .then(gm => {
-            roles.forEach(function(r) { coinans.indexOf(r.name) > -1 ? gm.addRole(r) : (0) });
-          });
-      }
-
-      conn.end();
-    });
-  }*/
-
-  console.log(queryp);
 
 }
 
