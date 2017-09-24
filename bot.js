@@ -403,7 +403,7 @@ function setSubscriptions(user, guild, coins){
       guild.fetchMember(user)
         .then(function(gm) {
           roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (remove ? gm.removeRole(r) : gm.addRole(r)) } });
-          user.send("Subscribed to `[" + added.join(' ') + "]`.");
+          user.send(remove ? "Unsubbed" : "Subscribed to `[" + added.join(' ') + "]`.");
         })
         .catch(console.log)
     }
