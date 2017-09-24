@@ -3,7 +3,7 @@ var fs = require('fs');
 var pg = require('pg');
 
 // Set the prefix
-var prefix = ['-t', '.tb', 'scottyisgay', 't'];
+var prefix = ['-t', '.tb', 't'];
 
 // Files allowed
 const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
@@ -360,6 +360,51 @@ function getCoinArray(id, chn, coins = ''){
 }
 
 
+//------------------------------------------
+//------------------------------------------
+
+
+function setSubscriptions(id, guild, coins){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  coins = '{' + coins + '}';
+
+  var conn = new pg.Client(conString);
+  conn.connect();
+
+  var query;
+  if(coins === '{}') {
+    query = conn.query("SELECT * FROM subcoins where id = $1;", [id], (err, res) => {
+      if (err) {console.log(err);}
+      else {
+        if(res.rows[0])
+          getPriceCC(res.rows[0].coins,chn)
+        else
+          chn.send('Set your array with `.tb sub [array]`.')
+      }
+
+      conn.end();
+    });
+  } else {
+    query = conn.query((('WITH arr AS (SELECT ARRAY( SELECT * FROM UNNEST($2) ' +
+                              'WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) ' + 
+                          'INSERT INTO coinsubs ' +
+                          'SELECT $1, * FROM arr ' +
+                              'RETURNING coins;')),
+      [ id, coins, guild ], (err, res) => {
+        
+        if (err) {console.log(err);}
+
+        for(let c in res){
+          console.log(res)
+        }
+
+        conn.end();
+    });
+  }
+
+}
+
+
 
 //------------------------------------------
 //------------------------------------------
@@ -479,6 +524,11 @@ function commands(message) {
         } else if(code_in[0] === 'pa'){
           code_in.splice(0,1);
           getCoinArray(message.author.id, channel, code_in);
+
+          // Set coin roles
+        } else if(code_in[0] === 'sub'){
+          code_in.splice(0,1);
+          getCoinArray(message.author.id, msg.guild, code_in);
 
           // Poloniex call
         } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
