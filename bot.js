@@ -398,15 +398,18 @@ function setSubscriptions(user, guild, coins){
       const roles = guild.roles;
       const coinans = res.rows[0]['coins'].map(c => c + "Sub");
 
+      var added = new Array();
+      
       guild.fetchMember(user)
-        .then(gm => {
-          roles.forEach(function(r) { coinans.indexOf(r.name) > -1 ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) });
-        });
+        .then(function(gm) {
+          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (remove ? gm.removeRole(r) : gm.addRole(r)) } });
+          user.send("Subscribed to `[" + added.join(' ') + "]`.");
+        })
+        .catch(console.log)
     }
 
     conn.end();
   });
-
 
 }
 
