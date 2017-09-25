@@ -22,7 +22,7 @@
 
 **Bittrex**   　　　　　　　　　　　　　　 **Etherscan**
 `⤫` `b` or `bit`   　　 　　　　　　　 　　 `⤫` `e` or `escan`
-`↺` `XXX`, [`YYY`]    　　　　　 　   　　　   `↺` [hex address]
+`↺` [`YYY` ... `ZZZ`]    　　　　　 　  　　　   `↺` [hex address]
 `»` `.tbb`　　　　　  　　　 　 　 　　　`»` **n.a.**
 
 **Personal Arrays** `(paid with CHS)`

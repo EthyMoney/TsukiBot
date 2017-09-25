@@ -631,7 +631,7 @@ function commands(message) {
     } else if (code_in[0] === 'stat') {
       const users = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
       const guilds = (client.guilds.size);
-      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + client.uptime + "`.")
+      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.")
 
       // Meme
     } else if (code_in[0] === '.dank') {
