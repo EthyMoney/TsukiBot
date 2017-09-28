@@ -379,17 +379,21 @@ function setSubscriptions(user, guild, coins){
 
   const change = coins[0] === 'M';
   const remove = coins[0] === 'R';
+  const getlst = coins[0] === 'G';
 
   if(remove) 
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
-  else if(!change)
+  else if(!change && !getlst)
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
       "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
-  else
+  else if(!getlst) {
     sqlq = "INSERT INTO allowedby VALUES($3,$2) ON CONFLICT (guild) DO UPDATE SET coins = $2 RETURNING coins;";
+    coins.splice(0,1);
+  } else
+    sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
 
   var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
 
@@ -399,20 +403,22 @@ function setSubscriptions(user, guild, coins){
     if (err) {console.log(err);
     } else {
       const roles = guild.roles;
-      const coinans = res.rows[0]['coins'].map(c => c + "Sub");
+      const coinans = getlst ? res.rows[0]['coins']: res.rows[0]['coins'].map(c => c + "Sub");
 
       var added = new Array();
 
       guild.fetchMember(user)
         .then(function(gm) {
           roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); !change ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) } });
-          user.send(remove ? "Unsubbed." : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
-            : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually.")));
+          user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
+                            : (remove ? "Unsubbed."
+                                      : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
+                                                  : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
 
           for(let cr in coinans){
             if(cr == 0) continue;
 
-            if(added.indexOf(coinans[cr]) == -1){
+            if(added.indexOf(coinans[cr]) === -1){
               guild.createRole({
                 name: coinans[cr],
                 color: 'RANDOM',
@@ -574,7 +580,7 @@ function commands(message) {
             code_in.unshift('m');
             setSubscriptions(message.author, message.guild, code_in);
           }
-          
+
           // Poloniex call
         } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
           getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
@@ -625,6 +631,13 @@ function commands(message) {
           .catch(console.log);
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
+
+      // Get available roles 
+    } else if(code_in[0] === 'list'){
+      code_in.splice(0,1);
+      code_in.unshift('g');
+      setSubscriptions(message.author, message.guild, code_in);
+
 
       // Get GDAX ETHX
     } else if (code_in[0] === 'g') {
