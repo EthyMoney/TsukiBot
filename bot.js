@@ -409,14 +409,16 @@ function setSubscriptions(user, guild, coins){
 
       guild.fetchMember(user)
         .then(function(gm) {
-          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); !change ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) } });
+          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (!change && !getlst) ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) } });
           user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
                             : (remove ? "Unsubbed."
                                       : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
                                                   : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
 
+          if(!change)
+            return;
+
           for(let cr in coinans){
-            if(cr == 0) continue;
 
             if(added.indexOf(coinans[cr]) === -1){
               guild.createRole({
@@ -575,7 +577,7 @@ function commands(message) {
 
           // Set coin role perms 
         } else if(code_in[0] === 'setsub'){
-          if(message.author.id === message.guild.owner) {
+          if(message.author.id === message.guild.ownerID) {
             code_in.splice(0,1);
             code_in.unshift('m');
             setSubscriptions(message.author, message.guild, code_in);
