@@ -418,6 +418,7 @@ function setSubscriptions(user, guild, coins){
           if(!change)
             return;
 
+
           for(let cr in coinans){
 
             if(added.indexOf(coinans[cr]) === -1){
@@ -426,7 +427,12 @@ function setSubscriptions(user, guild, coins){
                 color: 'RANDOM',
                 mentionable: true
               })
-                .then(r => console.log(r.name))
+                .then(function(r) {
+                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', deny: 0}, 
+                                                            {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
+                    .then(console.log)
+                    .catch(console.log)
+                  })
                 .catch(console.log);
             }
           }
