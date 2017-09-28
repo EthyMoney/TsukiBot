@@ -7,7 +7,7 @@ var pgp = require('pg-promise');
 var prefix = ['-t', '.tb', 't'];
 
 // Files allowed
-const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
+const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pdf'];
 
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
@@ -364,7 +364,7 @@ function getCoinArray(id, chn, coins = ''){
 //------------------------------------------
 //------------------------------------------
 
-
+// Service to self-set roles via commands in chat.
 
 function setSubscriptions(user, guild, coins){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
@@ -377,16 +377,19 @@ function setSubscriptions(user, guild, coins){
 
   var sqlq;
 
+  const change = coins[0] === 'M';
   const remove = coins[0] === 'R';
 
   if(remove) 
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
-  else
+  else if(!change)
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
       "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
+  else
+    sqlq = "INSERT INTO allowedby VALUES($3,$2) ON CONFLICT (guild) DO UPDATE SET coins = $2 RETURNING coins;";
 
   var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
 
@@ -399,11 +402,28 @@ function setSubscriptions(user, guild, coins){
       const coinans = res.rows[0]['coins'].map(c => c + "Sub");
 
       var added = new Array();
-      
+
       guild.fetchMember(user)
         .then(function(gm) {
-          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (remove ? gm.removeRole(r) : gm.addRole(r)) } });
-          user.send(remove ? "Unsubbed" : "Subscribed to `[" + added.join(' ') + "]`.");
+          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); !change ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) } });
+          user.send(remove ? "Unsubbed." : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
+            : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually.")));
+
+          for(let cr in coinans){
+            if(cr == 0) continue;
+
+            if(added.indexOf(coinans[cr]) == -1){
+              guild.createRole({
+                name: coinans[cr],
+                color: 'RANDOM',
+                mentionable: true
+              })
+                .then(r => console.log(r.name))
+                .catch(console.log);
+            }
+          }
+
+
         })
         .catch(console.log)
     }
@@ -412,8 +432,6 @@ function setSubscriptions(user, guild, coins){
   });
 
 }
-
-
 
 
 
@@ -433,6 +451,9 @@ const token = keys['discord'];
 client.on('ready', () => {
 
   console.log('ready');
+
+  if(process.argv[2] === "-d")
+    console.log('dev mode');
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
@@ -546,6 +567,14 @@ function commands(message) {
           code_in.splice(0,1);
           setSubscriptions(message.author, message.guild, code_in);
 
+          // Set coin role perms 
+        } else if(code_in[0] === 'setsub'){
+          if(message.author.id === message.guild.owner) {
+            code_in.splice(0,1);
+            code_in.unshift('m');
+            setSubscriptions(message.author, message.guild, code_in);
+          }
+          
           // Poloniex call
         } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
           getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
@@ -576,6 +605,10 @@ function commands(message) {
       // Remove the sub tags
     } else if(code_in[0] === 'unsub'){
       setSubscriptions(message.author, message.guild, ['r']);
+
+      // Remove the sub tags
+    } else if(code_in[0] === 'setsub'){
+      setSubscriptions(message.author, message.guild, ['m']);
 
       // Get personal array prices
     } else if(code_in[0] === 'pa') {
