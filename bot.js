@@ -501,8 +501,9 @@ client.on('ready', () => {
       .set('Authorization', keys['dbots'])
       .send({ server_count: client.guilds.size })
       .then(console.log('updated dbots.org status.'))
-      .catch(e => console.warn('dbots.org down'));
+      .catch(e => console.warn('dbots.org down'))
   }
+
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
