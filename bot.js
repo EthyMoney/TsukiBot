@@ -390,11 +390,11 @@ function setSubscriptions(user, guild, coins){
   const restore = coins[0] === 'S'; // Resub to the subbed roled
 
     // Case R
-  if(remove)
+  if(remove || getlst)
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
 
     // Case default
-  else if(!change && !getlst) 
+  else if(!change) 
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
@@ -402,14 +402,17 @@ function setSubscriptions(user, guild, coins){
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
   
     // Case M
-  else if(!getlst) {
+  else {
     sqlq = "INSERT INTO allowedby VALUES($3, $2) ON CONFLICT (guild) " +
       "DO UPDATE SET coins = ARRAY(SELECT UNNEST(coins) FROM (SELECT coins FROM allowedby WHERE guild = $3) AS C0 UNION SELECT * FROM UNNEST($2)) RETURNING coins;"
     coins.splice(0,1);
-    
+  }
+
+    /*
     // Case G -> S
   } else
-    sqlq = restore ? "SELECT coins FROM coinsubs WHERE id = $1;" : "DELETE FROM allowedby WHERE guild = $3;"; // TODO: Rethink
+    sqlq = !restore || true ? "SELECT coins FROM coinsubs WHERE id = $1;" : "DELETE FROM allowedby WHERE guild = $3;"; // TODO: Rethink
+    */
 
   // Format in a predictable way
   var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
@@ -449,7 +452,7 @@ function setSubscriptions(user, guild, coins){
                 mentionable: true
               })
                 .then(function(r) {
-                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', deny: 0}, 
+                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024}, 
                                                             {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
                     .then(console.log)
                     .catch(console.log)
@@ -522,15 +525,19 @@ client.on('message', message => {
     }
   }
 
-  if(Math.floor(Math.random() * 100) == 42)
-    console.log(client.guilds.size);
 
-  commands(message);
+  if(message.guild === null) return;
+
+  message.guild.fetchMember(message.author)
+    .then(gm => {
+      commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }))
+    })
+    .catch(console.log);
 
 })
 
 
-function commands(message) {
+function commands(message, botAdmin) {
 
   // Get the channel where the bot will answer.
   channel = message.channel;
@@ -557,7 +564,7 @@ function commands(message) {
 
       // Check if the command exists and it uses a valid pair
       if((code_in.slice(1,code_in.length).filter(function(value){
-        if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e')
+        if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e' && !(code_in[0] === 'v' && !isNaN(code_in[1])))
           channel.send("**" + value + "** is not whitelisted.");
 
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
@@ -604,7 +611,7 @@ function commands(message) {
 
           // Set coin role perms 
         } else if(code_in[0] === 'setsub'){
-          if(message.author.id === message.guild.ownerID) {
+          if(message.author.id === message.guild.ownerID || botAdmin) {
             code_in.splice(0,1);
             code_in.unshift('m');
             setSubscriptions(message.author, message.guild, code_in);
