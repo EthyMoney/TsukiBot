@@ -20,7 +20,6 @@ const gdaxthrottle	= 2
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 
-//const helpStr = title + '```Markdown\n' + krakenhelp + gdaxhelp + poloniexhelp + escanhelp + '```' + shortcuts + ticker + volumehelp + tips + github;
 const helpStr = fs.readFileSync('./common/help.txt','utf8');
 
 
@@ -364,7 +363,15 @@ function getCoinArray(id, chn, coins = ''){
 //------------------------------------------
 //------------------------------------------
 
+// Description outdated
+
 // Service to self-set roles via commands in chat.
+// This method currently handles the 4 following cases:
+// 1. Setting the roles themselves, and creating the roles
+// as well as the channels
+// 2. Setting the self roles
+// 3. Getting the available roles (Need rework)
+// 4. Removing the roles from oneself
 
 function setSubscriptions(user, guild, coins){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
@@ -377,39 +384,53 @@ function setSubscriptions(user, guild, coins){
 
   var sqlq;
 
-  const change = coins[0] === 'M';
-  const remove = coins[0] === 'R';
-  const getlst = coins[0] === 'G';
+  const change  = coins[0] === 'M'; // Change the currently officially supported roles by merge
+  const remove  = coins[0] === 'R'; // Unsub from everything
+  const getlst  = coins[0] === 'G'; // Get the current role list
+  const restore = coins[0] === 'S'; // Resub to the subbed roled
 
-  if(remove) 
+    // Case R
+  if(remove)
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
-  else if(!change && !getlst)
+
+    // Case default
+  else if(!change && !getlst) 
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
       "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
+  
+    // Case M
   else if(!getlst) {
-    sqlq = "INSERT INTO allowedby VALUES($3,$2) ON CONFLICT (guild) DO UPDATE SET coins = $2 RETURNING coins;";
+    sqlq = "INSERT INTO allowedby VALUES($3, $2) ON CONFLICT (guild) " +
+      "DO UPDATE SET coins = ARRAY(SELECT UNNEST(coins) FROM (SELECT coins FROM allowedby WHERE guild = $3) AS C0 UNION SELECT * FROM UNNEST($2)) RETURNING coins;"
     coins.splice(0,1);
+    
+    // Case G -> S
   } else
-    sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
+    sqlq = restore ? "SELECT coins FROM coinsubs WHERE id = $1;" : "DELETE FROM allowedby WHERE guild = $3;"; // TODO: Rethink
 
+  // Format in a predictable way
   var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
 
+  console.log(queryp)
+  // Pass the string to pg
   var query = conn.query(queryp);
 
+  // Execute the query
   var query = conn.query(queryp, (err, res) => {
     if (err) {console.log(err);
     } else {
       const roles = guild.roles;
-      const coinans = getlst ? res.rows[0]['coins']: res.rows[0]['coins'].map(c => c + "Sub");
+      const coinans = getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub");
 
       var added = new Array();
 
       guild.fetchMember(user)
         .then(function(gm) {
-          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (!change && !getlst) ? (remove ? gm.removeRole(r) : gm.addRole(r)) : (0) } });
+          roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r) 
+                                                                                                                                        : gm.addRole(r)) : (0) } });
           user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
                             : (remove ? "Unsubbed."
                                       : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
@@ -620,9 +641,9 @@ function commands(message) {
     } else if(code_in[0] === 'unsub'){
       setSubscriptions(message.author, message.guild, ['r']);
 
-      // Remove the sub tags
-    } else if(code_in[0] === 'setsub'){
-      setSubscriptions(message.author, message.guild, ['m']);
+      // Restore the sub tags
+    } else if(code_in[0] === 'resub'){
+      setSubscriptions(message.author, message.guild, ['S']);
 
       // Get personal array prices
     } else if(code_in[0] === 'pa') {
@@ -645,7 +666,6 @@ function commands(message) {
       code_in.splice(0,1);
       code_in.unshift('g');
       setSubscriptions(message.author, message.guild, code_in);
-
 
       // Get GDAX ETHX
     } else if (code_in[0] === 'g') {
