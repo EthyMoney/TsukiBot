@@ -8,6 +8,7 @@
 + Get the volume for buy and sell orders.
 + Check prices from various exchanges in real time.
 + Fetch volume data on selected pairs.
++ And more.
 
 # Usage
 
@@ -22,7 +23,7 @@
 |   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
 |   Etherscan   | `e` or `escan`     |  hex address   |  n.a. |
 | Personal Arrays  | `pa`| to set: [`XXX` ... `ZZZ`] | .tbpa |
-|   Help   | `.help` or `.th`     |  n.a.   |  n.a. |
+|   Help   | `.tbhelp`     |  n.a.   |  n.a. |
 
 [`YYY`] defaults to the main fiat pair. Usually `USD` or `USDT`.
 
@@ -30,7 +31,7 @@ If a [base price] is provided, the result will return the percent change from th
 
 ### _Available Tickers_
 ```
-ETH, ETHX, ETC, EOS, GNT, XRP, LTC, BTC, XBT, MLN, ICN, STEEM, USDT
+All from CryptoCompare
 ```
 
 This may change on later versions.
@@ -42,7 +43,7 @@ ETH, ETHX
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
 
-ETH tips to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d`
+ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
 
 
 ## Installation
@@ -127,3 +128,5 @@ node bot.js
 ```
 
 ### Note: use pm2 to keep the bot running! Execute from the main directory with `pm2 start bot.js`.
+
+ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
