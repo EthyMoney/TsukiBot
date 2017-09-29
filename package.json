@@ -19,6 +19,7 @@
     "pg-promise": "^6.9.0",
     "python-shell": "^0.4.0",
     "request": "^2.81.0",
+    "snekfetch": "^3.4.1",
     "web3": "^1.0.0-beta.18"
   }
 }

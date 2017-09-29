@@ -22,6 +22,8 @@ var github		= 'Check the GitHub repo for more detailed information. <https://git
 
 const helpStr = fs.readFileSync('./common/help.txt','utf8');
 
+// DiscordBots API
+const snekfetch = require('snekfetch')
 
 // HTTP request
 var request = require("request")
@@ -389,26 +391,26 @@ function setSubscriptions(user, guild, coins){
   const getlst  = coins[0] === 'G'; // Get the current role list
   const restore = coins[0] === 'S'; // Resub to the subbed roled
 
-    // Case R
+  // Case R
   if(remove || getlst)
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
 
-    // Case default
+  // Case default
   else if(!change) 
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
       "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
-  
-    // Case M
+
+  // Case M
   else {
     sqlq = "INSERT INTO allowedby VALUES($3, $2) ON CONFLICT (guild) " +
       "DO UPDATE SET coins = ARRAY(SELECT UNNEST(coins) FROM (SELECT coins FROM allowedby WHERE guild = $3) AS C0 UNION SELECT * FROM UNNEST($2)) RETURNING coins;"
     coins.splice(0,1);
   }
 
-    /*
+  /*
     // Case G -> S
   } else
     sqlq = !restore || true ? "SELECT coins FROM coinsubs WHERE id = $1;" : "DELETE FROM allowedby WHERE guild = $3;"; // TODO: Rethink
@@ -433,11 +435,11 @@ function setSubscriptions(user, guild, coins){
       guild.fetchMember(user)
         .then(function(gm) {
           roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r) 
-                                                                                                                                        : gm.addRole(r)) : (0) } });
+            : gm.addRole(r)) : (0) } });
           user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
-                            : (remove ? "Unsubbed."
-                                      : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
-                                                  : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
+            : (remove ? "Unsubbed."
+              : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
+                : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
 
           if(!change)
             return;
@@ -453,10 +455,10 @@ function setSubscriptions(user, guild, coins){
               })
                 .then(function(r) {
                   guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024}, 
-                                                            {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
+                    {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
                     .then(console.log)
                     .catch(console.log)
-                  })
+                })
                 .catch(console.log);
             }
           }
@@ -490,8 +492,17 @@ client.on('ready', () => {
 
   console.log('ready');
 
+
   if(process.argv[2] === "-d")
     console.log('dev mode');
+
+  if(process.argv[2] === "-p"){
+    snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
+      .set('Authorization', keys['dbots'])
+      .send({ server_count: client.guilds.size })
+      .then(console.log('updated dbots.org status.'))
+      .catch(e => console.warn('dbots.org down'));
+  }
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
@@ -735,7 +746,7 @@ function commands(message, botAdmin) {
 // If the message gets 3 reacts for cross, it deletes the info. No idea why 3.
 // Update: Now it's only 2.
 client.on('messageReactionAdd', messageReaction => {
-  if(removeID(messageReaction.message.id) != -1&& messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2) {
+  if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2) {
     messageReaction.message.delete().catch(console.error)
   }
 });
