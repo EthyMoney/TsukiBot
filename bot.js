@@ -13,8 +13,6 @@ const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pdf'];
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
 const volcoins 		= ['ETH', 'ETHX']
 const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
-const trexthrottle	= 5000
-const gdaxthrottle	= 2
 
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
@@ -36,7 +34,6 @@ var keys = JSON.parse(fs.readFileSync('keys.api','utf8'))
 const Discord 		= require('discord.js');
 const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
-const Gdax 		= require('gdax');
 const bittrex 		= require('node.bittrex.api');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
@@ -77,11 +74,6 @@ function removeID(id) {
 
 }
 
-//GDAX vars
-var gdaxhandle, gdaxhandle2;
-var seconds = 0;
-var btcusd = 0;
-
 // Bittrex handle
 var bittrexhandle = {};
 
@@ -107,7 +99,10 @@ function getPriceGDAX(coin1, coin2, base, chn) {
     if(err) {chn.send('API Error.')}
     else {
       var per = "";
-      if (base != -1) per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
+      if (base != -1) {
+        per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
+      }
+      
       chn.send('__GDAX__ Price for **'  + coin1.toUpperCase()
         + '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
     }
@@ -130,11 +125,12 @@ function getPriceCC(coins, chn) {
     .then(prices => {
       var msg = '__**CryptoCompare**__\n';
 
-      for(var i = 0; i < coins.length; i++)
+      for(var i = 0; i < coins.length; i++) {
         msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
           prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
           Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
         );
+      }
 
       chn.send(msg);
 
@@ -157,7 +153,10 @@ function getPriceKraken(coin1, coin2, base, chn) {
     else {
       var per = ""
       var s = (data.result[Object.keys(data.result)]['c'][0]);
-      if (base != -1) per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
+      if (base != -1) {
+        per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
+      }
+
       chn.send('__Kraken__ Price for **'  + coin1.toUpperCase()
         + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`." + per);
 
@@ -175,7 +174,7 @@ function getPriceKraken(coin1, coin2, base, chn) {
 // Function that gets Poloniex prices
 function getPricePolo(coin1, coin2, chn) {
 
-  url = "https://poloniex.com/public?command=returnTicker";
+  let url = "https://poloniex.com/public?command=returnTicker";
   coin2 = coin2.toUpperCase();
 
   if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
@@ -230,21 +229,24 @@ function getPriceBittrex(coin1, coin2, chn) {
 
       var markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1});
 
-      for(let idx in markets){
+      for(let idx in markets) {
         let c = markets[idx];
 
-        if(!sn[c.Market.MarketCurrency]) sn[c.Market.MarketCurrency] = [];
+        if(!sn[c.Market.MarketCurrency]) {
+          sn[c.Market.MarketCurrency] = [];
+        }
+
         sn[c.Market.MarketCurrency].push("`" + c.Summary.Last + " " + c.Market.BaseCurrency + "`");
       }
 
 
 
-      for(var coin in sn)
+      for(var coin in sn) {
         s += ("**" + coin + "**: " + sn[coin].join(" || ") 
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" + 
             Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000) / 100000 + " USDT`" : "" )
           + "\n");
-
+      }
 
       chn.send(s);
     } else {
@@ -284,12 +286,17 @@ function createLogger(coins){
 function executeCommand(c, opts, chn) {
   console.log(opts)
 
-  coin = opts.coin;
-  arg1 = opts.arg1 || -1;
-  arg2 = opts.arg2 || 'p';
+  let coin = opts.coin;
+  let arg1 = opts.arg1 || -1;
+  let arg2 = opts.arg2 || 'p';
 
   var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
-  pyshell.send(c + '\r\n').end(function(err){if(err) console.log(err);});
+  
+  pyshell.send(c + '\r\n').end(function(err) {
+    if(err) { 
+      console.log(err);
+    }
+  });
 
   pyshell.stdout.on('data', function (data) {
     console.log(data);
@@ -343,14 +350,16 @@ function getCoinArray(id, chn, coins = ''){
     query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
       if (err) {console.log(err);}
       else {
-        if(res.rows[0])
+        if(res.rows[0]) {
           getPriceCC(res.rows[0].coins,chn)
-        else
+        } else {
           chn.send('Set your array with `.tb pa [array]`.')
+        }  
       }
 
       conn.end();
     });
+
   } else {
     query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
       if (err) {console.log(err);}
@@ -392,11 +401,11 @@ function setSubscriptions(user, guild, coins){
   const restore = coins[0] === 'S'; // Resub to the subbed roled
 
   // Case R
-  if(remove || getlst)
+  if(remove || getlst) {
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
 
   // Case default
-  else if(!change) 
+  } else if(!change) { 
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
@@ -404,7 +413,7 @@ function setSubscriptions(user, guild, coins){
       "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
 
   // Case M
-  else {
+  } else {
     sqlq = "INSERT INTO allowedby VALUES($3, $2) ON CONFLICT (guild) " +
       "DO UPDATE SET coins = ARRAY(SELECT UNNEST(coins) FROM (SELECT coins FROM allowedby WHERE guild = $3) AS C0 UNION SELECT * FROM UNNEST($2)) RETURNING coins;"
     coins.splice(0,1);
@@ -419,10 +428,6 @@ function setSubscriptions(user, guild, coins){
   // Format in a predictable way
   var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
 
-  console.log(queryp)
-  // Pass the string to pg
-  var query = conn.query(queryp);
-
   // Execute the query
   var query = conn.query(queryp, (err, res) => {
     if (err) {console.log(err);
@@ -436,6 +441,7 @@ function setSubscriptions(user, guild, coins){
         .then(function(gm) {
           roles.forEach(function(r) { if(coinans.indexOf(r.name) > -1) { added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r) 
             : gm.addRole(r)) : (0) } });
+          
           user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
             : (remove ? "Unsubbed."
               : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
@@ -445,9 +451,9 @@ function setSubscriptions(user, guild, coins){
             return;
 
 
-          for(let cr in coinans){
+          for(let cr in coinans) {
 
-            if(added.indexOf(coinans[cr]) === -1){
+            if(added.indexOf(coinans[cr]) === -1) {
               guild.createRole({
                 name: coinans[cr],
                 color: 'RANDOM',
@@ -493,10 +499,11 @@ client.on('ready', () => {
   console.log('ready');
 
 
-  if(process.argv[2] === "-d")
+  if(process.argv[2] === "-d") {
     console.log('dev mode');
+  }
 
-  if(process.argv[2] === "-p"){
+  if(process.argv[2] === "-p") {
     snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
       .set('Authorization', keys['dbots'])
       .send({ server_count: client.guilds.size })
@@ -507,7 +514,6 @@ client.on('ready', () => {
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
-
 
 });
 
@@ -552,15 +558,15 @@ client.on('message', message => {
 function commands(message, botAdmin) {
 
   // Get the channel where the bot will answer.
-  channel = message.channel;
+  let channel = message.channel;
 
   // Split the message by spaces.
-  code_in = message.content.split(' ');
+  let code_in = message.content.split(' ');
 
-  hasPfx = "";
+  let hasPfx = "";
   prefix.map(pfx => hasPfx = (code_in[0].indexOf(pfx) === 0 ? pfx : hasPfx));
 
-  code_in_pre = code_in[0];
+  let code_in_pre = code_in[0];
   code_in[0] = code_in[0].replace(hasPfx,"");
 
   // Check for bot prefix
@@ -576,10 +582,13 @@ function commands(message, botAdmin) {
 
       // Check if the command exists and it uses a valid pair
       if((code_in.slice(1,code_in.length).filter(function(value){
-        if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e' && !(code_in[0] === 'v' && !isNaN(code_in[1])))
+        
+        if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e' && !(code_in[0] === 'v' && !isNaN(code_in[1]))){
           channel.send("**" + value + "** is not whitelisted.");
+        }
 
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
+      
       }).length + 1  == code_in.length)) {
 
         // Volume command
@@ -671,10 +680,11 @@ function commands(message, botAdmin) {
       if(message.author.id !== client.user.id)
         ProductRegister.methods.checkPayment(message.author.id).call()
           .then((paid) => {
-            if(paid)
+            if(paid) {
               getCoinArray(message.author.id, channel);
-            else
+            } else {
               channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
+            }
           })
           .catch(console.log);
       // ----------------------------------------------------------------------------------------------------------------
@@ -688,21 +698,23 @@ function commands(message, botAdmin) {
 
       // Get GDAX ETHX
     } else if (code_in[0] === 'g') {
-      if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+      if(code_in[1] && code_in[1].toUpperCase() === 'EUR') {
         getPriceGDAX('ETH', 'EUR', -1, channel);
-      else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+      } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC') {
         getPriceGDAX('BTC', 'USD', -1, channel);
-      else
+      } else {
         getPriceGDAX('ETH', 'USD', -1, channel);
+      }
 
       // Get Kraken ETHX
     } else if (code_in[0] === 'k') {
-      if(code_in[1] && code_in[1].toUpperCase() === 'EUR')
+      if(code_in[1] && code_in[1].toUpperCase() === 'EUR') {
         getPriceKraken('ETH','EUR',-1, channel)
-      else if(code_in[1] && code_in[1].toUpperCase() === 'BTC')
+      } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC') {
         getPriceKraken('XBT', 'USD', -1, channel);
-      else
+      } else {
         getPriceKraken('ETH','USD',-1, channel);
+      }
 
       // Get Poloniex ETHBTC
     } else if (code_in[0] === 'p') {
