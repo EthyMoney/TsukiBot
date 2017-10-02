@@ -2,7 +2,9 @@
 
 <p align="center">
   <img src="https://github.com/CehhNet/TsukiBot-Web/blob/master/src/img/TsukiBotBanner.png?raw=true"/>
+  <a href="https://discordapp.com/oauth2/authorize?client_id=313452464399581194&scope=bot&permissions=268438608">Invite Link</a>
 </p>
+
 
 ## Features
 + Get the volume for buy and sell orders.
