@@ -30,4 +30,7 @@
 `↺` set: `.tb pa `[`XXX` ... `ZZZ`]
 `»` read: `.tbpa`
 
+**Bot Statistics**
+`.tbstat`
+
 `I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available.`
