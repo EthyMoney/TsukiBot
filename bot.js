@@ -503,13 +503,6 @@ client.on('ready', () => {
     console.log('dev mode');
   }
 
-  if(process.argv[2] === "-p") {
-    snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
-      .set('Authorization', keys['dbots'])
-      .send({ server_count: client.guilds.size })
-      .then(console.log('updated dbots.org status.'))
-      .catch(e => console.warn('dbots.org down'))
-  }
 
 
   // When ready, start a logging script for the coins in the array.
@@ -541,6 +534,15 @@ client.on('message', message => {
       message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
       break;
     }
+  }
+  
+  
+  if(Math.floor(Math.random() * 100) === 42) {
+    snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
+      .set('Authorization', keys['dbots'])
+      .send({ server_count: client.guilds.size })
+      .then(console.log('updated dbots.org status.'))
+      .catch(e => console.warn('dbots.org down'))
   }
 
 
