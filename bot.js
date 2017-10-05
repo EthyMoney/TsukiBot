@@ -1,3 +1,14 @@
+/* --------------------------------------------------- 
+ *
+ * Author: Oscar "Hiro Inu" Fonseca
+ * 
+ *
+ *
+ *
+ *
+ * ------------------------------------------------ */
+
+
 // File read for JSON and PostgreSQL
 var fs  = require('fs');
 var pg  = require('pg');
@@ -63,7 +74,7 @@ var blockIDs = [];
 // blockIDs remove function
 function removeID(id) {
   // index of the passed message.id
-  var index = blockIDs.indexOf(id);
+  let index = blockIDs.indexOf(id);
 
   // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs.
   if (index > -1) {
@@ -98,7 +109,7 @@ function getPriceGDAX(coin1, coin2, base, chn) {
   clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price) {
     if(err) {chn.send('API Error.')}
     else {
-      var per = "";
+      let per = "";
       if (base != -1) {
         per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
       }
@@ -125,7 +136,7 @@ function getPriceCC(coins, chn) {
     .then(prices => {
       var msg = '__**CryptoCompare**__\n';
 
-      for(var i = 0; i < coins.length; i++) {
+      for(let i = 0; i < coins.length; i++) {
         msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
           prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
           Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
@@ -151,8 +162,8 @@ function getPriceKraken(coin1, coin2, base, chn) {
   clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data) {
     if(error) {chn.send('Unsupported pair')}
     else {
-      var per = ""
-      var s = (data.result[Object.keys(data.result)]['c'][0]);
+      let per = ""
+      let s = (data.result[Object.keys(data.result)]['c'][0]);
       if (base != -1) {
         per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
       }
@@ -182,10 +193,10 @@ function getPricePolo(coin1, coin2, chn) {
       url: url,
       json: true
     }, function(error, response, body){
-      var pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
+      let pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
 
       try {
-        var s = body[pair]['last']
+        let s = body[pair]['last']
         chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
           + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
       } catch (err) {
@@ -223,11 +234,11 @@ function getPriceBittrex(coin1, coin2, chn) {
     data = JSON.parse(data);
 
     if(data && data['result']){
-      var p = data['result'];
-      var s = "__Bittrex__ Price for: \n";
-      var sn = [];
+      let p = data['result'];
+      let s = "__Bittrex__ Price for: \n";
+      let sn = [];
 
-      var markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1});
+      let markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1});
 
       for(let idx in markets) {
         let c = markets[idx];
@@ -241,7 +252,7 @@ function getPriceBittrex(coin1, coin2, chn) {
 
 
 
-      for(var coin in sn) {
+      for(let coin in sn) {
         s += ("**" + coin + "**: " + sn[coin].join(" || ") 
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" + 
             Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000) / 100000 + " USDT`" : "" )
@@ -290,7 +301,7 @@ function executeCommand(c, opts, chn) {
   let arg1 = opts.arg1 || -1;
   let arg2 = opts.arg2 || 'p';
 
-  var pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
+  let pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
   
   pyshell.send(c + '\r\n').end(function(err) {
     if(err) { 
@@ -322,7 +333,7 @@ function executeCommand(c, opts, chn) {
 // in weis.
 
 function getEtherBalance(address, chn){
-  var balance = api.account.balance(address);
+  let balance = api.account.balance(address);
   balance.then(function(res){
     chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
   });
@@ -342,10 +353,10 @@ function getCoinArray(id, chn, coins = ''){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
   coins = '{' + coins + '}';
 
-  var conn = new pg.Client(conString);
+  let conn = new pg.Client(conString);
   conn.connect();
 
-  var query;
+  let query;
   if(coins === '{}') {
     query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
       if (err) {console.log(err);}
@@ -374,14 +385,12 @@ function getCoinArray(id, chn, coins = ''){
 //------------------------------------------
 //------------------------------------------
 
-// Description outdated
-
-// Service to self-set roles via commands in chat.
+// Service to self-service roles via commands in chat.
 // This method currently handles the 4 following cases:
 // 1. Setting the roles themselves, and creating the roles
-// as well as the channels
+//      as well as the channels
 // 2. Setting the self roles
-// 3. Getting the available roles (Need rework)
+// 3. Getting the available roles 
 // 4. Removing the roles from oneself
 
 function setSubscriptions(user, guild, coins){
@@ -390,10 +399,10 @@ function setSubscriptions(user, guild, coins){
 
   const id = user.id;
 
-  var conn = new pg.Client(conString);
+  let conn = new pg.Client(conString);
   conn.connect();
 
-  var sqlq;
+  let sqlq;
 
   const change  = coins[0] === 'M'; // Change the currently officially supported roles by merge
   const remove  = coins[0] === 'R'; // Unsub from everything
@@ -426,16 +435,16 @@ function setSubscriptions(user, guild, coins){
     */
 
   // Format in a predictable way
-  var queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
+  let queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
 
   // Execute the query
-  var query = conn.query(queryp, (err, res) => {
+  let query = conn.query(queryp, (err, res) => {
     if (err) {console.log(err);
     } else {
       const roles = guild.roles;
       const coinans = getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub");
 
-      var added = new Array();
+      let added = new Array();
 
       guild.fetchMember(user)
         .then(function(gm) {
