@@ -13,12 +13,10 @@
 `↺` `XXX`, [`YYY`], [`base price`]   　　　 　  `↺` `XXX`, [`YYY`], [`base price`]     
 `»` `.tbk`, `.tbk eur`, `.tbk btc`　　　　　`»` `.tbg`, `.tbg eur`, `.tbg btc`
 
-
 ** Poloniex**   　　　　　　　　　　　　　 **CryptoCompare**
 `⤫` `p` or `polo`   　　　　　　　　　　　 `⤫` `c` or `crcp`
 `↺` `XXX`, [`YYY`]    　　　　　　　　　　   `↺` `XXX` [`YYY` ... `ZZZ`]
 `»` `.tbp`　　　　　　　　　　　 　　　`»` **n.a.**
-
 
 **Bittrex**   　　　　　　　　　　　　　　 **Etherscan**
 `⤫` `b` or `bit`   　　 　　　　　　　 　　 `⤫` `e` or `escan`
@@ -32,5 +30,12 @@
 
 **Bot Statistics**
 `.tbstat`
+
+**Example usage**:
+`.tb k dash usd`: Kraken price for DASHUSD
+`.tb c btc bch zec`: CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
+`.tb p doge xmr`: Poloniex price for DOGEXMR
+`.tbg btc`: GDAX price for BTCUSD 
+
 
 `I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available.`
