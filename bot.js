@@ -812,21 +812,24 @@ function commands(message, botAdmin){
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
       const topCrypto   = function() {
         let max = 0;
+        let sum = 1;
         let maxCrypto = "";
+
         for(let key in requestCounter) {
+          sum += requestCounter[key];
           if(requestCounter[key] > max) {
             max = requestCounter[key];
             maxCrypto = key;
           }
         }
 
-        return maxCrypto;
+        return [maxCrypto, Math.trunc((max / sum) * 10000) / 100];
       }();
 
-      channel.send("Serving `" + users + "` users from `" + guilds + "` servers.\n"
-        + "Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
-        + "Current messages per minute is `" + msgpersec + "`.\n"
-        + "Top requested crypto is `" + topCrypto + "`")
+      channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
+        + "* Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
+        + "* Current messages per minute is `" + msgpersec + "`.\n"
+        + "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.")
 
       // Meme
     } else if (code_in[0] === '.dank'){
