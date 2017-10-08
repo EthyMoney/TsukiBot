@@ -5,9 +5,9 @@
                     | |/ __| | | | |/ | |  _ \ / _ \| __|
                     | |\__ | |_| |   <| | |_) | (_) | |_ 
                     |_||___/\__,_|_|\_|_|____/ \___/ \__|
- 
- 
- 
+
+
+
  * Author:      Oscar "Hiro Inu" Fonseca
  * Program:     TsukiBot 
  *
@@ -20,8 +20,8 @@
  * ETH to my address: 0x6a0d0ebf1e532840baf224e1bd6a1d4489d5d78d
  *
 
- 
- 
+
+
  * ------------------------------------------------------------------- */
 
 
@@ -48,6 +48,10 @@ const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pd
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
 const volcoins 		= ['ETH', 'ETHX']
 const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
+
+// Coin request counter initialization
+var requestCounter      = {};
+pairs.forEach(p => requestCounter[p] = 0);
 
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
@@ -579,7 +583,7 @@ client.on('message', message => {
   if(process.argv[2] === "-d" && message.author.id !== "217327366102319106")
     return;
 
-  
+
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
@@ -639,18 +643,29 @@ function commands(message, botAdmin){
     // Check if there is content
     if(code_in.length > 1){
 
-      // Check if the command exists and it uses a valid pair
+
+      // First we need to get the supplied coin list. Then we apply a filter function
+      //  and check for each value if:
+      // 
+      // 1. it is in the whitelisted array
+      // 2. is part of a volume command
+      // 3. it is part of an address
+
       if((code_in.slice(1,code_in.length).filter(function(value){
 
-        if(pairs.indexOf(value.toUpperCase()) === -1 && code_in[0] !== 'e' && !(code_in[0] === 'v' && isNaN(code_in[1]))){
+        if(pairs.indexOf(value.toUpperCase()) === -1 
+          && code_in[0] !== 'e'
+          && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value + "** is not whitelisted.");
+        } else {
+          requestCounter[value.toUpperCase()]++;
         }
 
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
 
       }).length + 1  == code_in.length)){
 
-        // Volume command
+          // Volume command
         if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
           executeCommand('s',
             {
@@ -792,10 +807,26 @@ function commands(message, botAdmin){
 
       // Statistics
     } else if (code_in[0] === 'stat'){
-      const users = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
-      const guilds = (client.guilds.size);
-      const msgpersec = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
-      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`. Current messages per minute is `" + msgpersec + "`.")
+      const users       = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
+      const guilds      = (client.guilds.size);
+      const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
+      const topCrypto   = function() {
+        let max = 0;
+        let maxCrypto = "";
+        for(let key in requestCounter) {
+          if(requestCounter[key] > max) {
+            max = requestCounter[key];
+            maxCrypto = key;
+          }
+        }
+
+        return maxCrypto;
+      }();
+
+      channel.send("Serving `" + users + "` users from `" + guilds + "` servers.\n"
+        + "Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
+        + "Current messages per minute is `" + msgpersec + "`.\n"
+        + "Top requested crypto is `" + topCrypto + "`")
 
       // Meme
     } else if (code_in[0] === '.dank'){
