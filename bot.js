@@ -91,10 +91,10 @@ global.fetch            = require('node-fetch');
 // Include stuff
 var PythonShell         = require('python-shell');
 
-// Declare channels and the channels to broadcast
+// Declare channels and message counter
 var channelName         = 'general';
-
-
+var messageCount        = 0;
+var referenceTime       = Date.now();
 
 // array of IDs for block removal
 var blockIDs = [];
@@ -579,6 +579,10 @@ client.on('message', message => {
   if(process.argv[2] === "-d" && message.author.id !== "217327366102319106")
     return;
 
+  
+  messageCount = (messageCount + 1) % 10000;
+  if(messageCount === 0) referenceTime = Date.now();
+
 
   for(let a of message.attachments){
     if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
@@ -790,7 +794,8 @@ function commands(message, botAdmin){
     } else if (code_in[0] === 'stat'){
       const users = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
       const guilds = (client.guilds.size);
-      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.")
+      const msgpersec = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
+      channel.send("Serving `" + users + "` users from `" + guilds + "` servers. Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`. Current messages per minute is `" + msgpersec + "`.")
 
       // Meme
     } else if (code_in[0] === '.dank'){
