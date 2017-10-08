@@ -302,7 +302,7 @@ function getPriceBittrex(coin1, coin2, chn){
       for(let coin in sn){
         s += ("**" + coin + "**: " + sn[coin].join(" || ") 
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" + 
-            Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000) / 100000 + " USDT`" : "" )
+            Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 1000000) / 1000000 + " USDT`" : "" )
           + "\n");
       }
 
@@ -839,13 +839,16 @@ function commands(message, botAdmin){
 
         for(let key in requestCounter) {
           sum += requestCounter[key];
+          console.log(requestCounter[key] + " " + key)
           if(requestCounter[key] > max) {
             max = requestCounter[key];
             maxCrypto = key;
           }
         }
 
-        return [maxCrypto, Math.trunc((max / sum) * 10000) / 100];
+        console.log(max)
+        console.log(sum)
+        return [maxCrypto, Math.trunc((max / sum) * 100)];
       }();
 
       channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
