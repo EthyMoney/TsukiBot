@@ -829,7 +829,8 @@ function commands(message, botAdmin){
       channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
         + "* Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
         + "* Current messages per minute is `" + msgpersec + "`.\n"
-        + "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.")
+        + "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n"
+        + "Support Tsuki by updooting here: <https://discordbots.org/bot/313452464399581194>.")
 
       // Meme
     } else if (code_in[0] === '.dank'){
