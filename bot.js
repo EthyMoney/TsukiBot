@@ -47,7 +47,6 @@ const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pd
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
 const volcoins 		= ['ETH', 'ETHX']
-const bittrexcoins 	= ['GNT', 'RLC', 'ANT', 'DGD', 'TKN']
 
 // Coin request counter initialization
 var requestCounter      = {};
@@ -56,7 +55,6 @@ pairs.forEach(p => requestCounter[p] = 0);
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
-
 const helpStr           = fs.readFileSync('./common/help.txt','utf8');
 
 // DiscordBots API
@@ -104,7 +102,16 @@ var referenceTime       = Date.now();
 
 // Permissions configurations
 var serverConfigs       = {};
-
+const emojiConfigs      = ["🇰",
+                           "🇬",
+                           "🇨",
+                           "🇵",
+                           "🇪",
+                           "🇧",
+                           "💰",
+                           "📧",
+                           "✅"
+                              ];
 
 // Array of IDs for block removal
 var blockIDs = [];
@@ -756,13 +763,17 @@ function commands(message, botAdmin){
     // Shortcut section
   } else {
 
-    // Get DiscordID via DM
+      // Get DiscordID via DM
     if(code_in[0] === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
       // Remove the sub tags
     } else if(code_in[0] === 'unsub'){
       setSubscriptions(message.author, message.guild, ['r']);
+
+      // Load or reload configs 
+    } else if(code_in[0] === 'config'){
+      loadConfiguration(message);
 
       // Restore the sub tags
     } else if(code_in[0] === 'resub'){
@@ -882,8 +893,33 @@ function commands(message, botAdmin){
 // -------------------------------------------
 // -------------------------------------------
 
+
+function loadConfiguration(msg){
+  const channel = msg.channel;
+
+  if(msg.author.id === msg.guild.ownerID){
+    channel.send("__**Commands**__\n\n" + 
+      ":regional_indicator_k: = Kraken\n\n" +
+      ":regional_indicator_c: = CryptoCompare\n\n" +
+      ":regional_indicator_g: = GDAX\n\n" +
+      ":regional_indicator_e: = Etherscan\n\n" +
+      ":regional_indicator_b: = Bittrex\n\n" +
+      ":regional_indicator_p: = Poloniex\n\n" +
+      ":moneybag: = Volume\n\n" +
+      ":envelope: = Subscription Channels\n\n" +
+      "`React below to enable services. Two reacts = active. One react = inactive.`")
+      .then(msg => {
+        emojiConfigs.forEach(e => msg.react(e).catch(console.log));
+      });
+  }
+}
+
+
+
 // If the message gets 2 reacts for cross, it deletes the info.
 client.on('messageReactionAdd', messageReaction => {
+  // TODO: Add reacts in order
+  
   if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2){
     messageReaction.message.delete().catch(console.error)
   }
