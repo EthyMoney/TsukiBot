@@ -1,5 +1,5 @@
 /* -------------------------------------------------------------------- 
- *
+ 
                    _____          _    _ ____        _   
                   |_   ____ _   _| | _(_| __ )  ___ | |_ 
                     | |/ __| | | | |/ | |  _ \ / _ \| __|
@@ -10,15 +10,15 @@
 
  * Author:      Oscar "Hiro Inu" Fonseca
  * Program:     TsukiBot 
- *
+ 
  * Discord bot that offers a wide range of services
  * related to cryptocurrencies.
- *
+
  * No parameters on start, except -d for dev mode.
- *
+
  * If you like this service, consider donating
  * ETH to my address: 0x6a0d0ebf1e532840baf224e1bd6a1d4489d5d78d
- *
+ 
 
 
 
@@ -77,6 +77,8 @@ const bittrex 		= require('node.bittrex.api');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 
+
+
 // ----------------------------------------------------------------------------------------------------------------
 
 // Web3
@@ -100,10 +102,14 @@ var channelName         = 'general';
 var messageCount        = 0;
 var referenceTime       = Date.now();
 
-// array of IDs for block removal
+// Permissions configurations
+var serverConfigs       = {};
+
+
+// Array of IDs for block removal
 var blockIDs = [];
 
-// blockIDs remove function
+// BlockIDs remove function
 function removeID(id){
   // index of the passed message.id
   let index = blockIDs.indexOf(id);
@@ -469,11 +475,6 @@ function setSubscriptions(user, guild, coins){
     coins.splice(0,1);
   }
 
-  /*
-    // Case G -> S
-  } else
-    sqlq = !restore || true ? "SELECT coins FROM coinsubs WHERE id = $1;" : "DELETE FROM allowedby WHERE guild = $3;"; // TODO: Rethink
-    */
 
   // Format in a predictable way
   let queryp = pgp.as.format(sqlq, [ id, coins, guild.id ]);
@@ -616,6 +617,25 @@ client.on('message', message => {
 })
 
 
+/* ---------------------------------------------------
+
+ This is the main method. It gets the current message
+ and a boolean that states if the sender has a 
+ botAdmin role.
+
+ The first section checks for multi-parameter inputs,
+ such as k or c. Multi-parameter inputs have the
+ format [prefix] [command] [parameters].
+
+ The second section checks for simple parameter
+ inputs. These are of the form [prefix][command].
+
+ These cases default to posting the help text. The
+ reference text is found in common/help.txt.
+
+ --------------------------------------------------- */
+
+
 function commands(message, botAdmin){
 
   // Get the channel where the bot will answer.
@@ -644,13 +664,15 @@ function commands(message, botAdmin){
     if(code_in.length > 1){
 
 
-      // First we need to get the supplied coin list. Then we apply a filter function
-      //  and check for each value if:
-      // 
-      // 1. it is in the whitelisted array
-      // 2. is part of a volume command
-      // 3. it is part of an address
-
+      /* ---------------------------------------------------------------------------------
+       First we need to get the supplied coin list. Then we apply a filter function
+        and check for each value if:
+       
+       1. it is in the whitelisted array
+       2. is part of a volume command
+       3. it is part of an address
+      ---------------------------------------------------------------------------------- */
+      
       if((code_in.slice(1,code_in.length).filter(function(value){
 
         if(pairs.indexOf(value.toUpperCase()) === -1 
@@ -665,7 +687,7 @@ function commands(message, botAdmin){
 
       }).length + 1  == code_in.length)){
 
-          // Volume command
+        // Volume command
         if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
           executeCommand('s',
             {
