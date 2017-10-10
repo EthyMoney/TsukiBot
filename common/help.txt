@@ -31,6 +31,9 @@
 **Bot Statistics**
 `.tbstat`
 
+**Bot Permission Settings**
+`.tbconfig` (only owner)
+
 **Example usage**:
 `.tb k dash usd`: Kraken price for DASHUSD
 `.tb c btc bch zec`: CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
@@ -38,4 +41,4 @@
 `.tbg btc`: GDAX price for BTCUSD 
 
 
-`I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available.`
+`I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available due to disk usage.`
