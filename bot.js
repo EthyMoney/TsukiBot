@@ -577,7 +577,12 @@ client.on('ready', () => {
   createLogger(volcoins);
 
 
-  console.log('ready');
+  client.fetchUser("217327366102319106")
+    .then(u => { 
+        u.send("TsukiBot loaded.")
+        .catch(console.log)
+    })
+  .catch(console.log);
 
 });
 
@@ -624,13 +629,12 @@ client.on('message', message => {
       .catch(e => console.warn('dbots.org down'))
   }
 
-
-  // Get the permission settigs
-  const config = serverConfigs[message.guild.id] || [];
-
-
   // Check if it's a DM channel
   if(message.guild === null) return;
+  
+  
+  // Get the permission settigs
+  const config = serverConfigs[message.guild.id] || [];
 
 
   // Check for perms (temporary)
