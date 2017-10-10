@@ -563,16 +563,21 @@ const token = keys['discord'];
 // Wait for the client to be ready.
 client.on('ready', () => {
 
-  console.log('ready');
-
-
   if(process.argv[2] === "-d"){
     console.log('dev mode');
   }
 
+  fs.readFile("common/serverPerms.json", function(err, data){
+    if(err) return console.log(err);
+
+    serverConfigs = JSON.parse(data);
+  });
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
+
+
+  console.log('ready');
 
 });
 
@@ -618,6 +623,9 @@ client.on('message', message => {
       .then(console.log('updated dbots.org status.'))
       .catch(e => console.warn('dbots.org down'))
   }
+
+
+  console.log(serverConfigs);
 
   // Get the permission settigs
   const config = serverConfigs[message.guild.id] || [];
@@ -695,8 +703,8 @@ function commands(message, botAdmin, config){
 
         // --------- Whitelist message ---------------------------------------------------
         if(pairs.indexOf(value.toUpperCase()) === -1
-            && code_in[0] !== 'e'
-            && !(code_in[0] === 'v' && isNaN(code_in[1]))){
+          && code_in[0] !== 'e'
+          && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
         } else {
           requestCounter[value.toUpperCase()]++;
@@ -913,11 +921,11 @@ function loadConfiguration(msg){
 
   channel.send("__**Commands**__\n\n" +
     ":regional_indicator_k: = Kraken\n\n" +
-    ":regional_indicator_c: = CryptoCompare\n\n" +
     ":regional_indicator_g: = GDAX\n\n" +
+    ":regional_indicator_c: = CryptoCompare\n\n" +
+    ":regional_indicator_p: = Poloniex\n\n" +
     ":regional_indicator_e: = Etherscan\n\n" +
     ":regional_indicator_b: = Bittrex\n\n" +
-    ":regional_indicator_p: = Poloniex\n\n" +
     ":moneybag: = Volume\n\n" +
     ":envelope: = Subscription Channels\n\n" +
     "`React to the according symbols below to disable a service. Save settings with the checkmark.`")
@@ -930,32 +938,64 @@ function loadConfiguration(msg){
 
 
 
+/* ----------------------------------------------------
 
-// If the message gets 2 reacts for cross, it deletes the info.
-client.on('messageReactionAdd', messageReaction => {
+ EventHandler for reactions added.
 
-  if(configIDs.indexOf(messageReaction.message.id) > -1 && messageReaction.message.reactions.size < emojiConfigs.length){
-    messageReaction.message.react(emojiConfigs[emojiConfigs.indexOf(messageReaction.emoji.toString()) + 1]).catch(console.log)
-  }
+   This event handles 2 functions.
+   1. Delete messages when the cross emoji is added.
+   2. Post the reactions to the server settings.
+    2a. First it will recursively add the emoji reacts
+    2b. Then it will react when the checkmark is pressed
 
-  if(configIDs.indexOf(messageReaction.message.id) > -1 && messageReaction.message.reactions.size === emojiConfigs.length){
-    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){
-      let validPerms = messageReaction.message.reactions.filter(r => {
-        return r.users.some(function (e, i, a){
-          return e.id === messageReaction.message.guild.owner.id
-        })
-      });
-      
-      serverConfigs[messageReaction.message.guild.id] = validPerms.map(e => {
-        return availableCommands[emojiConfigs.indexOf(e.emoji.toString())]
-      });
-      
-      console.log(serverConfigs);
-    }
-  }
+ ----------------------------------------------------- */
 
+client.on('messageReactionAdd', (messageReaction, user) => {
+
+  const message         = messageReaction.message;
+  const guild           = messageReaction.message.guild.id;
+  const reactions       = messageReaction.message.reactions;
+
+  // Function 1
   if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2){
-    messageReaction.message.delete().catch(console.error)
+    messageReaction.message.delete().catch(console.error);
+  }
+
+
+  // Function 2a.
+  if(configIDs.indexOf(message.id) > -1 && reactions.size < emojiConfigs.length){
+    message.react(emojiConfigs[emojiConfigs.indexOf(messageReaction.emoji.toString()) + 1]).catch(console.log)
+  }
+
+  // Function 2b.
+  if(configIDs.indexOf(message.id) > -1 && reactions.size === emojiConfigs.length){
+    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){
+
+      // Change to hasPermissions()
+      if(user.id === message.guild.owner.id){
+        let validPerms = reactions.filter(r => {
+          return r.users.some(function (e, i, a){
+            return e.id === message.guild.owner.id
+          })
+        });
+
+        serverConfigs[guild] = validPerms.map(e => {
+          return availableCommands[emojiConfigs.indexOf(e.emoji.toString())]
+        });
+        fs.writeFile("common/serverPerms.json", JSON.stringify(serverConfigs), function(err){
+          if(err) return console.log(err);
+          console.log("Server config saved");
+        });
+
+        message.delete()
+          .then(function() {
+            if(serverConfigs[guild].length > 1)
+              message.channel.send("**Settings updated**\nBlocked services: `" + serverConfigs[guild].slice(0,-1).join(" ") + "`.")
+                .catch(console.log);
+          })
+          .catch(console.log);
+      }
+    }
   }
 });
 
