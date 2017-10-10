@@ -1,16 +1,16 @@
-/* -------------------------------------------------------------------- 
- 
-                   _____          _    _ ____        _   
-                  |_   ____ _   _| | _(_| __ )  ___ | |_ 
+/* --------------------------------------------------------------------
+
+                   _____          _    _ ____        _
+                  |_   ____ _   _| | _(_| __ )  ___ | |_
                     | |/ __| | | | |/ | |  _ \ / _ \| __|
-                    | |\__ | |_| |   <| | |_) | (_) | |_ 
+                    | |\__ | |_| |   <| | |_) | (_) | |_
                     |_||___/\__,_|_|\_|_|____/ \___/ \__|
 
 
 
  * Author:      Oscar "Hiro Inu" Fonseca
- * Program:     TsukiBot 
- 
+ * Program:     TsukiBot
+
  * Discord bot that offers a wide range of services
  * related to cryptocurrencies.
 
@@ -18,7 +18,7 @@
 
  * If you like this service, consider donating
  * ETH to my address: 0x6a0d0ebf1e532840baf224e1bd6a1d4489d5d78d
- 
+
 
 
 
@@ -28,7 +28,7 @@
 // -------------------------------------------
 // -------------------------------------------
 //
-//           SETUP AND DECLARATIONS 
+//           SETUP AND DECLARATIONS
 //
 // -------------------------------------------
 // -------------------------------------------
@@ -101,17 +101,20 @@ var messageCount        = 0;
 var referenceTime       = Date.now();
 
 // Permissions configurations
+
+var configIDs           = [];
 var serverConfigs       = {};
+const availableCommands = ['k','g','c','p','e','b','pa','sub','done'];
 const emojiConfigs      = ["🇰",
-                           "🇬",
-                           "🇨",
-                           "🇵",
-                           "🇪",
-                           "🇧",
-                           "💰",
-                           "📧",
-                           "✅"
-                              ];
+  "🇬",
+  "🇨",
+  "🇵",
+  "🇪",
+  "🇧",
+  "💰",
+  "📧",
+  "✅",
+];
 
 // Array of IDs for block removal
 var blockIDs = [];
@@ -143,7 +146,7 @@ var clientKraken = new KrakenClient();
 // -------------------------------------------
 // -------------------------------------------
 //
-//             UTILITY FUNCTIONS 
+//             UTILITY FUNCTIONS
 //
 // -------------------------------------------
 // -------------------------------------------
@@ -307,8 +310,8 @@ function getPriceBittrex(coin1, coin2, chn){
 
 
       for(let coin in sn){
-        s += ("**" + coin + "**: " + sn[coin].join(" || ") 
-          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" + 
+        s += ("**" + coin + "**: " + sn[coin].join(" || ")
+          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" +
             Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 1000000) / 1000000 + " USDT`" : "" )
           + "\n");
       }
@@ -358,8 +361,8 @@ function executeCommand(c, opts, chn){
   let pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
 
   pyshell.send(c + '\r\n').end(function(err){
-    if(err) { 
-      console.log(err);
+    if(err) {
+    console.log(err);
     }
     });
 
@@ -419,7 +422,7 @@ function getCoinArray(id, chn, coins = ''){
           getPriceCC(res.rows[0].coins,chn)
         } else {
           chn.send('Set your array with `.tb pa [array]`.')
-        }  
+        }
       }
 
       conn.end();
@@ -444,7 +447,7 @@ function getCoinArray(id, chn, coins = ''){
 // 1. Setting the roles themselves, and creating the roles
 //      as well as the channels
 // 2. Setting the self roles
-// 3. Getting the available roles 
+// 3. Getting the available roles
 // 4. Removing the roles from oneself
 
 function setSubscriptions(user, guild, coins){
@@ -468,7 +471,7 @@ function setSubscriptions(user, guild, coins){
     sqlq = "SELECT coins FROM allowedby WHERE guild = $3;";
 
     // Case default
-  } else if(!change){ 
+  } else if(!change){
     sqlq = "WITH arr AS " +
       "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO coinsubs(id, coins) VALUES($1, (select * from arr)) " +
@@ -497,12 +500,12 @@ function setSubscriptions(user, guild, coins){
 
       guild.fetchMember(user)
         .then(function(gm){
-          roles.forEach(function(r){ if(coinans.indexOf(r.name) > -1){ added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r) 
+          roles.forEach(function(r){ if(coinans.indexOf(r.name) > -1){ added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r)
             : gm.addRole(r)) : (0) } });
 
-          user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`." 
+          user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`."
             : (remove ? "Unsubbed."
-              : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.") 
+              : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.")
                 : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
 
           if(!change)
@@ -523,7 +526,7 @@ function setSubscriptions(user, guild, coins){
                 mentionable: true
               })
                 .then(function(r){
-                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024}, 
+                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024},
                     {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
                     .then(console.log)
                     .catch(console.log)
@@ -588,14 +591,17 @@ function postHelp(chn){
 // Event goes off every time a message is read.
 client.on('message', message => {
 
+  // Developer mode
   if(process.argv[2] === "-d" && message.author.id !== "217327366102319106")
     return;
 
 
+  // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
 
+  // Remove possibly unsafe files
   for(let a of message.attachments){
     if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
       message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
@@ -604,6 +610,7 @@ client.on('message', message => {
   }
 
 
+  // Update every 100 messages
   if(Math.floor(Math.random() * 100) === 42){
     snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
       .set('Authorization', keys['dbots'])
@@ -612,12 +619,16 @@ client.on('message', message => {
       .catch(e => console.warn('dbots.org down'))
   }
 
+  // Get the permission settigs
+  const config = serverConfigs[message.guild.id] || [];
 
+  // Check if it's a DM channel
   if(message.guild === null) return;
 
+  // Check for perms (temporary)
   message.guild.fetchMember(message.author)
-    .then(gm => {
-      commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }))
+    .then(function(gm) {
+      commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }), config);
     })
     .catch(console.log);
 
@@ -627,7 +638,7 @@ client.on('message', message => {
 /* ---------------------------------------------------
 
  This is the main method. It gets the current message
- and a boolean that states if the sender has a 
+ and a boolean that states if the sender has a
  botAdmin role.
 
  The first section checks for multi-parameter inputs,
@@ -643,7 +654,7 @@ client.on('message', message => {
  --------------------------------------------------- */
 
 
-function commands(message, botAdmin){
+function commands(message, botAdmin, config){
 
   // Get the channel where the bot will answer.
   let channel = message.channel;
@@ -674,25 +685,27 @@ function commands(message, botAdmin){
       /* ---------------------------------------------------------------------------------
        First we need to get the supplied coin list. Then we apply a filter function
         and check for each value if:
-       
+
        1. it is in the whitelisted array
        2. is part of a volume command
        3. it is part of an address
       ---------------------------------------------------------------------------------- */
-      
+
       if((code_in.slice(1,code_in.length).filter(function(value){
 
-        if(pairs.indexOf(value.toUpperCase()) === -1 
-          && code_in[0] !== 'e'
-          && !(code_in[0] === 'v' && isNaN(code_in[1]))){
-          channel.send("**" + value + "** is not whitelisted.");
+        // --------- Whitelist message ---------------------------------------------------
+        if(pairs.indexOf(value.toUpperCase()) === -1
+            && code_in[0] !== 'e'
+            && !(code_in[0] === 'v' && isNaN(code_in[1]))){
+          channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
         } else {
           requestCounter[value.toUpperCase()]++;
         }
+        // -------------------------------------------------------------------------------
 
-        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
+        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
 
-      }).length + 1  == code_in.length)){
+      }).length + 1  == code_in.length && config.indexOf(code_in[0][0]) === -1)){
 
         // Volume command
         if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
@@ -733,8 +746,9 @@ function commands(message, botAdmin){
           code_in.splice(0,1);
           setSubscriptions(message.author, message.guild, code_in);
 
-          // Set coin role perms 
+          // Set coin role perms
         } else if(code_in[0] === 'setsub'){
+          // Change to hasPermissions()
           if(message.author.id === message.guild.ownerID || botAdmin){
             code_in.splice(0,1);
             code_in.unshift('m');
@@ -763,7 +777,7 @@ function commands(message, botAdmin){
     // Shortcut section
   } else {
 
-      // Get DiscordID via DM
+    // Get DiscordID via DM
     if(code_in[0] === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
@@ -771,7 +785,7 @@ function commands(message, botAdmin){
     } else if(code_in[0] === 'unsub'){
       setSubscriptions(message.author, message.guild, ['r']);
 
-      // Load or reload configs 
+      // Load or reload configs
     } else if(code_in[0] === 'config'){
       loadConfiguration(message);
 
@@ -796,7 +810,7 @@ function commands(message, botAdmin){
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
 
-      // Get available roles 
+      // Get available roles
     } else if(code_in[0] === 'list'){
       code_in.splice(0,1);
       code_in.unshift('g');
@@ -888,42 +902,67 @@ function commands(message, botAdmin){
 // -------------------------------------------
 // -------------------------------------------
 //
-//           SUPPORTING FUNCTIONS 
+//           SUPPORTING FUNCTIONS
 //
 // -------------------------------------------
 // -------------------------------------------
 
 
 function loadConfiguration(msg){
-  const channel = msg.channel;
+  let channel = msg.channel;
 
-  if(msg.author.id === msg.guild.ownerID){
-    channel.send("__**Commands**__\n\n" + 
-      ":regional_indicator_k: = Kraken\n\n" +
-      ":regional_indicator_c: = CryptoCompare\n\n" +
-      ":regional_indicator_g: = GDAX\n\n" +
-      ":regional_indicator_e: = Etherscan\n\n" +
-      ":regional_indicator_b: = Bittrex\n\n" +
-      ":regional_indicator_p: = Poloniex\n\n" +
-      ":moneybag: = Volume\n\n" +
-      ":envelope: = Subscription Channels\n\n" +
-      "`React below to enable services. Two reacts = active. One react = inactive.`")
-      .then(msg => {
-        emojiConfigs.forEach(e => msg.react(e).catch(console.log));
-      });
-  }
+  channel.send("__**Commands**__\n\n" +
+    ":regional_indicator_k: = Kraken\n\n" +
+    ":regional_indicator_c: = CryptoCompare\n\n" +
+    ":regional_indicator_g: = GDAX\n\n" +
+    ":regional_indicator_e: = Etherscan\n\n" +
+    ":regional_indicator_b: = Bittrex\n\n" +
+    ":regional_indicator_p: = Poloniex\n\n" +
+    ":moneybag: = Volume\n\n" +
+    ":envelope: = Subscription Channels\n\n" +
+    "`React to the according symbols below to disable a service. Save settings with the checkmark.`")
+    .then(msg => {
+      configIDs.push(msg.id);
+      msg.react(emojiConfigs[0]).catch(console.log);
+    });
+
 }
+
 
 
 
 // If the message gets 2 reacts for cross, it deletes the info.
 client.on('messageReactionAdd', messageReaction => {
-  // TODO: Add reacts in order
-  
+
+  if(configIDs.indexOf(messageReaction.message.id) > -1 && messageReaction.message.reactions.size < emojiConfigs.length){
+    messageReaction.message.react(emojiConfigs[emojiConfigs.indexOf(messageReaction.emoji.toString()) + 1]).catch(console.log)
+  }
+
+  if(configIDs.indexOf(messageReaction.message.id) > -1 && messageReaction.message.reactions.size === emojiConfigs.length){
+    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){
+      let validPerms = messageReaction.message.reactions.filter(r => {
+        return r.users.some(function (e, i, a){
+          return e.id === messageReaction.message.guild.owner.id
+        })
+      });
+      
+      serverConfigs[messageReaction.message.guild.id] = validPerms.map(e => {
+        return availableCommands[emojiConfigs.indexOf(e.emoji.toString())]
+      });
+      
+      console.log(serverConfigs);
+    }
+  }
+
   if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2){
     messageReaction.message.delete().catch(console.error)
   }
 });
+
+
+function hasPermissions(id, guild){
+  return true;
+}
 
 
 // Jack in, Megaman. Execute.
@@ -933,7 +972,7 @@ client.login(token);
 // -------------------------------------------
 // -------------------------------------------
 //
-//            for a better world. 
+//            for a better world.
 //
 // -------------------------------------------
 // -------------------------------------------
