@@ -790,7 +790,7 @@ function commands(message, botAdmin, config){
     // Shortcut section
   } else {
 
-    // Get DiscordID via DM
+      // Get DiscordID via DM
     if(code_in[0] === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
@@ -798,9 +798,10 @@ function commands(message, botAdmin, config){
     } else if(code_in[0] === 'unsub'){
       setSubscriptions(message.author, message.guild, ['r']);
 
-      // Load or reload configs
+      // Load configuration message
     } else if(code_in[0] === 'config'){
-      loadConfiguration(message);
+      if(hasPermissions(message.author.id, message.guild) || botAdmin)
+        loadConfiguration(message);
 
       // Restore the sub tags
     } else if(code_in[0] === 'resub'){
