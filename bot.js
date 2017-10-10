@@ -625,13 +625,13 @@ client.on('message', message => {
   }
 
 
-  console.log(serverConfigs);
-
   // Get the permission settigs
   const config = serverConfigs[message.guild.id] || [];
 
+
   // Check if it's a DM channel
   if(message.guild === null) return;
+
 
   // Check for perms (temporary)
   message.guild.fetchMember(message.author)
@@ -643,23 +643,23 @@ client.on('message', message => {
 })
 
 
-/* ---------------------------------------------------
+/* -------------------------------------------------------
 
- This is the main method. It gets the current message
- and a boolean that states if the sender has a
- botAdmin role.
+   This is the main method. It gets the current message
+   and a boolean that states if the sender has a
+   botAdmin role.
 
- The first section checks for multi-parameter inputs,
- such as k or c. Multi-parameter inputs have the
- format [prefix] [command] [parameters].
+   The first section checks for multi-parameter inputs,
+   such as k or c. Multi-parameter inputs have the
+   format [prefix] [command] [parameters].
 
- The second section checks for simple parameter
- inputs. These are of the form [prefix][command].
+   The second section checks for simple parameter
+   inputs. These are of the form [prefix][command].
 
- These cases default to posting the help text. The
- reference text is found in common/help.txt.
+   These cases default to posting the help text. The
+   reference text is found in common/help.txt.
 
- --------------------------------------------------- */
+ ------------------------------------------------------- */
 
 
 function commands(message, botAdmin, config){
@@ -690,18 +690,24 @@ function commands(message, botAdmin, config){
     if(code_in.length > 1){
 
 
-      /* ---------------------------------------------------------------------------------
+      /* --------------------------------------------------------------------------------
        First we need to get the supplied coin list. Then we apply a filter function
         and check for each value if:
 
-       1. it is in the whitelisted array
-       2. is part of a volume command
-       3. it is part of an address
+           1. it is in the whitelisted array
+           2. is part of a volume command
+           3. it is part of an address
+
+        The conditions for the commands to pass are that the command is not blocked
+        by server permissions, and that the parameter coins given are whitelisted.
+
+        To check for whitelisted coins, we filter the array and compare final size.
       ---------------------------------------------------------------------------------- */
+
 
       if((code_in.slice(1,code_in.length).filter(function(value){
 
-        // --------- Whitelist message ---------------------------------------------------
+        // --------- Whitelist message -------------------------------------------------
         if(pairs.indexOf(value.toUpperCase()) === -1
           && code_in[0] !== 'e'
           && !(code_in[0] === 'v' && isNaN(code_in[1]))){
@@ -709,7 +715,7 @@ function commands(message, botAdmin, config){
         } else {
           requestCounter[value.toUpperCase()]++;
         }
-        // -------------------------------------------------------------------------------
+        // -----------------------------------------------------------------------------
 
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
 
@@ -756,8 +762,7 @@ function commands(message, botAdmin, config){
 
           // Set coin role perms
         } else if(code_in[0] === 'setsub'){
-          // Change to hasPermissions()
-          if(message.author.id === message.guild.ownerID || botAdmin){
+          if(hasPermissions(message.author.id, message.guild) || botAdmin){
             code_in.splice(0,1);
             code_in.unshift('m');
             setSubscriptions(message.author, message.guild, code_in);
@@ -968,25 +973,29 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   }
 
   // Function 2b.
-  if(configIDs.indexOf(message.id) > -1 && reactions.size === emojiConfigs.length){
-    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){
+  if(configIDs.indexOf(message.id) > -1 && reactions.size === emojiConfigs.length){             // Finished placing options
+    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){             // Reacted to checkmark
+      if(hasPermissions(user.id, message.guild)){                                               // User has permissions
 
-      // Change to hasPermissions()
-      if(user.id === message.guild.owner.id){
+        // Get from the reactions those which have reactions from someone with permissions
         let validPerms = reactions.filter(r => {
           return r.users.some(function (e, i, a){
-            return e.id === message.guild.owner.id
+            return hasPermissions(e.id, message.guild)
           })
         });
 
+        // Get an array form of the permissions
         serverConfigs[guild] = validPerms.map(e => {
           return availableCommands[emojiConfigs.indexOf(e.emoji.toString())]
         });
+
+        // Write to a file for storage
         fs.writeFile("common/serverPerms.json", JSON.stringify(serverConfigs), function(err){
           if(err) return console.log(err);
           console.log("Server config saved");
         });
 
+        // Delete the message
         message.delete()
           .then(function() {
             if(serverConfigs[guild].length > 1)
@@ -1000,8 +1009,21 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 });
 
 
+/* ---------------------------------
+
+  hasPermissions(id, guild)
+
+  id) has to be the ID of the user,
+  regardless of the original type of
+  object.
+
+  guild) is the guild object where
+  the action is executed.
+
+ ---------------------------------- */
+
 function hasPermissions(id, guild){
-  return true;
+  return guild.owner.id === id;
 }
 
 
