@@ -716,7 +716,7 @@ function commands(message, botAdmin, config){
           && code_in[0] !== 'e'
           && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
-        } else {
+        } else if(code_in[0] !== 'e'){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
@@ -882,7 +882,7 @@ function commands(message, botAdmin, config){
 
         for(let key in requestCounter) {
           sum += requestCounter[key];
-          console.log(requestCounter[key] + " " + key)
+          if(requestCounter[key] !== 0) console.log(requestCounter[key] + " " + key)
           if(requestCounter[key] > max) {
             max = requestCounter[key];
             maxCrypto = key;
