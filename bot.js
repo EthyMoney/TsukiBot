@@ -38,6 +38,9 @@ var fs                  = require('fs');
 var pg                  = require('pg');
 var pgp                 = require('pg-promise');
 
+// Scheduler
+var schedule            = require('node-schedule');
+
 // Set the prefix
 var prefix              = ['-t', '.tb', 't'];
 
@@ -101,10 +104,9 @@ var messageCount        = 0;
 var referenceTime       = Date.now();
 
 // Permissions configurations
-
 var configIDs           = [];
 var serverConfigs       = {};
-const availableCommands = ['k','g','c','p','e','b','pa','sub','done'];
+const availableCommands = ['k','g','c','p','e','b','pa','join','done'];
 const emojiConfigs      = ["🇰",
   "🇬",
   "🇨",
@@ -400,7 +402,6 @@ function getEtherBalance(address, chn){
 //------------------------------------------
 //------------------------------------------
 
-
 // This is a setup for users to create
 // their own arrays of coins. They can check
 // the price from they array by typing .tbpa
@@ -550,6 +551,124 @@ function setSubscriptions(user, guild, coins){
 // -------------------------------------------
 // -------------------------------------------
 //
+//             PERMISSION MGMT 
+//
+// -------------------------------------------
+// -------------------------------------------
+
+// Get a name for a role and save it into
+// the permissions database.
+//      
+//   Note: Currently inserting only type 3.
+//   Type 1: Admin
+//   Type 2: User
+//   Type 3: Temporary
+
+function setRoles(name, guild, chn){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+
+  guild.createRole({
+    name: name,
+    color: 'RANDOM',
+    mentionable: true
+  })
+  .then(function(r){
+    let conn = new pg.Client(conString);
+    conn.connect();
+    
+    let sqlq = "INSERT INTO roleperms VALUES($1, $2, $3);";
+    let queryp = pgp.as.format(sqlq, [r.id, guild.id, 3]);
+    
+    let query = conn.query(queryp, (err, res) => {
+      if (err){console.log(err);}
+      else { chn.send("Created role `" + r.name + "`.") }
+  
+      conn.end();
+    });
+  })
+  .catch(console.log);
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Give a temporary role to a user
+// and save the timstamps to the
+// database.
+
+function temporarySub(id, guild, chn){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+
+  let conn = new pg.Client(conString);
+  conn.connect();
+
+  let sqlq = "INSERT INTO temporaryrole VALUES(DEFAULT, $1, (SELECT roleid FROM roleperms WHERE guild = $2 AND function = 3), current_timestamp, current_timestamp + (30 * interval '1 day')) RETURNING roleid;"
+  let queryp = pgp.as.format(sqlq, [id, guild.id]);
+  
+  let query = conn.query(queryp, (err, res) => {
+    if (err){ console.log(err); }
+    else { 
+      const role = guild.roles.get(res.rows[0].roleid);
+      guild.fetchMember(id)
+        .then(function(gm){
+          gm.addRole(role);
+        })
+        .catch(console.log)
+      chn.send("Added subscriber.") 
+    }
+
+    conn.end();
+  });
+
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Give a temporary role to a user
+// and save the timstamps to the
+// database.
+
+function checkSubStatus(){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  console.log("purging")
+
+  let conn = new pg.Client(conString);
+  conn.connect();
+
+  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date > current_date;" 
+  let queryp = pgp.as.format(sqlq);
+
+  console.log(queryp);
+
+  let query = conn.query(queryp, (err, res) => {
+    if (err){ console.log(err); }
+    else { 
+      for(let expired in res.rows){
+        console.log(res.rows[expired]);
+        let line        = res.rows[expired];
+        let guild       = client.guilds.get(line.guild);
+        let role        = guild.roles.get(line.roleid);
+
+        guild.fetchMember(line.userid)
+          .then(function(gm){
+            gm.removeRole(role);
+          })
+          .catch(console.log)
+      }
+    }
+
+    conn.end();
+  });
+
+}
+
+
+// -------------------------------------------
+// -------------------------------------------
+//
 //              DISCORD FUNCTIONS
 //
 // -------------------------------------------
@@ -575,7 +694,8 @@ client.on('ready', () => {
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
-
+  
+  var deleter = schedule.scheduleJob('42 * * * *', checkSubStatus);
 
   client.fetchUser("217327366102319106")
     .then(u => { 
@@ -714,14 +834,16 @@ function commands(message, botAdmin, config){
         // --------- Whitelist message -------------------------------------------------
         if(pairs.indexOf(value.toUpperCase()) === -1
           && code_in[0] !== 'e'
+          && code_in[0] !== 'sub'
+          && code_in[0] !== 'subrole'
           && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
-        } else if(code_in[0] !== 'e'){
+        } else if(code_in[0] !== 'e' && code_in[0] !== 'sub'){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
 
-        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1 || code_in[0] === 'sub' || code_in[0] === 'subrole';
 
       }).length + 1  == code_in.length && config.indexOf(code_in[0][0]) === -1)){
 
@@ -760,7 +882,7 @@ function commands(message, botAdmin, config){
           getCoinArray(message.author.id, channel, code_in);
 
           // Set coin roles
-        } else if(code_in[0] === 'sub'){
+        } else if(code_in[0] === 'join'){
           code_in.splice(0,1);
           setSubscriptions(message.author, message.guild, code_in);
 
@@ -784,6 +906,14 @@ function commands(message, botAdmin, config){
         } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42){
           getEtherBalance(code_in[1], channel);
 
+          // Add a temporary role
+        } else if(code_in[0] === 'sub' &&  message.mentions.users.size > 0){
+          message.mentions.users.forEach(function(u){ temporarySub(u.id, message.guild, message.channel); })
+
+          // Set the temporary role
+        } else if(code_in[0] === 'subrole' && typeof(code_in[1]) === 'string'){
+          setRoles(code_in[1], message.guild, message.channel)
+
           // Catch-all help
         } else {
           postHelp(channel);
@@ -799,7 +929,7 @@ function commands(message, botAdmin, config){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
       // Remove the sub tags
-    } else if(code_in[0] === 'unsub'){
+    } else if(code_in[0] === 'leave'){
       setSubscriptions(message.author, message.guild, ['r']);
 
       // Load configuration message
