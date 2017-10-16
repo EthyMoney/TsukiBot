@@ -86,7 +86,7 @@ const cc 		= require('cryptocompare');
 const web3              = require('web3');
 const Web3              = new web3(new web3.providers.HttpProvider('https://kovan.infura.io/' + keys['infura']));
 
-var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0x1B6f90a42cc86749052B4C9ca9ae9343E8a90d17");
+var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0xfb52d4b9edc8859573683e82a37a968d1dbc746a");
 
 // ----------------------------------------------------------------------------------------------------------------
 
