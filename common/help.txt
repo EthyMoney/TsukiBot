@@ -20,7 +20,7 @@
 
 **Bittrex**   　　　　　　　　　　　　　　 **Etherscan**
 `⤫` `b` or `bit`   　　 　　　　　　　 　　 `⤫` `e` or `escan`
-`↺` [`YYY` ... `ZZZ`]    　　　　　 　  　　　   `↺` [hex address]
+`↺` [`YYY` ... `ZZZ`]    　　　　　 　  　　　  `↺` [hex address]
 `»` `.tbb`　　　　　  　　　 　 　 　　　`»` **n.a.**
 
 **Personal Arrays** `(paid with CHS)`
@@ -31,14 +31,22 @@
 **Bot Statistics**
 `.tbstat`
 
+__(Only Owner)__
+**Create expiring role**
+`.tb subrole [Name]`
+
+**Grant a subscription**
+`.tb sub @User RoleName`
+
 **Bot Permission Settings**
-`.tbconfig` (only owner)
+`.tbconfig`
+
 
 **Example usage**:
-`.tb k dash usd`: Kraken price for DASHUSD
-`.tb c btc bch zec`: CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
-`.tb p doge xmr`: Poloniex price for DOGEXMR
-`.tbg btc`: GDAX price for BTCUSD 
+`.tb k dash usd` ⇒ Kraken price for DASHUSD
+`.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
+`.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
+`.tbg btc` ⇒ GDAX price for BTCUSD 
 
 
 `I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available due to disk usage.`
