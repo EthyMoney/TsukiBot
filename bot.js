@@ -38,6 +38,9 @@ var fs                  = require('fs');
 var pg                  = require('pg');
 var pgp                 = require('pg-promise');
 
+// Scheduler
+var schedule            = require('node-schedule');
+
 // Set the prefix
 var prefix              = ['-t', '.tb', 't'];
 
@@ -83,7 +86,7 @@ const cc 		= require('cryptocompare');
 const web3              = require('web3');
 const Web3              = new web3(new web3.providers.HttpProvider('https://kovan.infura.io/' + keys['infura']));
 
-var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0x1B6f90a42cc86749052B4C9ca9ae9343E8a90d17");
+var ProductRegister     = new Web3.eth.Contract([{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"}],"0xfb52d4b9edc8859573683e82a37a968d1dbc746a");
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -101,10 +104,9 @@ var messageCount        = 0;
 var referenceTime       = Date.now();
 
 // Permissions configurations
-
 var configIDs           = [];
 var serverConfigs       = {};
-const availableCommands = ['k','g','c','p','e','b','pa','sub','done'];
+const availableCommands = ['k','g','c','p','e','b','pa','join','done'];
 const emojiConfigs      = ["🇰",
   "🇬",
   "🇨",
@@ -400,7 +402,6 @@ function getEtherBalance(address, chn){
 //------------------------------------------
 //------------------------------------------
 
-
 // This is a setup for users to create
 // their own arrays of coins. They can check
 // the price from they array by typing .tbpa
@@ -550,6 +551,125 @@ function setSubscriptions(user, guild, coins){
 // -------------------------------------------
 // -------------------------------------------
 //
+//             PERMISSION MGMT 
+//
+// -------------------------------------------
+// -------------------------------------------
+
+// Get a name for a role and save it into
+// the permissions database.
+//      
+//   Note: Currently inserting only type 3.
+//   Type 1: Admin
+//   Type 2: User
+//   Type 3: Temporary
+
+function setRoles(name, guild, chn){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  const code = name.toUpperCase().slice(0,20);
+
+  guild.createRole({
+    name: name,
+    color: 'RANDOM',
+    mentionable: true
+  })
+  .then(function(r){
+    let conn = new pg.Client(conString);
+    conn.connect();
+    
+    let sqlq = "INSERT INTO roleperms VALUES($1, $2, $3, $4);";
+    let queryp = pgp.as.format(sqlq, [r.id, guild.id, 3, code]);
+    
+    let query = conn.query(queryp, (err, res) => {
+      if (err){console.log(err);}
+      else { chn.send("Created role `" + r.name + "`.") }
+  
+      conn.end();
+    });
+  })
+  .catch(console.log);
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Give a temporary role to a user
+// and save the timstamps to the
+// database.
+
+function temporarySub(id, code, guild, chn, term){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  term = term || 30;
+  code = code.toUpperCase().slice(0,20);
+
+  let conn = new pg.Client(conString);
+  conn.connect();
+
+  let sqlq = "INSERT INTO temporaryrole VALUES(DEFAULT, $1, (SELECT roleid FROM roleperms WHERE guild = $2 AND function = 3 AND code = $3), current_timestamp, current_timestamp + (30 * interval '$4 day')) RETURNING roleid;"
+  let queryp = pgp.as.format(sqlq, [id, guild.id, code, term]);
+
+  let query = conn.query(queryp, (err, res) => {
+    if (err){ console.log(err); }
+    else { 
+      const role = guild.roles.get(res.rows[0].roleid);
+      guild.fetchMember(id)
+        .then(function(gm){
+          gm.addRole(role);
+          chn.send("Added subscriber `" + gm.displayName + "` to role `" + role.name + "`.") 
+        })
+        .catch(console.log)
+    }
+
+    conn.end();
+  });
+
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Give a temporary role to a user
+// and save the timstamps to the
+// database.
+
+function checkSubStatus(){
+  const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  console.log("purging")
+
+  let conn = new pg.Client(conString);
+  conn.connect();
+
+  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date > current_date;" 
+  let queryp = pgp.as.format(sqlq);
+
+  let query = conn.query(queryp, (err, res) => {
+    if (err){ console.log(err); }
+    else { 
+      for(let expired in res.rows){
+        
+        let line        = res.rows[expired];
+        let guild       = client.guilds.get(line.guild);
+        let role        = guild.roles.get(line.roleid);
+
+        guild.fetchMember(line.userid)
+          .then(function(gm){
+            gm.removeRole(role);
+          })
+          .catch(console.log)
+      }
+    }
+
+    conn.end();
+  });
+
+}
+
+
+// -------------------------------------------
+// -------------------------------------------
+//
 //              DISCORD FUNCTIONS
 //
 // -------------------------------------------
@@ -575,7 +695,8 @@ client.on('ready', () => {
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
-
+  
+  var deleter = schedule.scheduleJob('42 * * * *', checkSubStatus);
 
   client.fetchUser("217327366102319106")
     .then(u => { 
@@ -714,14 +835,16 @@ function commands(message, botAdmin, config){
         // --------- Whitelist message -------------------------------------------------
         if(pairs.indexOf(value.toUpperCase()) === -1
           && code_in[0] !== 'e'
+          && code_in[0] !== 'sub'
+          && code_in[0] !== 'subrole'
           && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
-        } else if(code_in[0] !== 'e'){
+        } else if(code_in[0] !== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
 
-        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1 || code_in[0] === 'sub' || code_in[0] === 'subrole';
 
       }).length + 1  == code_in.length && config.indexOf(code_in[0][0]) === -1)){
 
@@ -760,7 +883,7 @@ function commands(message, botAdmin, config){
           getCoinArray(message.author.id, channel, code_in);
 
           // Set coin roles
-        } else if(code_in[0] === 'sub'){
+        } else if(code_in[0] === 'join'){
           code_in.splice(0,1);
           setSubscriptions(message.author, message.guild, code_in);
 
@@ -781,8 +904,33 @@ function commands(message, botAdmin, config){
           getPriceBittrex(code_in.slice(1,code_in.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
 
           // Etherscan call
-        } else if((code_in[0] === 'escan' || code_in[0] === 'e') && code_in[1].length == 42){
-          getEtherBalance(code_in[1], channel);
+        } else if((code_in[0] === 'escan' || code_in[0] === 'e')){
+          if(code_in[1].length == 42){
+            getEtherBalance(code_in[1], channel);
+          } else {
+            channel.send("Format: `.tb e HEXADDRESS` with prefix 0x.");
+          }
+          
+          // Give a user an expiring role
+        } else if(code_in[0] === 'sub'){
+          if(hasPermissions(message.author.id, message.guild)){
+            if(typeof(code_in[2]) === 'string' && message.mentions.users.size > 0){
+              message.mentions.users.forEach(function(u){ temporarySub(u.id, code_in[2], message.guild, message.channel); })
+            } else {
+              channel.send("Format: `.tb sub @user rolename`.");
+            }
+            
+          }
+
+          // Create an expiring role
+        } else if(code_in[0] === 'subrole'){
+          if(hasPermissions(message.author.id, message.guild)){
+            if(typeof(code_in[1]) === 'string'){
+              setRoles(code_in[1], message.guild, message.channel)
+            } else {
+              channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)")
+            }
+          }
 
           // Catch-all help
         } else {
@@ -799,7 +947,7 @@ function commands(message, botAdmin, config){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
       // Remove the sub tags
-    } else if(code_in[0] === 'unsub'){
+    } else if(code_in[0] === 'leave'){
       setSubscriptions(message.author, message.guild, ['r']);
 
       // Load configuration message

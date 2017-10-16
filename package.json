@@ -14,6 +14,7 @@
     "gdax": "^0.4.2",
     "kraken-api": "^1.0.0",
     "node-fetch": "^1.7.2",
+    "node-schedule": "^1.2.5",
     "node.bittrex.api": "^0.5.1",
     "pg": "^7.3.0",
     "pg-promise": "^6.9.0",
