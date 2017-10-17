@@ -255,10 +255,10 @@ function getPricePolo(coin1, coin2, chn){
       json: true
     }, function(error, response, body){
       let pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
-      s = (coin2.toUpperCase() === 'BTC') ? s.toFixed(8) : s;
 
       try {
         let s = body[pair]['last'];
+        
         chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
           + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
       } catch (err){
