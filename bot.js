@@ -222,6 +222,8 @@ function getPriceKraken(coin1, coin2, base, chn){
     else {
       let per = ""
       let s = (data.result[Object.keys(data.result)]['c'][0]);
+      s = (coin2.toUpperCase() === 'XBT') ? s.toFixed(8) : s;
+
       if (base != -1){
         per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
       }
@@ -253,9 +255,10 @@ function getPricePolo(coin1, coin2, chn){
       json: true
     }, function(error, response, body){
       let pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
+      s = (coin2.toUpperCase() === 'BTC') ? s.toFixed(8) : s;
 
       try {
-        let s = body[pair]['last']
+        let s = body[pair]['last'];
         chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
           + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
       } catch (err){
@@ -301,12 +304,14 @@ function getPriceBittrex(coin1, coin2, chn){
 
       for(let idx in markets){
         let c = markets[idx];
+        let pd = c.Summary.Last;
+        pd = (c.Market.BaseCurrency === 'BTC') ? (pd.toFixed(8)) : pd;
 
         if(!sn[c.Market.MarketCurrency]){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + c.Summary.Last + " " + c.Market.BaseCurrency + "`");
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + "`");
       }
 
 
@@ -314,7 +319,7 @@ function getPriceBittrex(coin1, coin2, chn){
       for(let coin in sn){
         s += ("**" + coin + "**: " + sn[coin].join(" || ")
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" +
-            Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 1000000) / 1000000 + " USDT`" : "" )
+            Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
       }
 
@@ -364,9 +369,9 @@ function executeCommand(c, opts, chn){
 
   pyshell.send(c + '\r\n').end(function(err){
     if(err) {
-    console.log(err);
+      console.log(err);
     }
-    });
+  });
 
   pyshell.stdout.on('data', function (data){
     console.log(data);
