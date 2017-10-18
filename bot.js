@@ -661,6 +661,7 @@ function checkSubStatus(){
         guild.fetchMember(line.userid)
           .then(function(gm){
             gm.removeRole(role);
+            console.log("unsubbed user");
           })
           .catch(console.log)
       }
