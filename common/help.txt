@@ -1,52 +1,29 @@
-```php
-"TsukiBot Commands"
-```
+__**TsukiBot Commands**__
 
-**Usage: ** `.tb ⤫ ↺` or `.tb»`
+**General Usage: ** `.tb <command> <parameters>`
 
-`⤫` ⇒ command name　　　　 　
-`↺` ⇒ command parameters. ([optional])
-`»` ⇒ command shortcut.
+__Commands__
+`k`: Kraken
+`g`: GDAX  
+`p`: Poloniex
+`c`: CryptoCompare
+`b`: Bittrex
+`e`: Etherscan
+`pa`: Personal Arrays `(paid with CHS)`
 
-**Kraken**   　　　　　　　　 　　　　　   **GDAX**  
-`⤫` `k` or `krkn`   　　　　　　　　　　　 `⤫` `g` or `gdax`    
-`↺` `XXX`, [`YYY`], [`base price`]   　　　 　  `↺` `XXX`, [`YYY`], [`base price`]     
-`»` `.tbk`, `.tbk eur`, `.tbk btc`　　　　　`»` `.tbg`, `.tbg eur`, `.tbg btc`
-
-** Poloniex**   　　　　　　　　　　　　　 **CryptoCompare**
-`⤫` `p` or `polo`   　　　　　　　　　　　 `⤫` `c` or `crcp`
-`↺` `XXX`, [`YYY`]    　　　　　　　　　　   `↺` `XXX` [`YYY` ... `ZZZ`]
-`»` `.tbp`　　　　　　　　　　　 　　　`»` **n.a.**
-
-**Bittrex**   　　　　　　　　　　　　　　 **Etherscan**
-`⤫` `b` or `bit`   　　 　　　　　　　 　　 `⤫` `e` or `escan`
-`↺` [`YYY` ... `ZZZ`]    　　　　　 　  　　　  `↺` [hex address]
-`»` `.tbb`　　　　　  　　　 　 　 　　　`»` **n.a.**
-
-**Personal Arrays** `(paid with CHS)`
-`⤫` `pa`
-`↺` set: `.tb pa `[`XXX` ... `ZZZ`]
-`»` read: `.tbpa`
-
-**Bot Statistics**
-`.tbstat`
+__Extras__
+`.tbstat`: Session Statistics
 
 __(Only Owner)__
-**Create expiring role**
-`.tb subrole [Name]`
-
-**Grant a subscription**
-`.tb sub @User RoleName`
-
-**Bot Permission Settings**
-`.tbconfig`
+`.tb subrole [Name]`: Create expiring role
+`.tb sub @User RoleName`: Grant a subscription
+`.tbconfig`: Bot Permission Settings
 
 
 **Example usage**:
 `.tb k dash usd` ⇒ Kraken price for DASHUSD
 `.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
 `.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
-`.tbg btc` ⇒ GDAX price for BTCUSD 
 
-
-`I delete non-image files if I have admin perms. I have a bonus command .tb v eth which might not be available due to disk usage.`
+`I delete non-image files if I have deletion perms. Files are unsafe!`
+`I have a bonus command .tb v eth which might not be available due to disk usage.`
