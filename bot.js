@@ -48,8 +48,8 @@ var prefix              = ['-t', '.tb', 't'];
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pdf'];
 
 // Allowed coins in commands
-const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"))
-const volcoins 		= ['ETH', 'ETHX']
+const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+const volcoins 		= ['ETH', 'ETHX'];
 
 // Coin request counter initialization
 var requestCounter      = {};
@@ -59,15 +59,16 @@ pairs.forEach(p => requestCounter[p] = 0);
 var title 		= '__**TsukiBot**__ :full_moon: \n'
 var github		= 'Check the GitHub repo for more detailed information. <https://github.com/OFRBG/TsukiBot#command-table>'
 const helpStr           = fs.readFileSync('./common/help.txt','utf8');
+const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
 
 // DiscordBots API
-const snekfetch         = require('snekfetch')
+const snekfetch         = require('snekfetch');
 
 // HTTP request
-var request             = require("request")
+var request             = require("request");
 
 // Get the api keys
-var keys                = JSON.parse(fs.readFileSync('keys.api','utf8'))
+var keys                = JSON.parse(fs.readFileSync('keys.api','utf8'));
 
 
 // Include api things
@@ -222,6 +223,8 @@ function getPriceKraken(coin1, coin2, base, chn){
     else {
       let per = ""
       let s = (data.result[Object.keys(data.result)]['c'][0]);
+      s = (coin2.toUpperCase() === 'XBT') ? s.toFixed(8) : s;
+
       if (base != -1){
         per = "\n Change: `" + Math.round(((s/base-1) * 100)*100)/100 + "%`";
       }
@@ -255,7 +258,8 @@ function getPricePolo(coin1, coin2, chn){
       let pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
 
       try {
-        let s = body[pair]['last']
+        let s = body[pair]['last'];
+        
         chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
           + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
       } catch (err){
@@ -301,12 +305,14 @@ function getPriceBittrex(coin1, coin2, chn){
 
       for(let idx in markets){
         let c = markets[idx];
+        let pd = c.Summary.Last;
+        pd = (c.Market.BaseCurrency === 'BTC') ? (pd.toFixed(8)) : pd;
 
         if(!sn[c.Market.MarketCurrency]){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + c.Summary.Last + " " + c.Market.BaseCurrency + "`");
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + "`");
       }
 
 
@@ -314,7 +320,7 @@ function getPriceBittrex(coin1, coin2, chn){
       for(let coin in sn){
         s += ("**" + coin + "**: " + sn[coin].join(" || ")
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" +
-            Math.floor((sn[coin][0].substring(1,8).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 1000000) / 1000000 + " USDT`" : "" )
+            Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
       }
 
@@ -364,9 +370,9 @@ function executeCommand(c, opts, chn){
 
   pyshell.send(c + '\r\n').end(function(err){
     if(err) {
-    console.log(err);
+      console.log(err);
     }
-    });
+  });
 
   pyshell.stdout.on('data', function (data){
     console.log(data);
@@ -600,7 +606,7 @@ function setRoles(name, guild, chn){
 
 function temporarySub(id, code, guild, chn, term){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  term = term || 30;
+  term = term || 1;
   code = code.toUpperCase().slice(0,20);
 
   let conn = new pg.Client(conString);
@@ -641,14 +647,13 @@ function checkSubStatus(){
   let conn = new pg.Client(conString);
   conn.connect();
 
-  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date > current_date;" 
+  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date < current_date;" 
   let queryp = pgp.as.format(sqlq);
 
   let query = conn.query(queryp, (err, res) => {
     if (err){ console.log(err); }
     else { 
       for(let expired in res.rows){
-        
         let line        = res.rows[expired];
         let guild       = client.guilds.get(line.guild);
         let role        = guild.roles.get(line.roleid);
@@ -656,6 +661,7 @@ function checkSubStatus(){
         guild.fetchMember(line.userid)
           .then(function(gm){
             gm.removeRole(role);
+            console.log("unsubbed user");
           })
           .catch(console.log)
       }
@@ -708,8 +714,12 @@ client.on('ready', () => {
 });
 
 
-function postHelp(chn){
-  chn.send(helpStr).then(message => {
+function postHelp(chn, code){
+  code = code || "none";
+  const helptext = code === "none" ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
+
+  chn.send(helptext).then(message => {
+
     message.react("\u274E");
     blockIDs.push(message.id);
 
@@ -816,7 +826,7 @@ function commands(message, botAdmin, config){
 
 
       /* --------------------------------------------------------------------------------
-       First we need to get the supplied coin list. Then we apply a filter function
+        First we need to get the supplied coin list. Then we apply a filter function
         and check for each value if:
 
            1. it is in the whitelisted array
@@ -934,9 +944,11 @@ function commands(message, botAdmin, config){
 
           // Catch-all help
         } else {
-          postHelp(channel);
+          postHelp(channel, code_in[0]);
         }
       }
+    } else {
+      postHelp(channel, code_in[0]);
     }
 
     // Shortcut section
