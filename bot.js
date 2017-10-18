@@ -605,7 +605,7 @@ function setRoles(name, guild, chn){
 
 function temporarySub(id, code, guild, chn, term){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  term = term || 30;
+  term = term || 1;
   code = code.toUpperCase().slice(0,20);
 
   let conn = new pg.Client(conString);
