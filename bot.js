@@ -646,14 +646,13 @@ function checkSubStatus(){
   let conn = new pg.Client(conString);
   conn.connect();
 
-  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date > current_date;" 
+  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date < current_date;" 
   let queryp = pgp.as.format(sqlq);
 
   let query = conn.query(queryp, (err, res) => {
     if (err){ console.log(err); }
     else { 
       for(let expired in res.rows){
-        
         let line        = res.rows[expired];
         let guild       = client.guilds.get(line.guild);
         let role        = guild.roles.get(line.roleid);
