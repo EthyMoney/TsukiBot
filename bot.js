@@ -312,10 +312,8 @@ function getPriceBittrex(coin1, coin2, chn){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + "`");
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`");
       }
-
-
 
       for(let coin in sn){
         s += ("**" + coin + "**: " + sn[coin].join(" || ")
