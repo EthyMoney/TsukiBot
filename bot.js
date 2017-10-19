@@ -591,7 +591,7 @@ function setRoles(name, guild, chn){
       conn.end();
     });
   })
-  .catch(console.log);
+  .catch(channel.send("Missing permissions: **Manage roles**."));
 }
 
 
