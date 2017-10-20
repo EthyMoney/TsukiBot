@@ -49,11 +49,17 @@ const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pd
 
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+const pairs_filtered    = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 const volcoins 		= ['ETH', 'ETHX'];
 
 // Coin request counter initialization
 var requestCounter      = {};
 pairs.forEach(p => requestCounter[p] = 0);
+
+// Coin mention counter initialization
+var mentionCounter      = {};
+var msgAcc              = "";
+pairs_filtered.forEach(p => mentionCounter[p] = 0);
 
 // Help string
 var title 		= '__**TsukiBot**__ :full_moon: \n'
@@ -312,10 +318,8 @@ function getPriceBittrex(coin1, coin2, chn){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + "`");
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`");
       }
-
-
 
       for(let coin in sn){
         s += ("**" + coin + "**: " + sn[coin].join(" || ")
@@ -593,7 +597,7 @@ function setRoles(name, guild, chn){
       conn.end();
     });
   })
-  .catch(console.log);
+  .catch(channel.send("Missing permissions: **Manage roles**."));
 }
 
 
@@ -775,8 +779,32 @@ client.on('message', message => {
     })
     .catch(console.log);
 
+  msgAcc += message;
+
+  checkMentions(message, msgAcc, mentionCounter)
+    .then(m => { mentionCounter = m; });
+  
+  if(msgAcc.length > 1000) msgAcc = "";
+
 })
 
+function checkMentions(msg, msgAcc, mentionCounter){
+  return new Promise(function(resolve, reject){
+    msgAcc = msgAcc + " " + msg;
+    
+    if(msgAcc.length > 1000){
+      let acc = msgAcc.split(" ");
+
+      for(let w in acc){
+        if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
+      }
+
+    }
+    
+    resolve(mentionCounter);
+    
+  });
+}
 
 /* -------------------------------------------------------
 
@@ -1035,29 +1063,14 @@ function commands(message, botAdmin, config){
       const users       = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
       const guilds      = (client.guilds.size);
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
-      const topCrypto   = function() {
-        let max = 0;
-        let sum = 1;
-        let maxCrypto = "";
-
-        for(let key in requestCounter) {
-          sum += requestCounter[key];
-          if(requestCounter[key] !== 0) console.log(requestCounter[key] + " " + key)
-          if(requestCounter[key] > max) {
-            max = requestCounter[key];
-            maxCrypto = key;
-          }
-        }
-
-        console.log(max)
-        console.log(sum)
-        return [maxCrypto, Math.trunc((max / sum) * 100)];
-      }();
+      const topCrypto   = coinArrayMax(requestCounter);
+      const popCrypto   = coinArrayMax(mentionCounter);
 
       channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
         + "* Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
         + "* Current messages per minute is `" + msgpersec + "`.\n"
         + "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n"
+        + "* Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n"
         + "Support Tsuki by updooting here: <https://discordbots.org/bot/313452464399581194>.")
 
       // Meme
@@ -1085,6 +1098,24 @@ function commands(message, botAdmin, config){
 // -------------------------------------------
 // -------------------------------------------
 
+function coinArrayMax(counter) {
+  let max = 0;
+  let sum = 1;
+  let maxCrypto = "";
+
+  for(let key in counter) {
+    sum += counter[key];
+    if(counter[key] !== 0) console.log(counter[key] + " " + key)
+    if(counter[key] > max) {
+      max = counter[key];
+      maxCrypto = key;
+    }
+  }
+
+  console.log(max)
+  console.log(sum)
+  return [maxCrypto, Math.trunc((max / sum) * 100)];
+}
 
 function loadConfiguration(msg){
   let channel = msg.channel;
