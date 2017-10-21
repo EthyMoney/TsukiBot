@@ -59,6 +59,7 @@ pairs.forEach(p => requestCounter[p] = 0);
 // Coin mention counter initialization
 var mentionCounter      = {};
 var msgAcc              = "";
+const MESSAGE_LIMIT     = 10000;
 pairs_filtered.forEach(p => mentionCounter[p] = 0);
 
 // Help string
@@ -676,6 +677,39 @@ function checkSubStatus(){
 
 }
 
+function checkMentions(msg, msgAcc, mentionCounter){
+  return new Promise(function(resolve, reject){
+    const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+    
+    msgAcc = msgAcc + " " + msg;
+    
+    if(msgAcc.length > MESSAGE_LIMIT){
+      let acc = msgAcc.split(" ");
+
+      for(let w in acc){
+        if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
+      }
+
+    }
+    
+    resolve(mentionCounter);
+    
+    conn.connect();
+    
+    let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_date, DEFAULT);";
+    let queryp = pgp.as.format(sqlq, [coin, mentioncount]);
+    
+    let query = conn.query(queryp, (err, res) => {
+      if (err){console.log(err);}
+      else { chn.send("Created role `" + r.name + "`.") }
+  
+      conn.end();
+    });
+  
+  });
+}
+
+
 
 // -------------------------------------------
 // -------------------------------------------
@@ -784,27 +818,12 @@ client.on('message', message => {
   checkMentions(message, msgAcc, mentionCounter)
     .then(m => { mentionCounter = m; });
   
-  if(msgAcc.length > 1000) msgAcc = "";
+  if(msgAcc.length > MESSAGE_LIMIT) {
+    msgAcc = "";
+    mentionCounter.forEach(m => m = 0);
+  }
 
 })
-
-function checkMentions(msg, msgAcc, mentionCounter){
-  return new Promise(function(resolve, reject){
-    msgAcc = msgAcc + " " + msg;
-    
-    if(msgAcc.length > 1000){
-      let acc = msgAcc.split(" ");
-
-      for(let w in acc){
-        if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
-      }
-
-    }
-    
-    resolve(mentionCounter);
-    
-  });
-}
 
 /* -------------------------------------------------------
 
