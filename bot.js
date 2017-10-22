@@ -693,7 +693,7 @@ function checkMentions(msg, msgAcc, mentionCounter){
     }
     
     resolve(mentionCounter);
-    
+    /* 
     conn.connect();
     
     let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_date, DEFAULT);";
@@ -705,7 +705,7 @@ function checkMentions(msg, msgAcc, mentionCounter){
   
       conn.end();
     });
-  
+    */
   });
 }
 
@@ -820,7 +820,7 @@ client.on('message', message => {
   
   if(msgAcc.length > MESSAGE_LIMIT) {
     msgAcc = "";
-    mentionCounter.forEach(m => m = 0);
+    // mentionCounter. (m => m = 0);
   }
 
 })
