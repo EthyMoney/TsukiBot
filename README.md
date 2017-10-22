@@ -3,20 +3,21 @@
 
 <p align="center">
   <a href="https://discordbots.org/bot/313452464399581194">
-    <img src="https://github.com/CehhNet/TsukiBot-Web/blob/master/src/img/TsukiBotBanner.png?raw=true"/>
+    <img src="https://imgur.com/95F1V53.png"/>
   </a>
   <a href="https://discordapp.com/oauth2/authorize?client_id=313452464399581194&scope=bot&permissions=268438608">Invite Link</a>
 </p>
 
 ## Features
-+ Get the volume for buy and sell orders.
-+ Check prices from various exchanges in real time.
++ Fetch detailed data for specific pairs on major exhanges.
++ Check price averages in real time.
 + Fetch volume data on selected pairs.
-+ And more.
++ Automanage private channels for crypto subgroups.
++ Automanage paid subscriptions and expiring roles.
 
 # Usage
 
-## Command Table
+## Command Table for Price Checking
 
 |  Command Name   |  Command Call    |  Options    | Shortcuts |
 |------|------|------|------|
@@ -25,7 +26,6 @@
 |   Poloniex   | `p` or `polo`     |  `XXX`, [`YYY`]    | `.tbp`|
 | CryptoCompare | `c` or `crcp` | `XXX` [`YYY` ... `ZZZ`] | n.a. |
 |   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
-|   Etherscan   | `e` or `escan`     |  hex address   |  n.a. |
 | Personal Arrays  | `pa`| to set: [`XXX` ... `ZZZ`] | .tbpa |
 |   Help   | `.tbhelp`     |  n.a.   |  n.a. |
 
@@ -47,90 +47,8 @@ ETH, ETHX
 
 `ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
 
-ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
+This project is open-source, and if you think you can improve it, make a pull request.
 
-
-## Installation
-
-### Use `npm` 
-
-(Not fully tested.)
-
-```
-npm install tsukibot
-```
-
-### Depends:
-+ python 2.7.x
-+ node.js >= 6.0.0
-+ python-shell
-+ Naked
-+ discord.js
-
-1. Clone the repo.
-
-```bash
-git clone https://github.com/OFRBG/TsukiBot.git
-cd TsukiBot
-mkdir common
-```
-
-2. Install the dependencies.
-
-```bash
-npm install
-```
-
-3. Create a `virtualenv` for the project.
-
-```bash
-virtualenv TsukiBot
-source TsukiBot/bin/activate
-```
-
-4. Install python dependencies.
-
-```bash
-pip install psycopg2 pandas Naked
-```
-
-5. Create a keys file.
-
-```bash
-nano keys.api
-```
-
-6. Inside keys.api add the following JSON substituting with your keys.
-
-```json
-{
-  "polo": [
-    "poloniex short key",
-    "poloniex long key"
-  ],
-  "discord": "discord token (long with mixed chars)",
-  "bittrex" : [
-    "bittrex short key",
-    "bittrex long key"
-  ],
-  "coinbase" : [
-    "coinbase short key",
-    "coinbase long key"
-  ],
-  "etherscan" : "api key",
-  …
-}
-```
-
-
-## Execution
-
-To run the main bot:
-
-```bash
-node bot.js
-```
-
-### Note: use pm2 to keep the bot running! Execute from the main directory with `pm2 start bot.js`.
+---
 
 ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
