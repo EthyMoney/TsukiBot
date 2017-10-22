@@ -266,7 +266,7 @@ function getPricePolo(coin1, coin2, chn){
 
       try {
         let s = body[pair]['last'];
-        
+
         chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
           + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
       } catch (err){
@@ -375,9 +375,9 @@ function executeCommand(c, opts, chn){
 
   pyshell.send(c + '\r\n').end(function(err){
     if(err) {
-      console.log(err);
+    console.log(err);
     }
-  });
+    });
 
   pyshell.stdout.on('data', function (data){
     console.log(data);
@@ -584,21 +584,21 @@ function setRoles(name, guild, chn){
     color: 'RANDOM',
     mentionable: true
   })
-  .then(function(r){
-    let conn = new pg.Client(conString);
-    conn.connect();
-    
-    let sqlq = "INSERT INTO roleperms VALUES($1, $2, $3, $4);";
-    let queryp = pgp.as.format(sqlq, [r.id, guild.id, 3, code]);
-    
-    let query = conn.query(queryp, (err, res) => {
-      if (err){console.log(err);}
-      else { chn.send("Created role `" + r.name + "`.") }
-  
-      conn.end();
-    });
-  })
-  .catch(channel.send("Missing permissions: **Manage roles**."));
+    .then(function(r){
+      let conn = new pg.Client(conString);
+      conn.connect();
+
+      let sqlq = "INSERT INTO roleperms VALUES($1, $2, $3, $4);";
+      let queryp = pgp.as.format(sqlq, [r.id, guild.id, 3, code]);
+
+      let query = conn.query(queryp, (err, res) => {
+        if (err){console.log(err);}
+        else { chn.send("Created role `" + r.name + "`.") }
+
+        conn.end();
+      });
+    })
+    .catch(channel.send("Missing permissions: **Manage roles**."));
 }
 
 
@@ -680,9 +680,10 @@ function checkSubStatus(){
 function checkMentions(msg, msgAcc, mentionCounter){
   return new Promise(function(resolve, reject){
     const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-    
+    let conn = new pg.Client(conString);
+
     msgAcc = msgAcc + " " + msg;
-    
+
     if(msgAcc.length > MESSAGE_LIMIT){
       let acc = msgAcc.split(" ");
 
@@ -690,23 +691,31 @@ function checkMentions(msg, msgAcc, mentionCounter){
         if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
       }
 
+    
+      
+      conn.connect();
+
+      let queryline = "";
+      for(let c in mentionCounter){
+        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_date, DEFAULT);";
+        let queryp = pgp.as.format(sqlq, [c, mentionCounter[c]]);
+
+        queryline += queryp;
+      }
+
+      let query = conn.query(queryline, (err, res) => {
+        if (err){console.log(err);}
+        else { console.log("insertion complete"); }
+
+        conn.end();
+      });
+
+      resolve(mentionCounter);
+
     }
-    
-    resolve(mentionCounter);
-    /* 
-    conn.connect();
-    
-    let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_date, DEFAULT);";
-    let queryp = pgp.as.format(sqlq, [coin, mentioncount]);
-    
-    let query = conn.query(queryp, (err, res) => {
-      if (err){console.log(err);}
-      else { chn.send("Created role `" + r.name + "`.") }
-  
-      conn.end();
-    });
-    */
+
   });
+
 }
 
 
@@ -739,15 +748,15 @@ client.on('ready', () => {
 
   // When ready, start a logging script for the coins in the array.
   createLogger(volcoins);
-  
+
   var deleter = schedule.scheduleJob('42 * * * *', checkSubStatus);
 
   client.fetchUser("217327366102319106")
     .then(u => { 
-        u.send("TsukiBot loaded.")
+      u.send("TsukiBot loaded.")
         .catch(console.log)
     })
-  .catch(console.log);
+    .catch(console.log);
 
 });
 
@@ -800,8 +809,8 @@ client.on('message', message => {
 
   // Check if it's a DM channel
   if(message.guild === null) return;
-  
-  
+
+
   // Get the permission settigs
   const config = serverConfigs[message.guild.id] || [];
 
@@ -817,10 +826,13 @@ client.on('message', message => {
 
   checkMentions(message, msgAcc, mentionCounter)
     .then(m => { mentionCounter = m; });
-  
+
   if(msgAcc.length > MESSAGE_LIMIT) {
     msgAcc = "";
-    // mentionCounter. (m => m = 0);
+  }
+  
+  if(msgAcc.length > MESSAGE_LIMIT * 10) {
+    mentionCounter.forEach(m => m = 0 )
   }
 
 })
@@ -967,7 +979,7 @@ function commands(message, botAdmin, config){
           } else {
             channel.send("Format: `.tb e HEXADDRESS` with prefix 0x.");
           }
-          
+
           // Give a user an expiring role
         } else if(code_in[0] === 'sub'){
           if(hasPermissions(message.author.id, message.guild)){
@@ -976,7 +988,7 @@ function commands(message, botAdmin, config){
             } else {
               channel.send("Format: `.tb sub @user rolename`.");
             }
-            
+
           }
 
           // Create an expiring role
@@ -1001,7 +1013,7 @@ function commands(message, botAdmin, config){
     // Shortcut section
   } else {
 
-      // Get DiscordID via DM
+    // Get DiscordID via DM
     if(code_in[0] === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
@@ -1088,8 +1100,8 @@ function commands(message, botAdmin, config){
       channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
         + "* Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
         + "* Current messages per minute is `" + msgpersec + "`.\n"
-        + "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n"
-        + "* Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n"
+        + (topCrypto[1] > 0 ? "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
+        + (popCrypto[1] > 0 ?  "* Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
         + "Support Tsuki by updooting here: <https://discordbots.org/bot/313452464399581194>.")
 
       // Meme
