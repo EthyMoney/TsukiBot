@@ -697,7 +697,7 @@ function checkMentions(msg, msgAcc, mentionCounter){
 
       let queryline = "";
       for(let c in mentionCounter){
-        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_date, DEFAULT);";
+        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_timestamp, DEFAULT);";
         let queryp = pgp.as.format(sqlq, [c, mentionCounter[c]]);
 
         queryline += queryp;
