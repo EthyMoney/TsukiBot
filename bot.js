@@ -749,7 +749,7 @@ client.on('ready', () => {
   });
 
   // When ready, start a logging script for the coins in the array.
-  createLogger(volcoins);
+  // createLogger(volcoins);
 
   var deleter = schedule.scheduleJob('42 * * * *', checkSubStatus);
 
@@ -763,17 +763,17 @@ client.on('ready', () => {
 });
 
 
-function postHelp(chn, code){
+function postHelp(author, code){
   code = code || "none";
   const helptext = code === "none" ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
 
-  chn.send(helptext).then(message => {
+  author.send(helptext).then(message => {
 
-    message.react("\u274E");
-    blockIDs.push(message.id);
+    //  message.react("\u274E");
+    // blockIDs.push(message.id);
 
     // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
-    setTimeout(function(){ removeID(message.id); }, 120000);
+    // setTimeout(function(){ removeID(message.id); }, 120000);
   });
 }
 
@@ -1087,7 +1087,7 @@ function commands(message, botAdmin, config){
 
       // Call help command
     } else if (code_in[0] === 'help' || code_in[0] === 'h'){
-      postHelp(channel);
+      postHelp(message.author);
 
       // Statistics
     } else if (code_in[0] === 'stat'){
