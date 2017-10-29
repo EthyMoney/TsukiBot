@@ -59,7 +59,7 @@ pairs.forEach(p => requestCounter[p] = 0);
 // Coin mention counter initialization
 var mentionCounter      = {};
 var msgAcc              = "";
-const MESSAGE_LIMIT     = 10000;
+const MESSAGE_LIMIT     = 100000;
 pairs_filtered.forEach(p => mentionCounter[p] = 0);
 
 // Help string
@@ -824,15 +824,13 @@ client.on('message', message => {
 
   msgAcc += message;
 
-  checkMentions(message, msgAcc, mentionCounter)
-    .then(m => { mentionCounter = m; });
+  checkMentions(message, msgAcc, mentionCounter);
 
   if(msgAcc.length > MESSAGE_LIMIT) {
     msgAcc = "";
-  }
-  
-  if(msgAcc.length > MESSAGE_LIMIT * 10) {
-    mentionCounter.forEach(m => m = 0 )
+    Object.keys(mentionCounter).forEach(function(m){
+      mentionCounter[m] = 0;
+    });
   }
 
 })
