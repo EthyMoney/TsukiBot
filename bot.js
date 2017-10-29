@@ -1094,13 +1094,22 @@ function commands(message, botAdmin, config){
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
       const topCrypto   = coinArrayMax(requestCounter);
       const popCrypto   = coinArrayMax(mentionCounter);
+      
 
-      channel.send("* Serving `" + users + "` users from `" + guilds + "` servers.\n"
-        + "* Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
-        + "* Current messages per minute is `" + msgpersec + "`.\n"
-        + (topCrypto[1] > 0 ? "* Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
-        + (popCrypto[1] > 0 ?  "* Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
-        + "Support Tsuki by updooting here: <https://discordbots.org/bot/313452464399581194>.")
+      const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
+        + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
+        + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
+        + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
+        + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
+        + "⇒ Support or share Tsuki here: <https://discordbots.org/bot/313452464399581194>.")
+      
+      let embed         = new Discord.RichEmbed()
+        .addField("TsukiBot Stats", msgh)
+        .setColor('WHITE')
+        .setThumbnail('https://imgur.com/7pLQHei.png')
+        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png')
+
+      channel.send({embed});
 
       // Meme
     } else if (code_in[0] === '.dank'){
