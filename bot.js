@@ -201,19 +201,19 @@ function getPriceCC(coins, chn){
   // Get the spot price of the pair and send it to general
   cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
     .then(prices => {
-      var msg = '__**CryptoCompare**__\n';
+      var msg = '__CryptoCompare__ Price for:\n';
 
       for(let i = 0; i < coins.length; i++){
-        console.log(prices);
         // msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
         //  prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
         //  Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
         
-        msg += ('- **' + coins[i].toUpperCase() + '** ⇒ `' +
-          prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`) || `' +
+        msg += ('- `' + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + '` ⇒ `' +
           prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`) `■` `' +
+          prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`)' +
+          "\n"
         );
       }
 
@@ -331,9 +331,10 @@ function getPriceBittrex(coin1, coin2, chn){
         sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`");
       }
 
+
       for(let coin in sn){
-        s += ("**" + coin + "**: " + sn[coin].join(" || ")
-          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " || `" +
+        s += ("- `" + coin + ' '.repeat(6-coin.length) + '` ⇒ ' + sn[coin].join(" `■` ")
+          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " `■` `" +
             Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
       }
