@@ -92,7 +92,7 @@ const cc 		= require('cryptocompare');
 
 // Web3
 const web3              = require('web3');
-const Web3              = new web3(new web3.providers.HttpProvider('https://kovan.infura.io/' + keys['infura']));
+const Web3              = new web3(new web3.providers.HttpProvider('http://localhost:8545'));
 
 const abi               = [{"constant":true,"inputs":[],"name":"getRating","outputs":[{"name":"","type":"int256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"negative","outputs":[{"name":"","type":"int256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_vote","type":"bool"}],"name":"feedback","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"productName","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_newPrice","type":"uint256"}],"name":"setPrice","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"_id","type":"string"}],"name":"checkPayment","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"price","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_id","type":"string"}],"name":"payment","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"positive","outputs":[{"name":"","type":"int256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"inputs":[{"name":"_price","type":"uint256"},{"name":"_productName","type":"string"},{"name":"_owner","type":"address"}],"payable":false,"stateMutability":"nonpayable","type":"constructor"}];
 
@@ -199,14 +199,21 @@ function getPriceGDAX(coin1, coin2, base, chn){
 function getPriceCC(coins, chn){
 
   // Get the spot price of the pair and send it to general
-  cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'EUR'])
+  cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
     .then(prices => {
       var msg = '__**CryptoCompare**__\n';
 
       for(let i = 0; i < coins.length; i++){
-        msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
+        console.log(prices);
+        // msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
+        //  prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+        //  Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+        
+        msg += ('- **' + coins[i].toUpperCase() + '** ⇒ `' +
           prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
+          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`) || `' +
+          prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
+          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
         );
       }
 
