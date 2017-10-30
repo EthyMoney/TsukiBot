@@ -42,7 +42,7 @@ var pgp                 = require('pg-promise');
 var schedule            = require('node-schedule');
 
 // Set the prefix
-var prefix              = ['-t', '.tb', 't'];
+var prefix              = ['-t', '.tb'];
 
 // Files allowed
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pdf'];
