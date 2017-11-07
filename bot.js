@@ -913,6 +913,7 @@ function commands(message, botAdmin, config){
         if(pairs.indexOf(value.toUpperCase()) === -1
           && code_in[0] !== 'e'
           && code_in[0] !== 'sub'
+          && code_in[0] !== 'check'
           && code_in[0] !== 'subrole'
           && !(code_in[0] === 'v' && isNaN(code_in[1]))){
           channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
@@ -1048,7 +1049,7 @@ function commands(message, botAdmin, config){
             if(paid){
               getCoinArray(message.author.id, channel);
             } else {
-              channel.send("Please pay for this service. Visit https://www.tsukibot.tk on the Kovan Network.")
+              channel.send("Please pay (free KETH) for this service. Visit https://www.tsukibot.com on the Kovan Network.")
             }
           })
           .catch(console.log);
