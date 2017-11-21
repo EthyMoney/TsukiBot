@@ -430,6 +430,8 @@ function getEtherBalance(address, chn){
 
 function getCoinArray(id, chn, coins = '', action = ''){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
+  coins.map(function(x){ return x.toUpperCase() });
+
   if(action == '') 
     coins = '{' + coins + '}';
 
@@ -726,7 +728,7 @@ function checkMentions(msg, msgAcc, mentionCounter){
 
       let queryline = "";
       for(let c in mentionCounter){
-        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_timestamp, DEFAULT);";
+        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_timestamp - , DEFAULT);";
         let queryp = pgp.as.format(sqlq, [c, mentionCounter[c]]);
 
         queryline += queryp;
