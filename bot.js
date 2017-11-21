@@ -428,14 +428,17 @@ function getEtherBalance(address, chn){
 // the price from they array by typing .tbpa
 // as a shortcut.
 
-function getCoinArray(id, chn, coins = ''){
+function getCoinArray(id, chn, coins = '', action = ''){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  coins = '{' + coins + '}';
+  if(action == '') 
+    coins = '{' + coins + '}';
 
   let conn = new pg.Client(conString);
   conn.connect();
 
   let query;
+
+  // .tbpa call
   if(coins === '{}'){
     query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
       if (err){console.log(err);}
@@ -450,12 +453,28 @@ function getCoinArray(id, chn, coins = ''){
       conn.end();
     });
 
+  // .tb pa call
   } else {
-    query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
-      if (err){console.log(err);}
+    if(action == '') {
+      query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
+        if (err){ console.log(err); }
+        else { chn.send("Personal array set: `" + coins + "` for <@" + id + ">.") }
 
-      conn.end();
-    });
+        conn.end();
+      });
+    } else {
+      const command     = (action == '-') ? 'EXCEPT' : 'UNION';
+      const sqlq        = "UPDATE profiles SET coins = array(SELECT UNNEST(coins) FROM profiles WHERE id = $1 " + command + " SELECT UNNEST(ARRAY[$2])) WHERE id = $1;";
+      const queryp      = pgp.as.format(sqlq, [id, coins]);
+
+      query = conn.query(queryp, (err, res) => {
+        if (err){ console.log(err); }
+        else { chn.send("Personal array modified."); }
+
+        conn.end();
+        
+      });    
+    }
   }
 
 }
@@ -955,10 +974,12 @@ function commands(message, botAdmin, config){
           code_in.splice(0,1);
           getPriceCC(code_in, channel);
 
-          // Set personal array
-        } else if(code_in[0] === 'pa'){
+          // Configure personal array
+        } else if( /pa[\+\-]?/.test(code_in[0])){
+          console.log(code_in)
+          let action = code_in[0][2] || '';
           code_in.splice(0,1);
-          getCoinArray(message.author.id, channel, code_in);
+          getCoinArray(message.author.id, channel, code_in, action);
 
           // Set coin roles
         } else if(code_in[0] === 'join'){

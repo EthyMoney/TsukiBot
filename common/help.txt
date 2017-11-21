@@ -9,7 +9,11 @@ __Commands__
 `c`: CryptoCompare
 `b`: Bittrex
 `e`: Etherscan
-`pa`: Personal Arrays `(paid with CHS)`
+
+__Personal Array__
+`pa`: Set your personal array
+`pa+`: Add a coin to your current pa
+`pa-`: Remove a coin from yout current pa
 
 __Extras__
 `.tbstat`: Session Statistics
