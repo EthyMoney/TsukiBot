@@ -430,7 +430,6 @@ function getEtherBalance(address, chn){
 
 function getCoinArray(id, chn, coins = '', action = ''){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  coins.map(function(x){ return x.toUpperCase() });
 
   if(action == '') 
     coins = '{' + coins + '}';
@@ -456,7 +455,7 @@ function getCoinArray(id, chn, coins = '', action = ''){
     });
 
   // .tb pa call
-  } else {
+  } else { 
     if(action == '') {
       query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
         if (err){ console.log(err); }
@@ -981,6 +980,8 @@ function commands(message, botAdmin, config){
           console.log(code_in)
           let action = code_in[0][2] || '';
           code_in.splice(0,1);
+          
+          code_in.map(function(x){ return x.toUpperCase() });
           getCoinArray(message.author.id, channel, code_in, action);
 
           // Set coin roles
