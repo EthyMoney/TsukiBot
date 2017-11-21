@@ -1,4 +1,10 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/9dc99ab109574f63ba09427dbde80886)](https://www.codacy.com/app/ofonsk/TsukiBot?utm_source=github.com&utm_medium=referral&utm_content=OFRBG/TsukiBot&utm_campaign=badger)
+<a href="https://discordbots.org/bot/313452464399581194?utm_source=widget">
+  <img src="https://discordbots.org/api/widget/status/313452464399581194.png" alt="Discord Bots" />
+</a>
+<a href="https://discordbots.org/bot/313452464399581194?utm_source=widget">
+  <img src="https://discordbots.org/api/widget/servers/313452464399581194.png" alt="Discord Bots" />
+</a>
 
 
 <p align="center">
@@ -7,6 +13,7 @@
   </a>
   <a href="https://discordapp.com/oauth2/authorize?client_id=313452464399581194&scope=bot&permissions=268438608">Invite Link</a>
 </p>
+
 
 ## Features
 + Fetch detailed data for specific pairs on major exhanges.
