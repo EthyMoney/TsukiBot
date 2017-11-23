@@ -1,10 +1,6 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/9dc99ab109574f63ba09427dbde80886)](https://www.codacy.com/app/ofonsk/TsukiBot?utm_source=github.com&utm_medium=referral&utm_content=OFRBG/TsukiBot&utm_campaign=badger)
-<a href="https://discordbots.org/bot/313452464399581194?utm_source=widget">
-  <img src="https://discordbots.org/api/widget/status/313452464399581194.png" alt="Discord Bots" />
-</a>
-<a href="https://discordbots.org/bot/313452464399581194?utm_source=widget">
-  <img src="https://discordbots.org/api/widget/servers/313452464399581194.png" alt="Discord Bots" />
-</a>
+[![Discord Bots](https://discordbots.org/api/widget/status/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
+[![Discord Bots](https://discordbots.org/api/widget/servers/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
 
 
 <p align="center">
@@ -59,3 +55,7 @@ This project is open-source, and if you think you can improve it, make a pull re
 ---
 
 ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
+
+Or just upvote here:
+
+[![Discord Bots](https://discordbots.org/api/widget/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
