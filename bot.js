@@ -316,6 +316,7 @@ function getPriceBittrex(coin1, coin2, chn){
       let p = data['result'];
       let s = "__Bittrex__ Price for: \n";
       let sn = [];
+      let vp = {};
 
       let markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1});
 
@@ -328,15 +329,17 @@ function getPriceBittrex(coin1, coin2, chn){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`");
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`"); 
       }
 
 
       for(let coin in sn){
-        s += ("- `" + coin + ' '.repeat(6-coin.length) + '` ⇒ ' + sn[coin].join(" `■` ")
-          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? " `■` `" +
+          s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
+          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? "\n`-       ⇒` `" +
             Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
+
+        console.log(s)
       }
 
       chn.send(s);
