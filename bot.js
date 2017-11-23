@@ -208,9 +208,9 @@ function getPriceCC(coins, chn){
         //  prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
         //  Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
         
-        msg += ('- `' + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + '` ⇒ `' +
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
           prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`) `■` `' +
+          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)\n`-        ⇒` `' +
           prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
           Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`)' +
           "\n"
@@ -329,7 +329,8 @@ function getPriceBittrex(coin1, coin2, chn){
           sn[c.Market.MarketCurrency] = [];
         }
 
-        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (V. " + Math.trunc(c.Summary.BaseVolume) + ")`"); 
+        let pch = (((pd/c.Summary.PrevDay)-1)*100).toFixed(2);
+        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (" + pch + "%)` ∭ `(V." + Math.trunc(c.Summary.BaseVolume) + ")`"); 
       }
 
 
@@ -339,7 +340,6 @@ function getPriceBittrex(coin1, coin2, chn){
             Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
 
-        console.log(s)
       }
 
       chn.send(s);
