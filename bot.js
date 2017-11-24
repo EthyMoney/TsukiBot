@@ -196,7 +196,7 @@ function getPriceGDAX(coin1, coin2, base, chn){
 
 // Function that gets CryptoCompare prices
 
-function getPriceCC(coins, chn){
+function getPriceCC(coins, chn, action = '-'){
 
   // Get the spot price of the pair and send it to general
   cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
@@ -204,17 +204,34 @@ function getPriceCC(coins, chn){
       var msg = '__CryptoCompare__ Price for:\n';
 
       for(let i = 0; i < coins.length; i++){
-        // msg += ('- **' + coins[i].toUpperCase() + '-USD** is : `' +
-        //  prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-        //  Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`).\n'
-        
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
-          prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)\n`-        ⇒` `' +
-          prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
-          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`)' +
-          "\n"
-        );
+        let bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
+          Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
+        let up = prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+          Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`)';
+
+        switch(action){
+          case '-':
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + up + '\n');
+            break;
+
+          case '+':
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
+              up + ' `⇒` `' + 
+              bp + "\n");
+            break;
+          
+          case '*':
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒ 💵` `' +
+              up + '\n`|        ⇒` `' + 
+              bp + "\n");
+            break;
+
+          default:
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + up);
+            break;
+
+        }
+
       }
 
       chn.send(msg);
@@ -335,7 +352,7 @@ function getPriceBittrex(coin1, coin2, chn){
 
 
       for(let coin in sn){
-          s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
+        s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
           + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? "\n`-       ⇒` `" +
             Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
           + "\n");
@@ -434,7 +451,7 @@ function getEtherBalance(address, chn){
 function getCoinArray(id, chn, coins = '', action = ''){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
 
-  if(action == '') 
+  if(action === '') 
     coins = '{' + coins + '}';
 
   let conn = new pg.Client(conString);
@@ -442,22 +459,23 @@ function getCoinArray(id, chn, coins = '', action = ''){
 
   let query;
 
+
   // .tbpa call
-  if(coins === '{}'){
+  if(coins === ''){
     query = conn.query("SELECT * FROM profiles where id = $1;", [id], (err, res) => {
       if (err){console.log(err);}
       else {
         if(res.rows[0]){
-          getPriceCC(res.rows[0].coins,chn)
+          getPriceCC(res.rows[0].coins, chn, action);
         } else {
-          chn.send('Set your array with `.tb pa [array]`.')
+          chn.send('Set your array with `.tb pa [array]`.');
         }
       }
 
       conn.end();
     });
 
-  // .tb pa call
+    // .tb pa call
   } else { 
     if(action == '') {
       query = conn.query(("INSERT INTO profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins ], (err, res) => {
@@ -476,7 +494,7 @@ function getCoinArray(id, chn, coins = '', action = ''){
         else { chn.send("Personal array modified."); }
 
         conn.end();
-        
+
       });    
     }
   }
@@ -724,8 +742,8 @@ function checkMentions(msg, msgAcc, mentionCounter){
         if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
       }
 
-    
-      
+
+
       conn.connect();
 
       let queryline = "";
@@ -980,10 +998,9 @@ function commands(message, botAdmin, config){
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(code_in[0])){
-          console.log(code_in)
           let action = code_in[0][2] || '';
           code_in.splice(0,1);
-          
+
           code_in.map(function(x){ return x.toUpperCase() });
           getCoinArray(message.author.id, channel, code_in, action);
 
@@ -1067,14 +1084,14 @@ function commands(message, botAdmin, config){
       setSubscriptions(message.author, message.guild, ['S']);
 
       // Get personal array prices
-    } else if(code_in[0] === 'pa'){
+    } else if( /pa[\+\-\*]?/.test(code_in[0])){
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
       if(message.author.id !== client.user.id)
         ProductRegister.methods.checkPayment(message.author.id).call()
           .then(function(paid) {
             if(paid){
-              getCoinArray(message.author.id, channel, code_in[1] || '-');
+              getCoinArray(message.author.id, channel, '', code_in[0][2] || '-');
             } else {
               channel.send("Please pay (free KETH) for this service. Visit https://www.tsukibot.com on the Kovan Network.")
             }
@@ -1132,7 +1149,7 @@ function commands(message, botAdmin, config){
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
       const topCrypto   = coinArrayMax(requestCounter);
       const popCrypto   = coinArrayMax(mentionCounter);
-      
+
 
       const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
         + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
@@ -1140,7 +1157,7 @@ function commands(message, botAdmin, config){
         + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
         + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
         + "⇒ Support or share Tsuki here: <https://discordbots.org/bot/313452464399581194>.")
-      
+
       let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
         .setColor('WHITE')
@@ -1188,8 +1205,6 @@ function coinArrayMax(counter) {
     }
   }
 
-  console.log(max)
-  console.log(sum)
   return [maxCrypto, Math.trunc((max / sum) * 100)];
 }
 
