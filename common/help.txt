@@ -15,8 +15,18 @@ __Personal Array__
 `pa+`: Add a coin to your current pa
 `pa-`: Remove a coin from yout current pa
 
+`.tbpa`: Call the array
+`.tbpa+`: Call the array with BTC prices
+`.tbpa*`: Call the array in expanded format
+
 __Extras__
 `.tbstat`: Session Statistics
+
+__Rooms and Roles__
+`.tb setsub [valid coin]`: Create a private room and a role for a whitelisted coin
+`.tb join [valid coin]`: TsukiBot assigns the role to the user
+`.tbleave`: Leave rooms
+`.tblist`: Get the available rooms for the server
 
 __(Only Owner)__
 `.tb subrole [Name]`: Create expiring role
