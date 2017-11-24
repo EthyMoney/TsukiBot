@@ -1074,7 +1074,7 @@ function commands(message, botAdmin, config){
         ProductRegister.methods.checkPayment(message.author.id).call()
           .then(function(paid) {
             if(paid){
-              getCoinArray(message.author.id, channel);
+              getCoinArray(message.author.id, channel, code_in[1] || '-');
             } else {
               channel.send("Please pay (free KETH) for this service. Visit https://www.tsukibot.com on the Kovan Network.")
             }
