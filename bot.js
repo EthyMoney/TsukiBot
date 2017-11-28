@@ -930,7 +930,7 @@ function commands(message, botAdmin, config){
     code_in.splice(0,1);
 
     // Check if there is content
-    if(code_in.length > 1){
+    if(code_in.length > 1 && code_in.length < 10){
 
 
       /* --------------------------------------------------------------------------------
@@ -950,19 +950,12 @@ function commands(message, botAdmin, config){
 
       if((code_in.slice(1,code_in.length).filter(function(value){
 
-        // --------- Whitelist message -------------------------------------------------
-        if(pairs.indexOf(value.toUpperCase()) === -1
-          && code_in[0] !== 'e'
-          && code_in[0] !== 'sub'
-          && code_in[0] !== 'check'
-          && code_in[0] !== 'subrole'
-          && !(code_in[0] === 'v' && isNaN(code_in[1]))){
-          channel.send("**" + value.toUpperCase() + "** is not whitelisted.");
-        } else if(code_in[0] !== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
+        // --------- Request Counter ---------------------------------------------------
+        if(code_in[0] !== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
-
+        
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1 || code_in[0] === 'sub' || code_in[0] === 'subrole';
 
       }).length + 1  == code_in.length && config.indexOf(code_in[0][0]) === -1)){
