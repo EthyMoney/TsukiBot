@@ -2,7 +2,7 @@ var request     = require("request");
 var fs          = require("fs");
 
 var url         = "http://www.cryptocompare.com/api/data/coinlist/";
-var extras      = ["USD","EUR","GBP","SGD","XBT","XLM"]; 
+var extras      = ["USD","EUR","GBP","SGD","XBT","XLM","MXN","BCC"]; 
 var filters     = ["POST", "U", "AND", "IN", "POLL","AM","GOT","GOOD","TODAY"];
 
 request({url: url, json: true}, function(err, res, body){
