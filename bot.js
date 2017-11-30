@@ -557,7 +557,7 @@ function setSubscriptions(user, guild, coins){
     if (err){console.log(err);
     } else {
       const roles = guild.roles;
-      const coinans = getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub");
+      const coinans = (res.rows[0]['coins'] !== null) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
 
       let added = new Array();
 
@@ -748,7 +748,7 @@ function checkMentions(msg, msgAcc, mentionCounter){
 
       let queryline = "";
       for(let c in mentionCounter){
-        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_timestamp - , DEFAULT);";
+        let sqlq = "INSERT INTO mentiondata VALUES($1, $2, current_timestamp, DEFAULT);";
         let queryp = pgp.as.format(sqlq, [c, mentionCounter[c]]);
 
         queryline += queryp;
@@ -800,7 +800,8 @@ client.on('ready', () => {
   // When ready, start a logging script for the coins in the array.
   // createLogger(volcoins);
 
-  var deleter = schedule.scheduleJob('42 * * * *', checkSubStatus);
+  var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
+  var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
 
   client.fetchUser("217327366102319106")
     .then(u => { 
