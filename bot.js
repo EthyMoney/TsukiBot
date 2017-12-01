@@ -556,8 +556,9 @@ function setSubscriptions(user, guild, coins){
   let query = conn.query(queryp, (err, res) => {
     if (err){console.log(err);
     } else {
+      console.log(res.rows[0])
       const roles = guild.roles;
-      const coinans = (res.rows[0]['coins'] !== null) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
+      const coinans = (res.rows[0] === undefined) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
 
       let added = new Array();
 
@@ -790,6 +791,8 @@ client.on('ready', () => {
   if(process.argv[2] === "-d"){
     console.log('dev mode');
   }
+
+  client.user.setGame('.tbhelp');
 
   fs.readFile("common/serverPerms.json", function(err, data){
     if(err) return console.log(err);
