@@ -1,7 +1,6 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/9dc99ab109574f63ba09427dbde80886)](https://www.codacy.com/app/ofonsk/TsukiBot?utm_source=github.com&utm_medium=referral&utm_content=OFRBG/TsukiBot&utm_campaign=badger)
-[![Discord Bots](https://discordbots.org/api/widget/status/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
-[![Discord Bots](https://discordbots.org/api/widget/servers/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
-
+[![Discord Bots 1](https://discordbots.org/api/widget/status/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
+[![Discord Bots 2](https://discordbots.org/api/widget/servers/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
 
 <p align="center">
   <a href="https://discordbots.org/bot/313452464399581194">
