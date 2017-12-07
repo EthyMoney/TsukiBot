@@ -293,11 +293,17 @@ function getPricePolo(coin1, coin2, chn){
       try {
         let s = body[pair]['last'];
 
-        chn.send('__Poloniex__ Price for **'  + coin2.toUpperCase()
-          + '-' + coin1.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`.");
+        let ans = ('__Poloniex__ Price for:\n');
+
+        ans += ("`• " + coin1.toUpperCase() + ' '.repeat(6-coin1.length) + '⇒ ' + s + " " + coin2.toUpperCase() + " " +
+          "(" + (body[pair]['percentChange']*100).toFixed(2) + "%)` ∭ `(V." + Math.trunc(body[pair]['baseVolume']) + ")`\n" +
+          "`-       ⇒` `" + (body['BTC_' + coin1.toUpperCase()]['last'] * body['USDT_BTC']['last']).toFixed(8) + " USDT`" +
+          "\n");
+         
+        chn.send(ans);        
       } catch (err){
         console.log(err);
-        chn.send("Poloniex API Error.")
+        chn.send("Poloniex API Error.");
       }
 
 
@@ -558,7 +564,7 @@ function setSubscriptions(user, guild, coins){
     } else {
       console.log(res.rows[0])
       const roles = guild.roles;
-      const coinans = (res.rows[0] === undefined) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
+      const coinans = (res.rows[0] !== undefined) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
 
       let added = new Array();
 
@@ -1016,7 +1022,7 @@ function commands(message, botAdmin, config){
 
           // Poloniex call
         } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
-          getPricePolo(code_in[1], (code_in[2] == null ? 'USDT' : code_in[2]), channel)
+          getPricePolo(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
 
           // Bittrex call
         } else if(code_in[0] === 'bit' || code_in[0] === 'b'){
