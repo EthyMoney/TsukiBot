@@ -10,51 +10,23 @@
 </p>
 
 
-## Features
+## Features:
 + Fetch detailed data for specific pairs on major exhanges.
 + Check price averages in real time.
 + Fetch volume data on selected pairs.
 + Automanage private channels for crypto subgroups.
 + Automanage paid subscriptions and expiring roles.
++ Check messages per minute across crypto servers
 
-# Usage
-
-## Command Table for Price Checking
-
-|  Command Name   |  Command Call    |  Options    | Shortcuts |
-|------|------|------|------|
-|   Kraken   | `k` or `krkn`     |  `XXX`, [`YYY`], [base price]    | `.tbk`, `.tbk eur`, `.tbk btc`|
-|   GDAX   | `g` or `gdax`     |  `XXX`, [`YYY`], [base price]    | `.tbg`, `.tbg eur`, `.tbg btc`|
-|   Poloniex   | `p` or `polo`     |  `XXX`, [`YYY`]    | `.tbp`|
-| CryptoCompare | `c` or `crcp` | `XXX` [`YYY` ... `ZZZ`] | n.a. |
-|   Bittrex   | `b` or `bit`     |  `XXX`, [`YYY`]    | `.tbb`|
-| Personal Arrays  | `pa`| to set: [`XXX` ... `ZZZ`] | .tbpa |
-|   Help   | `.tbhelp`     |  n.a.   |  n.a. |
-
-[`YYY`] defaults to the main fiat pair. Usually `USD` or `USDT`.
-
-If a [base price] is provided, the result will return the percent change from that price to the current one.
-
-### _Available Tickers_
-```
-All from CryptoCompare
-```
-
-This may change on later versions.
-
-### _Available Volume Records_
-```
-ETH, ETHX
-```
-
-`ETHX` is the custom ticker to fetch the volume record of `ETHUSDT`.
-
-This project is open-source, and if you think you can improve it, make a pull request.
+## In Progress:
++ Get detailed data of what people are talking about.
++ Get real-time notifications of possible pumps. (Tread with care.)
++ Send Tsuki tokens to your friends over Discord with commands.
 
 ---
 
-ETH donations to: `0x6A0D0eBf1e532840baf224E1bD6A1d4489D5D78d` are appreciated.
+ETH donations to: `0xE2784BE97A7B993553F20c120c011274974EC505` are appreciated.
 
-Or just upvote here:
+Or upvote here:
 
 [![Discord Bots](https://discordbots.org/api/widget/313452464399581194.png)](https://discordbots.org/bot/313452464399581194)
