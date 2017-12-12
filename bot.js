@@ -855,7 +855,7 @@ client.on('message', message => {
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
-  if(!message.guild.roles.exists('name', 'File Perms')) {
+  if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
         name: 'File Perms',
         color: 'BLUE',
@@ -865,7 +865,7 @@ client.on('message', message => {
   }
 
   // Remove possibly unsafe files
-  if(!message.member.roles.exists('name', 'File Perms'))
+  if(message.member && !message.member.roles.exists('name', 'File Perms'))
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
         message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
