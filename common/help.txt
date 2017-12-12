@@ -11,9 +11,9 @@ __Commands__
 `e`: Etherscan
 
 __Personal Array__
-`pa`: Set your personal array
-`pa+`: Add a coin to your current pa
-`pa-`: Remove a coin from yout current pa
+`.tb pa`: Set your personal array
+`.tb pa+`: Add a coin to your current pa
+`.tb pa-`: Remove a coin from yout current pa
 
 `.tbpa`: Call the array
 `.tbpa+`: Call the array with BTC prices
@@ -23,15 +23,15 @@ __Extras__
 `.tbstat`: Session Statistics
 
 __Rooms and Roles__
-`.tb setsub [valid coin]`: Create a private room and a role for a whitelisted coin
 `.tb join [valid coin]`: TsukiBot assigns the role to the user
 `.tbleave`: Leave rooms
 `.tblist`: Get the available rooms for the server
 
-__(Only Owner)__
+__(Owner Only)__
 `.tb subrole [Name]`: Create expiring role
 `.tb sub @User RoleName`: Grant a subscription
 `.tbconfig`: Bot Permission Settings
+`.tb setsub [valid coin]`: Create a private room and a role for a whitelisted coin
 
 
 **Example usage**:
@@ -40,4 +40,3 @@ __(Only Owner)__
 `.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
 
 `I delete non-image files if I have deletion perms. Files are unsafe!`
-`I have a bonus command .tb v eth which might not be available due to disk usage.`
