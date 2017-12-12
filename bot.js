@@ -831,6 +831,10 @@ function postHelp(author, code){
 }
 
 
+client.on('guildCreate', guild => {
+  guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
+});
+
 // Event goes off every time a message is read.
 client.on('message', message => {
 
