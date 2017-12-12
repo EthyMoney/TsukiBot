@@ -833,6 +833,14 @@ function postHelp(author, code){
 
 client.on('guildCreate', guild => {
   guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
+
+  guild.createRole({
+      name: 'File Perms',
+      color: 'BLUE',
+  })
+    .then(role => guild.defaultChannel.send(`Created role ${role} for users who should be allowed to send files!`))
+    .catch(console.error)
+
 });
 
 // Event goes off every time a message is read.
@@ -847,14 +855,23 @@ client.on('message', message => {
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
+  if(!message.guild.roles.exists('name', 'File Perms')) {
+    message.guild.createRole({
+        name: 'File Perms',
+        color: 'BLUE',
+    })
+      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
+      .catch(console.error)
+  }
 
   // Remove possibly unsafe files
-  for(let a of message.attachments){
-    if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
-      message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
-      break;
+  if(!message.member.roles.exists('name', 'File Perms'))
+    for(let a of message.attachments){
+      if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
+        message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
+        break;
+      }
     }
-  }
 
 
   // Update every 100 messages
