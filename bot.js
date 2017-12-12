@@ -861,7 +861,6 @@ client.on('message', message => {
         color: 'BLUE',
     })
       .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
-      .catch(console.error)
   }
 
   // Remove possibly unsafe files
@@ -896,7 +895,6 @@ client.on('message', message => {
     .then(function(gm) {
       commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }), config);
     })
-    .catch(console.log);
 
   msgAcc += message;
 
