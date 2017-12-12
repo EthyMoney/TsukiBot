@@ -832,13 +832,16 @@ function postHelp(author, code){
 
 
 client.on('guildCreate', guild => {
-  guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
-
+  if(guild.defaultChannel) {
+    guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
+  }
   guild.createRole({
       name: 'File Perms',
       color: 'BLUE',
   })
-    .then(role => guild.defaultChannel.send(`Created role ${role} for users who should be allowed to send files!`))
+    .then(role => {
+      if(guild.defaultChannel) guild.defaultChannel.send(`Created role ${role} for users who should be allowed to send files!`)
+    })
     .catch(console.error)
 
 });
@@ -1222,6 +1225,7 @@ function coinArrayMax(counter) {
     }
   }
 
+  console.log(counter)
   return [maxCrypto, Math.trunc((max / sum) * 100)];
 }
 
