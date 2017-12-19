@@ -6,7 +6,8 @@ __Commands__
 `k`: Kraken
 `g`: GDAX  
 `p`: Poloniex
-`c`: CryptoCompare
+`c`: CryptoCompare in USD
+`cs`: CryptoCompare in BTC
 `b`: Bittrex
 `e`: Etherscan
 

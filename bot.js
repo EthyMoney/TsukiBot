@@ -196,7 +196,7 @@ function getPriceGDAX(coin1, coin2, base, chn){
 
 // Function that gets CryptoCompare prices
 
-function getPriceCC(coins, chn, action = '-'){
+function getPriceCC(coins, chn, action = '-', ext = 'd'){
 
   // Get the spot price of the pair and send it to general
   cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
@@ -211,7 +211,7 @@ function getPriceCC(coins, chn, action = '-'){
 
         switch(action){
           case '-':
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + up + '\n');
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
             break;
 
           case '+':
@@ -227,7 +227,7 @@ function getPriceCC(coins, chn, action = '-'){
             break;
 
           default:
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + up);
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + bp);
             break;
 
         }
@@ -1011,9 +1011,10 @@ function commands(message, botAdmin, config){
           getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
 
           // CryptoCompare call
-        } else if(code_in[0] === 'crcp' || code_in[0] === 'c'){
+        } else if(code_in[0] === 'crcp' || code_in[0] === 'c' || code_in[0] === 'cs'){
+          let ext = code_in[0].slice(-1);
           code_in.splice(0,1);
-          getPriceCC(code_in, channel);
+          getPriceCC(code_in, channel, '-', ext);
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(code_in[0])){
