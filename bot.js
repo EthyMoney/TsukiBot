@@ -421,9 +421,9 @@ function executeCommand(c, opts, chn){
       message.react("\u274E");
       blockIDs.push(message.id);
 
-      // if no removal is asked for in 2 minutes, removes message id from blockIDs so array doesnt get stacked infinitely
       setTimeout(function(){ removeID(message.id); }, 120000);
-    });
+    })
+    .catch(console.log);
   });
 
 
@@ -864,13 +864,14 @@ client.on('message', message => {
         color: 'BLUE',
     })
       .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
+      .catch(console.log)
   }
 
   // Remove possibly unsafe files
   if(message.member && !message.member.roles.exists('name', 'File Perms'))
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
-        message.delete().then(msg => console.log(`Deleted message from ${msg.author}`));
+        message.delete().then(msg => console.log(`Deleted message from ${msg.author}`)).catch(console.log);
         break;
       }
     }
@@ -956,8 +957,7 @@ function commands(message, botAdmin, config){
     code_in.splice(0,1);
 
     // Check if there is content
-    if(code_in.length > 1 && code_in.length < 10){
-
+    if(code_in.length > 1 && code_in.length < 11){
 
       /* --------------------------------------------------------------------------------
         First we need to get the supplied coin list. Then we apply a filter function
