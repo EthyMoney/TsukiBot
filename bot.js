@@ -83,6 +83,7 @@ const Discord 		= require('discord.js');
 const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
 const bittrex 		= require('node.bittrex.api');
+const BFX               = require('bitfinex-api-node');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 
@@ -152,7 +153,7 @@ var bittrexhandle = {};
 var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
 var clientKraken = new KrakenClient();
 
-
+var bfxRest = new BFX().rest;
 
 
 // -------------------------------------------
@@ -258,13 +259,35 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 //------------------------------------------
 
 
+// Function that gets Finex prices
+
+function getPriceFinex(coin1, coin2, chn){
+  coin2 = coin2 || (coin1.toUpperCase() === 'BTC' ? 'USD' : 'BTC');
+
+  bfxRest.ticker(coin1.toUpperCase() + coin2.toUpperCase(), (err, res) => {
+    if(err) {
+      chn.send("API Error: " + err.message);
+    } else {
+      let s = res['last_price'];
+
+      chn.send('__Bitfinex__ Price for **'  + coin1.toUpperCase()
+        + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`.");
+    }
+  });
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+
 // Function that gets Kraken prices
 
 function getPriceKraken(coin1, coin2, base, chn){
 
   // Get the spot price of the pair and send it to general
   clientKraken.api('Ticker', {"pair": '' + coin1.toUpperCase() + '' + coin2.toUpperCase() + ''}, function(error, data){
-    if(error){chn.send('Unsupported pair')}
+    if(error){chn.send('520ken API no response.')}
     else {
       let per = ""
       let s = (data.result[Object.keys(data.result)]['c'][0]);
@@ -836,7 +859,7 @@ client.on('ready', () => {
 
 function postHelp(author, code){
   code = code || "none";
-  const helptext = code === "none" ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
+  const helptext = code === "none" || helpjson[code] === undefined ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
 
   author.send(helptext);
 
@@ -1012,15 +1035,19 @@ function commands(message, botAdmin, config){
           executeCommand('p',
             {
               'coin' 	: code_in[1],
-            }, channel)
+            }, channel);
 
           // GDAX call
         } else if(code_in[0] === 'gdax' || code_in[0] === 'g'){
-          getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel)
+          getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel);
 
           // Kraken call
         } else if(code_in[0] === 'krkn' || code_in[0] === 'k'){
-          getPriceKraken(code_in[1], (code_in[2] == null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel)
+          getPriceKraken(code_in[1], (code_in[2] === null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel);
+
+          // Finex call
+        } else if(code_in[0] === 'bfx' || code_in[0] === 'f'){
+          getPriceFinex(code_in[1], code_in[2] === null ? '' : code_in[2], channel);
 
           // CryptoCompare call
         } else if(code_in[0] === 'crcp' || code_in[0] === 'c' || code_in[0] === 'cs'){

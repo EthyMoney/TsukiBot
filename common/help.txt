@@ -10,6 +10,7 @@ __Commands__
 `cs`: CryptoCompare in BTC
 `b`: Bittrex
 `e`: Etherscan
+`f`: Bitfinex
 
 __Personal Array__
 `.tb pa`: Set your personal array
