@@ -19,6 +19,7 @@ __Personal Array__
 `.tbpa`: Call the array
 `.tbpa+`: Call the array with BTC prices
 `.tbpa*`: Call the array in expanded format
+`.tbpa*`: Call the array ordered by % change 
 
 __Extras__
 `.tbstat`: Session Statistics

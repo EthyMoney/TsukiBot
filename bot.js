@@ -201,8 +201,9 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
   // Get the spot price of the pair and send it to general
   cc.priceFull(coins.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
     .then(prices => {
-      var msg = '__CryptoCompare__ Price for:\n';
-
+      let msg = '__CryptoCompare__ Price for:\n';
+      let ordered = {};
+      
       for(let i = 0; i < coins.length; i++){
         let bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
           Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
@@ -212,6 +213,11 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
         switch(action){
           case '-':
             msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+            break;
+
+          case '%':
+            ordered[prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']] = 
+              ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
             break;
 
           case '+':
@@ -227,11 +233,17 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
             break;
 
           default:
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + bp);
+            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
             break;
 
         }
 
+      }
+
+      if(action === '%'){
+        let k = Object.keys(ordered).sort(function(a,b){ return parseFloat(b) - parseFloat(a); });
+        for(let k0 in k)
+          msg += ordered[k[k0]];
       }
 
       chn.send(msg);
