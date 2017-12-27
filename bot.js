@@ -991,6 +991,9 @@ function commands(message, botAdmin, config){
     // Remove the prefix stub
     code_in.splice(0,1);
 
+    // Make lower case
+    code_in[0] = code_in[0].toLowerCase();
+
     // Check if there is content
     if(code_in.length > 1 && code_in.length < 11){
 
