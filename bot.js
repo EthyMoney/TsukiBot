@@ -473,11 +473,26 @@ function executeCommand(c, opts, chn){
 // for a given address. The balance is returned
 // in weis.
 
-function getEtherBalance(address, chn){
-  let balance = api.account.balance(address);
-  balance.then(function(res){
-    chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
-  });
+function getEtherBalance(address, chn, action = 'b'){
+  if(action === 'b'){
+    let balance = api.account.balance(address);
+    balance.then(function(res){
+      chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
+    });
+  } else {
+    let tx = api.proxy.eth_getTransactionByHash(address);
+    tx.then(function(res){
+      if(res.result !== null) {
+        if(res.result.blockNumber !== null) {
+          chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.');
+        } else {
+          chn.send('Transaction still not mined.');
+        }
+      } else {
+        chn.send('Transaction not found. (Neither mined nor broadcasted.)')
+      }
+    });
+  }
 }
 
 
@@ -995,7 +1010,7 @@ function commands(message, botAdmin, config){
     code_in[0] = code_in[0].toLowerCase();
 
     // Check if there is content
-    if(code_in.length > 1 && code_in.length < 11){
+    if(code_in.length > 1 && code_in.length < 30){
 
       /* --------------------------------------------------------------------------------
         First we need to get the supplied coin list. Then we apply a filter function
@@ -1091,8 +1106,10 @@ function commands(message, botAdmin, config){
         } else if((code_in[0] === 'escan' || code_in[0] === 'e')){
           if(code_in[1].length == 42){
             getEtherBalance(code_in[1], channel);
+          } else if(code_in[1].length == 66){
+            getEtherBalance(code_in[1], channel, 'tx');
           } else {
-            channel.send("Format: `.tb e HEXADDRESS` with prefix 0x.");
+            channel.send("Format: `.tb e [HEXADDRESS or TXHASH]` (with prefix 0x).");
           }
 
           // Give a user an expiring role

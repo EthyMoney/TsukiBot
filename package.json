@@ -11,17 +11,17 @@
     "coinbase": "^2.0.6",
     "cryptocompare": "^0.1.0",
     "discord.js": "^11.2.1",
-    "etherscan-api": "^3.0.8",
+    "etherscan-api": "^3.0.11",
     "gdax": "^0.4.2",
     "kraken-api": "^1.0.0",
-    "node-fetch": "^1.7.2",
+    "node-fetch": "^1.7.3",
     "node-schedule": "^1.2.5",
-    "node.bittrex.api": "^0.5.1",
-    "pg": "^7.3.0",
-    "pg-promise": "^6.9.0",
+    "node.bittrex.api": "^0.5.3",
+    "pg": "^7.4.0",
+    "pg-promise": "^6.10.3",
     "python-shell": "^0.4.0",
-    "request": "^2.81.0",
-    "snekfetch": "^3.4.1",
-    "web3": "^1.0.0-beta.26"
+    "request": "^2.83.0",
+    "snekfetch": "^3.6.1",
+    "web3": "^1.0.0-beta.27"
   }
 }
