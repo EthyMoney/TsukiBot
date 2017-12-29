@@ -1009,6 +1009,9 @@ function commands(message, botAdmin, config){
     // Make lower case
     code_in[0] = code_in[0].toLowerCase();
 
+    // Get the command
+    let command = code_in[0];
+
     // Check if there is content
     if(code_in.length > 1 && code_in.length < 30){
 
@@ -1026,97 +1029,85 @@ function commands(message, botAdmin, config){
         To check for whitelisted coins, we filter the array and compare final size.
       ---------------------------------------------------------------------------------- */
 
-
-      if((code_in.slice(1,code_in.length).filter(function(value){
+      let params = code_in.slice(1,code_in.length).filter(function(value){
 
         // --------- Request Counter ---------------------------------------------------
-        if(code_in[0] !== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
+        if(code_in[0]!== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
         
-        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1 || code_in[0] === 'sub' || code_in[0] === 'subrole';
+        return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
 
-      }).length + 1  == code_in.length && config.indexOf(code_in[0][0]) === -1)){
+      });
 
-        // Volume command
-        if((code_in[0] === 'vol' || code_in[0] === 'v') && volcoins.indexOf(code_in[1].toUpperCase()) > -1){
-          executeCommand('s',
-            {
-              'coin' 	: code_in[1],
-              'arg1' 	: (code_in[2] != null && !isNaN(Math.floor(code_in[2])) ? code_in[2] : -1),
-              'arg2' 	: (code_in[3] != null && code_in[3][0] === 'g') ? 'g' : 'p'
-            }, channel)
+        // Keeping the pad
+      params.unshift('0');
 
-          // Whale command (inactive)
-        } else if(false && code_in[0] === 'wh' || code_in[0] === 'w'){
-          executeCommand('p',
-            {
-              'coin' 	: code_in[1],
-            }, channel);
+      if(config.indexOf(command) === -1){
 
           // GDAX call
-        } else if(code_in[0] === 'gdax' || code_in[0] === 'g'){
-          getPriceGDAX(code_in[1], 'USD', (code_in[2] != null && !isNaN(code_in[2]) ? code_in[2] : -1), channel);
+        if(command === 'gdax' || command === 'g'){
+          getPriceGDAX(params[1], 'USD', (params[2] != null && !isNaN(params[2]) ? params[2] : -1), channel);
 
           // Kraken call
-        } else if(code_in[0] === 'krkn' || code_in[0] === 'k'){
-          getPriceKraken(code_in[1], (code_in[2] === null ? 'USD' : code_in[2]), (code_in[3] != null && !isNaN(code_in[3]) ? code_in[3] : -1), channel);
+        } else if(command === 'krkn' || command === 'k'){
+          getPriceKraken(params[1], (params[2] === null ? 'USD' : params[2]), (params[3] != null && !isNaN(params[3]) ? params[3] : -1), channel);
 
           // Finex call
-        } else if(code_in[0] === 'bfx' || code_in[0] === 'f'){
-          getPriceFinex(code_in[1], code_in[2] === null ? '' : code_in[2], channel);
+        } else if(command === 'bfx' || command === 'f'){
+          getPriceFinex(params[1], params[2] === null ? '' : params[2], channel);
 
           // CryptoCompare call
-        } else if(code_in[0] === 'crcp' || code_in[0] === 'c' || code_in[0] === 'cs'){
-          let ext = code_in[0].slice(-1);
-          code_in.splice(0,1);
-          getPriceCC(code_in, channel, '-', ext);
+        } else if(command === 'crcp' || command === 'c' || command === 'cs'){
+          let ext = command.slice(-1);
+          params.splice(0,1);
+          getPriceCC(params, channel, '-', ext);
 
           // Configure personal array
-        } else if( /pa[\+\-]?/.test(code_in[0])){
-          let action = code_in[0][2] || '';
-          code_in.splice(0,1);
+        } else if( /pa[\+\-]?/.test(command)){
+          let action = command[2] || '';
+          params.splice(0,1);
 
-          code_in.map(function(x){ return x.toUpperCase() });
-          getCoinArray(message.author.id, channel, code_in, action);
+          params.map(function(x){ return x.toUpperCase() });
+          getCoinArray(message.author.id, channel, params, action);
 
           // Set coin roles
-        } else if(code_in[0] === 'join'){
-          code_in.splice(0,1);
-          setSubscriptions(message.author, message.guild, code_in);
+        } else if(command === 'join'){
+          params.splice(0,1);
+          setSubscriptions(message.author, message.guild, params);
 
           // Set coin role perms
-        } else if(code_in[0] === 'setsub'){
+        } else if(command === 'setsub'){
           if(hasPermissions(message.author.id, message.guild) || botAdmin){
-            code_in.splice(0,1);
-            code_in.unshift('m');
-            setSubscriptions(message.author, message.guild, code_in);
+            params.splice(0,1);
+            params.unshift('m');
+            setSubscriptions(message.author, message.guild, params);
           }
 
           // Poloniex call
-        } else if(code_in[0] === 'polo' || code_in[0] === 'p'){
-          getPricePolo(code_in[1], (code_in[2] == null ? 'BTC' : code_in[2]), channel)
+        } else if(command === 'polo' || command === 'p'){
+          getPricePolo(params[1], (params[2] == null ? 'BTC' : params[2]), channel)
 
           // Bittrex call
-        } else if(code_in[0] === 'bit' || code_in[0] === 'b'){
-          getPriceBittrex(code_in.slice(1,code_in.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
+        } else if(command === 'bit' || command === 'b'){
+          getPriceBittrex(params.slice(1,params.size), (params[2] != null && params[2][0] === "-" ? params[2] : "BTC"), channel)
 
           // Etherscan call
-        } else if((code_in[0] === 'escan' || code_in[0] === 'e')){
-          if(code_in[1].length == 42){
-            getEtherBalance(code_in[1], channel);
-          } else if(code_in[1].length == 66){
-            getEtherBalance(code_in[1], channel, 'tx');
+        } else if((command === 'escan' || command === 'e')){
+          if(params[1].length == 42){
+            getEtherBalance(params[1], channel);
+          } else if(params[1].length == 66){
+            getEtherBalance(params[1], channel, 'tx');
           } else {
             channel.send("Format: `.tb e [HEXADDRESS or TXHASH]` (with prefix 0x).");
           }
 
           // Give a user an expiring role
-        } else if(code_in[0] === 'sub'){
+        } else if(command === 'sub'){
           if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(code_in[2]) === 'string' && message.mentions.users.size > 0){
-              message.mentions.users.forEach(function(u){ temporarySub(u.id, code_in[2], message.guild, message.channel); })
+            if(typeof(params[2]) === 'string' && message.mentions.users.size > 0){
+              message.mentions.users.forEach(function(u){ temporarySub(u.id, params[2], message.guild, message.channel); })
             } else {
               channel.send("Format: `.tb sub @user rolename`.");
             }
@@ -1124,10 +1115,10 @@ function commands(message, botAdmin, config){
           }
 
           // Create an expiring role
-        } else if(code_in[0] === 'subrole'){
+        } else if(command === 'subrole'){
           if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(code_in[1]) === 'string'){
-              setRoles(code_in[1], message.guild, message.channel)
+            if(typeof(params[1]) === 'string'){
+              setRoles(params[1], message.guild, message.channel)
             } else {
               channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)")
             }
@@ -1135,42 +1126,44 @@ function commands(message, botAdmin, config){
 
           // Catch-all help
         } else {
-          postHelp(channel, code_in[0]);
+          postHelp(channel, command);
         }
+      } else {
+        console.log('blocked command');
       }
-    } else {
-      postHelp(channel, code_in[0]);
     }
 
     // Shortcut section
   } else {
 
+    let scommand = code_in[0];
+
     // Get DiscordID via DM
-    if(code_in[0] === 'id'){
+    if(scommand === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
       // Remove the sub tags
-    } else if(code_in[0] === 'leave'){
+    } else if(scommand === 'leave'){
       setSubscriptions(message.author, message.guild, ['r']);
 
       // Load configuration message
-    } else if(code_in[0] === 'config'){
+    } else if(scommand === 'config'){
       if(hasPermissions(message.author.id, message.guild) || botAdmin)
         loadConfiguration(message);
 
       // Restore the sub tags
-    } else if(code_in[0] === 'resub'){
+    } else if(scommand === 'resub'){
       setSubscriptions(message.author, message.guild, ['S']);
 
       // Get personal array prices
-    } else if( /pa[\+\-\*]?/.test(code_in[0])){
+    } else if( /pa[\+\-\*]?/.test(scommand)){
       // ----------------------------------------------------------------------------------------------------------------
       // ----------------------------------------------------------------------------------------------------------------
       if(message.author.id !== client.user.id)
         ProductRegister.methods.checkPayment(message.author.id).call()
           .then(function(paid) {
             if(paid){
-              getCoinArray(message.author.id, channel, '', code_in[0][2] || '-');
+              getCoinArray(message.author.id, channel, '', scommand[2] || '-');
             } else {
               channel.send("Please pay (free KETH) for this service. Visit https://www.tsukibot.com on the Kovan Network.")
             }
@@ -1180,13 +1173,13 @@ function commands(message, botAdmin, config){
       // ----------------------------------------------------------------------------------------------------------------
 
       // Get available roles
-    } else if(code_in[0] === 'list'){
+    } else if(scommand === 'list'){
       code_in.splice(0,1);
       code_in.unshift('g');
       setSubscriptions(message.author, message.guild, code_in);
 
       // Get GDAX ETHX
-    } else if (code_in[0] === 'g'){
+    } else if (scommand === 'g'){
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
         getPriceGDAX('ETH', 'EUR', -1, channel);
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
@@ -1196,7 +1189,7 @@ function commands(message, botAdmin, config){
       }
 
       // Get Kraken ETHX
-    } else if (code_in[0] === 'k'){
+    } else if (scommand === 'k'){
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
         getPriceKraken('ETH','EUR',-1, channel)
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
@@ -1206,23 +1199,23 @@ function commands(message, botAdmin, config){
       }
 
       // Get Poloniex ETHBTC
-    } else if (code_in[0] === 'p'){
+    } else if (scommand === 'p'){
       getPricePolo('ETH', 'BTC', channel)
 
       // Get prices of popular currencies
-    } else if (code_in[0] === 'pop'){
+    } else if (scommand === 'pop'){
       getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel)
 
       // Get Bittrex ETHBTC
-    } else if (code_in[0] === 'b'){
+    } else if (scommand === 'b'){
       getPriceBittrex('ETH', 'BTC', channel)
 
-      // Call help command
-    } else if (code_in[0] === 'help' || code_in[0] === 'h'){
+      // Call help scommand
+    } else if (scommand === 'help' || scommand === 'h'){
       postHelp(message.author);
 
       // Statistics
-    } else if (code_in[0] === 'stat'){
+    } else if (scommand === 'stat'){
       const users       = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
       const guilds      = (client.guilds.size);
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
@@ -1247,7 +1240,7 @@ function commands(message, botAdmin, config){
       channel.send({embed});
 
       // Meme
-    } else if (code_in[0] === '.dank'){
+    } else if (scommand === '.dank'){
       channel.send(":ok_hand:           :tiger:"+ '\n' +
         " :eggplant: :zzz: :necktie: :eggplant:"+'\n' +
         "                  :oil:     :nose:"+'\n' +
@@ -1256,7 +1249,7 @@ function commands(message, botAdmin, config){
         "          :boot:    :boot:");
 
       // Another meme
-    } else if (code_in[0] === '.moonwhen'){
+    } else if (scommand === '.moonwhen'){
       channel.send('Soon™')
     }
   }
