@@ -1044,6 +1044,7 @@ function commands(message, botAdmin, config){
         // Keeping the pad
       params.unshift('0');
 
+      console.log(params)
       if(config.indexOf(command) === -1){
 
           // GDAX call
