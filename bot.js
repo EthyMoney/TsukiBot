@@ -90,6 +90,7 @@ const cc 		= require('cryptocompare');
 // R script calls
 var R                   = require("r-script");
 var kliArray            = {};
+var kliArrayDict        = {};
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -465,6 +466,28 @@ function executeCommand(c, opts, chn){
   });
 
 
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+
+function getKLI(coins, chn){
+  if(kliArray !== {}){
+    let msg = '__KL Index Values__\n';
+
+
+    coins.forEach(function(v){
+      if(kliArrayDict[v.toUpperCase()]){
+        let c = kliArrayDict[v.toUpperCase()]
+        console.log(c)
+        msg += '`' + c['h.ticker'] + '` - `' + c.kli + '`\n';
+      }
+    });
+
+    chn.send(msg);
+  }
 }
 
 
@@ -1063,10 +1086,11 @@ function commands(message, botAdmin, config){
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
 
-          /*          
-            // KLI call
-        if(command === 'kli'){
-        */
+                    
+          // KLI call (skip the filter)
+        } else if(command === 'kli'){
+          code_in.splice(0,1);
+          getKLI(code_in, channel);
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(command)){
@@ -1226,7 +1250,7 @@ function commands(message, botAdmin, config){
       let title = 'KL Index Highs';
       let kl = '';
       kliArray.forEach(function(v){
-        if(v['h.ticker'] !== 'USDT' && v.x > -10)
+        if(v['h.ticker'] !== 'USDT' && v.x > -10 && v.kli > 0.1)
           kl += '`' + v['h.ticker'] + '` - `' + v.kli + '`\n';
       });
 
@@ -1404,7 +1428,11 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 function getKLIndex(){
   try { 
     kliArray = R('kl_idx.R').callSync();
-  } catch {
+
+    kliArray.forEach(function(v){
+      kliArrayDict[v['h.ticker']] = v;
+    });
+  } catch(e) {
     console.log('failed R script execution');
   }
 }
