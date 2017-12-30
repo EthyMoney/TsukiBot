@@ -20,6 +20,7 @@
     "pg": "^7.4.0",
     "pg-promise": "^6.10.3",
     "python-shell": "^0.4.0",
+    "r-script": "0.0.3",
     "request": "^2.83.0",
     "snekfetch": "^3.6.1",
     "web3": "^1.0.0-beta.27"

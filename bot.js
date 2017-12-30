@@ -87,7 +87,8 @@ const BFX               = require('bitfinex-api-node');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 
-
+// R script calls
+var R                   = require("r-script");
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -861,12 +862,29 @@ client.on('ready', () => {
     serverConfigs = JSON.parse(data);
   });
 
-  // When ready, start a logging script for the coins in the array.
-  // createLogger(volcoins);
-
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
   var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
 
+  
+  request.get({
+    url: 'https://api.coinmarketcap.com/v1/ticker/',
+    qs: {limit: 400},
+    json: true,
+    headers: {'User-Agent': 'request'}
+  }, (err, res, data) => {
+    if (err) {
+      console.log('Error:', err);
+    } else if (res.statusCode !== 200) {
+      console.log('Status:', res.statusCode);
+    } else {
+      R('kl_idx.R').call(function(err, d){
+        if(err) console.log(err);
+        console.log(d);
+      })
+    }
+  });
+
+  
   client.fetchUser("217327366102319106")
     .then(u => { 
       u.send("TsukiBot loaded.")
@@ -1050,7 +1068,7 @@ function commands(message, botAdmin, config){
       params.unshift('0');
 
       console.log(params)
-      if(config.indexOf(command) === -1){
+      if(config.indexOf(command) === -1 && params.length > 1){
 
           // GDAX call
         if(command === 'gdax' || command === 'g'){
