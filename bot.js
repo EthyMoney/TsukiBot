@@ -211,6 +211,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
         let up = prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
           Math.round(prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']*100)/100 + '%`)';
 
+        coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
         switch(action){
           case '-':
             msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
@@ -522,7 +523,12 @@ function getCoinArray(id, chn, coins = '', action = ''){
       if (err){console.log(err);}
       else {
         if(res.rows[0]){
-          getPriceCC(res.rows[0].coins, chn, action);
+          
+          let coins = res.rows[0].coins.filter(function(value){
+            return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
+          });
+
+          getPriceCC(coins, chn, action);
         } else {
           chn.send('Set your array with `.tb pa [array]`.');
         }
@@ -612,7 +618,6 @@ function setSubscriptions(user, guild, coins){
   let query = conn.query(queryp, (err, res) => {
     if (err){console.log(err);
     } else {
-      console.log(res.rows[0])
       const roles = guild.roles;
       const coinans = (res.rows[0] !== undefined) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
 
