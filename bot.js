@@ -89,6 +89,7 @@ const cc 		= require('cryptocompare');
 
 // R script calls
 var R                   = require("r-script");
+var kliArray            = {};
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -205,7 +206,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
     .then(prices => {
       let msg = '__CryptoCompare__ Price for:\n';
       let ordered = {};
-      
+
       for(let i = 0; i < coins.length; i++){
         let bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
           Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
@@ -228,7 +229,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
               up + ' `⇒` `' + 
               bp + "\n");
             break;
-          
+
           case '*':
             msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒ 💵` `' +
               up + '\n`|        ⇒` `' + 
@@ -336,7 +337,7 @@ function getPricePolo(coin1, coin2, chn){
           "(" + (body[pair]['percentChange']*100).toFixed(2) + "%)` ∭ `(V." + Math.trunc(body[pair]['baseVolume']) + ")`\n" +
           "`-       ⇒` `" + (body['BTC_' + coin1.toUpperCase()]['last'] * body['USDT_BTC']['last']).toFixed(8) + " USDT`" +
           "\n");
-         
+
         chn.send(ans);        
       } catch (err){
         console.log(err);
@@ -460,7 +461,7 @@ function executeCommand(c, opts, chn){
 
       setTimeout(function(){ removeID(message.id); }, 120000);
     })
-    .catch(console.log);
+      .catch(console.log);
   });
 
 
@@ -524,7 +525,7 @@ function getCoinArray(id, chn, coins = '', action = ''){
       if (err){console.log(err);}
       else {
         if(res.rows[0]){
-          
+
           let coins = res.rows[0].coins.filter(function(value){
             return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
           });
@@ -864,27 +865,9 @@ client.on('ready', () => {
 
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
   var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+  var klindex      = schedule.scheduleJob('*/10 * * * *', getKLIndex);
 
-  
-  request.get({
-    url: 'https://api.coinmarketcap.com/v1/ticker/',
-    qs: {limit: 400},
-    json: true,
-    headers: {'User-Agent': 'request'}
-  }, (err, res, data) => {
-    if (err) {
-      console.log('Error:', err);
-    } else if (res.statusCode !== 200) {
-      console.log('Status:', res.statusCode);
-    } else {
-      R('kl_idx.R').call(function(err, d){
-        if(err) console.log(err);
-        console.log(d);
-      })
-    }
-  });
 
-  
   client.fetchUser("217327366102319106")
     .then(u => { 
       u.send("TsukiBot loaded.")
@@ -894,13 +877,14 @@ client.on('ready', () => {
 
 });
 
-
 function postHelp(author, code){
   code = code || "none";
-  const helptext = code === "none" || helpjson[code] === undefined ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
-
-  author.send(helptext);
-
+  if(helpjson[code] === undefined) {
+    author.send("Use `.tbhelp` to get a list of commands and their usage.");
+  } else {
+    const helptext = code === "none" || helpjson[code] === undefined ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
+    author.send(helptext);
+  }
 }
 
 
@@ -909,8 +893,8 @@ client.on('guildCreate', guild => {
     guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
   }
   guild.createRole({
-      name: 'File Perms',
-      color: 'BLUE',
+    name: 'File Perms',
+    color: 'BLUE',
   })
     .then(role => {
       if(guild.defaultChannel) guild.defaultChannel.send(`Created role ${role} for users who should be allowed to send files!`)
@@ -933,8 +917,8 @@ client.on('message', message => {
 
   if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
-        name: 'File Perms',
-        color: 'BLUE',
+      name: 'File Perms',
+      color: 'BLUE',
     })
       .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
       .catch(console.log)
@@ -1039,17 +1023,9 @@ function commands(message, botAdmin, config){
     if(code_in.length > 1 && code_in.length < 30){
 
       /* --------------------------------------------------------------------------------
-        First we need to get the supplied coin list. Then we apply a filter function
-        and check for each value if:
+        First we need to get the supplied coin list. Then we apply a filter function.
 
-           1. it is in the whitelisted array
-           2. is part of a volume command
-           3. it is part of an address
-
-        The conditions for the commands to pass are that the command is not blocked
-        by server permissions, and that the parameter coins given are whitelisted.
-
-        To check for whitelisted coins, we filter the array and compare final size.
+        Coins not found are skipped for the commands.
       ---------------------------------------------------------------------------------- */
 
       let params = code_in.slice(1,code_in.length).filter(function(value){
@@ -1059,18 +1035,17 @@ function commands(message, botAdmin, config){
           requestCounter[value.toUpperCase()]++;
         }
         // -----------------------------------------------------------------------------
-        
+
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1; 
 
       });
 
-        // Keeping the pad
+      // Keeping the pad
       params.unshift('0');
 
-      console.log(params)
       if(config.indexOf(command) === -1 && params.length > 1){
 
-          // GDAX call
+        // GDAX call
         if(command === 'gdax' || command === 'g'){
           getPriceGDAX(params[1], 'USD', (params[2] != null && !isNaN(params[2]) ? params[2] : -1), channel);
 
@@ -1087,6 +1062,11 @@ function commands(message, botAdmin, config){
           let ext = command.slice(-1);
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
+
+          /*          
+            // KLI call
+        if(command === 'kli'){
+        */
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(command)){
@@ -1153,8 +1133,11 @@ function commands(message, botAdmin, config){
           postHelp(channel, command);
         }
       } else {
-        console.log('blocked command');
+        postHelp(channel, command);
       }
+
+    } else {
+      postHelp(channel, command);
     }
 
     // Shortcut section
@@ -1236,7 +1219,12 @@ function commands(message, botAdmin, config){
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
-      postHelp(message.author);
+      postHelp(message.author, 'ask');
+
+      /*
+        // Call KL Index
+    } else if (scommand === 'kli'){
+    */
 
       // Statistics
     } else if (scommand === 'stat'){
@@ -1393,6 +1381,18 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   }
 });
 
+/* ---------------------------------
+
+  getKLIndex()
+
+  Assign the top KL Index coins
+
+ ---------------------------------- */
+
+
+function getKLIndex(){
+  kliArray = R('kl_idx.R').callSync();
+}
 
 /* ---------------------------------
 
