@@ -865,7 +865,7 @@ client.on('ready', () => {
 
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
   var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
-  var klindex      = schedule.scheduleJob('*/10 * * * *', getKLIndex);
+  var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
 
 
   client.fetchUser("217327366102319106")
@@ -1221,10 +1221,21 @@ function commands(message, botAdmin, config){
     } else if (scommand === 'help' || scommand === 'h'){
       postHelp(message.author, 'ask');
 
-      /*
-        // Call KL Index
+      // Call KL Index
     } else if (scommand === 'kli'){
-    */
+      let title = 'KL Index Highs';
+      let kl = '';
+      kliArray.forEach(function(v){
+        if(v['h.ticker'] !== 'USDT' && v.x > -10)
+          kl += '`' + v['h.ticker'] + '` - `' + v.kli + '`\n';
+      });
+
+      let embed  = new Discord.RichEmbed()
+        .addField(title, kl)
+        .setColor('WHITE')
+        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png')
+
+      channel.send({embed});
 
       // Statistics
     } else if (scommand === 'stat'){
