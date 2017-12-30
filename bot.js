@@ -1402,7 +1402,11 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
 
 function getKLIndex(){
-  kliArray = R('kl_idx.R').callSync();
+  try { 
+    kliArray = R('kl_idx.R').callSync();
+  } catch {
+    console.log('failed R script execution');
+  }
 }
 
 /* ---------------------------------
