@@ -2,6 +2,8 @@
 node_modules
 
 *.json
+*.pdf
+.Rhistory
 *.R
 keys.api
 test.*
