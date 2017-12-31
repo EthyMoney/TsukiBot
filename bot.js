@@ -170,10 +170,21 @@ var bfxRest = new BFX().rest;
 // -------------------------------------------
 
 
-// These methods are calls on the api of the
-// respective exchanges. The user can send
-// an optional parameter to calculate %
-// change on a base price.
+ /* --------------------------------------------
+ 
+    These methods are calls on the api of the
+    respective exchanges. The user can send
+    an optional parameter to calculate %
+    change on a base price.
+    These methods are the core funcionality
+    of the bot. Command calls will usually end
+    in one of these.
+
+  -------------------------------------------- */
+
+
+//------------------------------------------
+//------------------------------------------
 
 // Function that gets GDAX spot prices
 function getPriceGDAX(coin1, coin2, base, chn){
@@ -398,7 +409,8 @@ function getPriceBinance(coin1, coin2, chn){
           + "\n");
 
       }
-
+      
+      s += (Math.random() > 0.8) ? "\n`Don't want to donate but still support this awesome bot? Join Binance with my link:` <https://www.binance.com/?ref=10180938>" : "";
       chn.send(s);
     } else {
       chn.send('Binance API error.');
@@ -528,10 +540,29 @@ function executeCommand(c, opts, chn){
 //------------------------------------------
 
 
+function compareCoins(coin1, coin2, chn){
+  if(kliArray !== {}){
+    let msg = '__KL Comparison__\n';
+
+    if(kliArrayDict[coin1.toUpperCase()] && kliArrayDict[coin2.toUpperCase()]){
+      let c1 = kliArrayDict[coin1.toUpperCase()];
+      let c2 = kliArrayDict[coin2.toUpperCase()];
+
+      msg += "`Tickers:` `" + c1['h.ticker'] + " " + c2['h.ticker'] + "`\n";
+      msg += "`⇒ MCap rel. sizes:` `" + Math.exp(parseFloat(c1.x)-parseFloat(c2.x)).toFixed(4) + " ⬄ " + Math.exp(parseFloat(c2.x)-parseFloat(c1.x)).toFixed(4) + "`\n";
+      msg += "`⇒ Vol. rel. sizes:` `" + Math.exp(parseFloat(c1.y)-parseFloat(c2.y)).toFixed(4) + " ⬄ " + Math.exp(parseFloat(c2.y)-parseFloat(c1.y)).toFixed(4) + "`\n";
+    }
+
+    chn.send(msg);
+  } else {
+    chn.send("Invalid crypto supplied.");
+  }
+}
+
+
 function getKLI(coins, chn){
   if(kliArray !== {}){
     let msg = '__KL Index Values__\n';
-
 
     coins.forEach(function(v){
       if(kliArrayDict[v.toUpperCase()]){
@@ -1140,12 +1171,15 @@ function commands(message, botAdmin, config){
           let ext = command.slice(-1);
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
-
                     
           // KLI call (skip the filter)
         } else if(command === 'kli'){
           code_in.splice(0,1);
           getKLI(code_in, channel);
+          
+          // Compare call (skip the filter)
+        } else if(command === 'mc'){
+          compareCoins(code_in[1], (code_in[2] ? code_in[2] : 'BTC'),  channel);
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(command)){

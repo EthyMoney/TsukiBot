@@ -13,6 +13,7 @@ __Commands__
 `e`: Etherscan (address or transaction)
 `f`: Bitfinex
 `kli`: KL Index value (multi)
+`mc`: KL Comparison
 
 __Personal Array__
 `.tb pa`: Set your personal array
