@@ -957,11 +957,11 @@ client.on('ready', () => {
 
 function postHelp(author, code){
   code = code || "none";
-  if(helpjson[code] === undefined) {
-    author.send("Use `.tbhelp` to get a list of commands and their usage.");
-  } else {
+  if(code === 'ask' || helpjson[code] !== undefined) {
     const helptext = code === "none" || helpjson[code] === undefined ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
     author.send(helptext);
+  } else {
+    author.send("Use `.tbhelp` to get a list of commands and their usage.");
   }
 }
 
@@ -1218,7 +1218,6 @@ function commands(message, botAdmin, config){
       } else {
         postHelp(channel, command);
       }
-
     } else {
       postHelp(channel, command);
     }
