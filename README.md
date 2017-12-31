@@ -16,11 +16,11 @@
 + Fetch volume data on selected pairs.
 + Automanage private channels for crypto subgroups.
 + Automanage paid subscriptions and expiring roles.
-+ Check messages per minute across crypto servers
++ Check messages per minute across crypto servers.
++ Get the KL Index for the top 800 CMC coins.
 
 ## In Progress:
 + Get detailed data of what people are talking about.
-+ Get real-time notifications of possible pumps. (Tread with care.)
 + Send Tsuki tokens to your friends over Discord with commands.
 
 ---
