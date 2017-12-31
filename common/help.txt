@@ -6,11 +6,12 @@ __Commands__
 `k`: Kraken
 `g`: GDAX  
 `p`: Poloniex
-`c`: CryptoCompare in USD
-`cs`: CryptoCompare in BTC
-`b`: Bittrex
-`e`: Etherscan
+`c`: CryptoCompare in USD (multi)
+`cs`: CryptoCompare in BTC (multi)
+`b`: Bittrex (multi)
+`e`: Etherscan (address or transaction)
 `f`: Bitfinex
+`kli`: KL Index value (multi)
 
 __Personal Array__
 `.tb pa`: Set your personal array
