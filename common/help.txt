@@ -9,6 +9,7 @@ __Commands__
 `c`: CryptoCompare in USD (multi)
 `cs`: CryptoCompare in BTC (multi)
 `b`: Bittrex (multi)
+`n`: Binance (multi)
 `e`: Etherscan (address or transaction)
 `f`: Bitfinex
 `kli`: KL Index value (multi)
