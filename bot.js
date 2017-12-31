@@ -78,7 +78,7 @@ var request             = require("request");
 var keys                = JSON.parse(fs.readFileSync('keys.api','utf8'));
 
 
-// Include api things
+// Include API things
 const Discord 		= require('discord.js');
 const Client 		= require('coinbase').Client;
 const KrakenClient 	= require('kraken-api');
@@ -86,6 +86,8 @@ const bittrex 		= require('node.bittrex.api');
 const BFX               = require('bitfinex-api-node');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
+const binance           = require('node-binance-api');
+
 
 // R script calls
 var R                   = require("r-script");
@@ -356,6 +358,59 @@ function getPricePolo(coin1, coin2, chn){
 //------------------------------------------
 
 
+function getPriceBinance(coin1, coin2, chn){
+
+  coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
+
+  binance.prevDay(false, function(data) {
+
+    if(data){
+      let markets = data;
+      let s = "__Binance__ Price for: \n";
+      let sn = [];
+      let vp = {};
+
+      for(let idx in markets){
+
+        let c = markets[idx];
+        let pd = parseFloat(c.lastPrice);
+        
+        let curr = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(0,-4) : c.symbol.slice(0,-3);
+        if(coin1.indexOf(curr) === -1) continue;
+
+        let base = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(-4) : c.symbol.slice(-3);
+        
+        pd = (base === 'BTC') ? (pd.toFixed(8)) : pd;
+
+        if(!sn[curr]){
+          sn[curr] = [];
+        }
+
+        let pch = parseFloat(c.priceChangePercent).toFixed(2);
+        sn[curr].push("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
+      }
+
+      for(let coin in sn){
+        s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
+          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] == null ? "\n`-       ⇒` `" +
+            Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
+          + "\n");
+
+      }
+
+      chn.send(s);
+    } else {
+      chn.send('Binance API error.');
+    }
+
+  });
+
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
 // Bittrex API v2
 
 bittrex.options({
@@ -369,7 +424,6 @@ function getPriceBittrex(coin1, coin2, chn){
   coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
   coin1.push('BTC');
 
-  //bittrex.sendCustomRequest( 'https://bittrex.com/Api/v2.0/pub/market/GetMarketSummary?marketName=' + coin2 + '-' + coin1, function( data ){
   bittrex.sendCustomRequest('https://bittrex.com/Api/v2.0/pub/Markets/GetMarketSummaries', function( data ){
 
     data = JSON.parse(data);
@@ -892,7 +946,7 @@ client.on('ready', () => {
 
 
   client.fetchUser("217327366102319106")
-    .then(u => { 
+    .then(u => {
       u.send("TsukiBot loaded.")
         .catch(console.log)
     })
@@ -1120,6 +1174,10 @@ function commands(message, botAdmin, config){
           // Bittrex call
         } else if(command === 'bit' || command === 'b'){
           getPriceBittrex(params.slice(1,params.size), (params[2] != null && params[2][0] === "-" ? params[2] : "BTC"), channel)
+          
+          // Binance call (no filter)
+        } else if(command === 'bin' || command === 'n'){
+          getPriceBinance(code_in.slice(1,params.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
 
           // Etherscan call
         } else if((command === 'escan' || command === 'e')){
