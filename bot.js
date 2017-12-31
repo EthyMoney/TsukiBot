@@ -361,6 +361,7 @@ function getPricePolo(coin1, coin2, chn){
 function getPriceBinance(coin1, coin2, chn){
 
   coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
+  coin1.push('BTC');
 
   binance.prevDay(false, function(data) {
 
