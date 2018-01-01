@@ -87,12 +87,19 @@ const BFX               = require('bitfinex-api-node');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
 const binance           = require('node-binance-api');
+const clientcmc         = require('coinmarketcap');
+
 
 
 // R script calls
 var R                   = require("r-script");
 var kliArray            = {};
 var kliArrayDict        = {};
+
+
+// CMC Cache
+var cmcArray            = {};
+var cmcArrayDict        = {};
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -155,10 +162,9 @@ function removeID(id){
 var bittrexhandle = {};
 
 // Initialize api things
-var clientGDAX = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
-var clientKraken = new KrakenClient();
-
-var bfxRest = new BFX().rest;
+var clientGDAX          = new Client({'apiKey':keys['coinbase'][0],'apiSecret': keys['coinbase'][1]});
+var clientKraken        = new KrakenClient();
+var bfxRest             = new BFX().rest;
 
 
 // -------------------------------------------
@@ -170,8 +176,8 @@ var bfxRest = new BFX().rest;
 // -------------------------------------------
 
 
- /* --------------------------------------------
- 
+/* --------------------------------------------
+
     These methods are calls on the api of the
     respective exchanges. The user can send
     an optional parameter to calculate %
@@ -210,6 +216,56 @@ function getPriceGDAX(coin1, coin2, base, chn){
 //------------------------------------------
 //------------------------------------------
 
+// Function that gets CMC prices
+
+function getPriceCMC(coins, chn, action = '-', ext = 'd'){
+  if(!cmcArrayDict['BTC']) return;
+
+  let msg = '__CoinMarketCap__ Price for:\n';
+
+  let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
+  for(let i = 0; i < coins.length; i++){
+    if(!cmcArrayDict[coins[i].toUpperCase()])
+      continue;
+
+    let bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
+      Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
+    let up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']) + ' USD` (`' +
+      Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
+
+    coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
+    switch(action){
+      case '-':
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+
+      case '+':
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
+          up + ' `⇒` `' + 
+          bp + "\n");
+        break;
+
+      case '*':
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒ 💵` `' +
+          up + '\n`|        ⇒` `' + 
+          bp + "\n");
+        break;
+
+      default:
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+
+    }
+
+  }
+
+  chn.send(msg);
+
+
+}
+
+//------------------------------------------
+//------------------------------------------
 
 // Function that gets CryptoCompare prices
 
@@ -392,7 +448,7 @@ function getPriceBinance(coin1, coin2, chn){
         if(coin1.indexOf(curr) === -1) continue;
 
         let base = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(-4) : c.symbol.slice(-3);
-        
+
         pd = (base === 'BTC') ? (pd.toFixed(8)) : pd;
 
         if(!sn[curr]){
@@ -413,7 +469,7 @@ function getPriceBinance(coin1, coin2, chn){
           + "\n");
 
       }
-      
+
       s += (Math.random() > 0.8) ? "\n`Don't want to donate but still support this awesome bot? Join Binance with my link:` <https://www.binance.com/?ref=10180938>" : "";
       chn.send(s);
     } else {
@@ -543,6 +599,7 @@ function executeCommand(c, opts, chn){
 //------------------------------------------
 //------------------------------------------
 
+// KLI functions
 
 function compareCoins(coin1, coin2, chn){
   if(kliArray !== {}){
@@ -978,8 +1035,12 @@ client.on('ready', () => {
 
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
   var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+  
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
+  var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
 
+  getKLIndex();
+  getCMCData();
 
   client.fetchUser("217327366102319106")
     .then(u => {
@@ -1171,17 +1232,23 @@ function commands(message, botAdmin, config){
         } else if(command === 'bfx' || command === 'f'){
           getPriceFinex(params[1], params[2] === null ? '' : params[2], channel);
 
+          // CMC call
+        } else if(command === 'cmc' || command === 'cmcs'){
+          let ext = command.slice(-1);
+          params.splice(0,1);
+          getPriceCMC(params, channel, '-', ext);
+          
           // CryptoCompare call
         } else if(command === 'crcp' || command === 'c' || command === 'cs'){
           let ext = command.slice(-1);
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
-                    
+
           // KLI call (skip the filter)
         } else if(command === 'kli'){
           code_in.splice(0,1);
           getKLI(code_in, channel);
-          
+
           // Compare call (skip the filter)
         } else if(command === 'mc'){
           compareCoins(code_in[1], (code_in[2] ? code_in[2] : 'BTC'),  channel);
@@ -1214,7 +1281,7 @@ function commands(message, botAdmin, config){
           // Bittrex call
         } else if(command === 'bit' || command === 'b'){
           getPriceBittrex(params.slice(1,params.size), (params[2] != null && params[2][0] === "-" ? params[2] : "BTC"), channel)
-          
+
           // Binance call (no filter)
         } else if(command === 'bin' || command === 'n'){
           getPriceBinance(code_in.slice(1,params.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
@@ -1513,6 +1580,23 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   }
 });
 
+/* ---------------------------------
+
+  getCMCData()
+
+  Update the array every 5 minutes
+  (Endpoint update rate)
+
+ ---------------------------------- */
+
+
+async function getCMCData(){
+  cmcArray = await clientcmc.ticker({limit: 0})
+
+  cmcArray.forEach(function(v){
+    cmcArrayDict[v.symbol] = v;
+  });
+}
 /* ---------------------------------
 
   getKLIndex()

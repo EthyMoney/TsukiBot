@@ -9,6 +9,7 @@
   "dependencies": {
     "bitfinex-api-node": "^1.2.1",
     "coinbase": "^2.0.6",
+    "coinmarketcap": "^0.2.0",
     "cryptocompare": "^0.1.0",
     "discord.js": "^11.2.1",
     "etherscan-api": "^3.0.11",
