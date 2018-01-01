@@ -8,6 +8,8 @@ __Commands__
 `p`: Poloniex
 `c`: CryptoCompare in USD (multi)
 `cs`: CryptoCompare in BTC (multi)
+`cmc`: CoinMarketCap in USD (multi)
+`cmcs`: CoinMarketCap in BTC (multi)
 `b`: Bittrex (multi)
 `n`: Binance (multi)
 `e`: Etherscan (address or transaction)

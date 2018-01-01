@@ -1218,7 +1218,7 @@ function commands(message, botAdmin, config){
       // Keeping the pad
       params.unshift('0');
 
-      if(config.indexOf(command) === -1 && params.length > 1){
+      if(config.indexOf(command) === -1 && (params.length > 1 || command === 'cmc')){
 
         // GDAX call
         if(command === 'gdax' || command === 'g'){
@@ -1235,8 +1235,8 @@ function commands(message, botAdmin, config){
           // CMC call
         } else if(command === 'cmc' || command === 'cmcs'){
           let ext = command.slice(-1);
-          params.splice(0,1);
-          getPriceCMC(params, channel, '-', ext);
+          code_in.splice(0,1);
+          getPriceCMC(code_in, channel, '-', ext);
           
           // CryptoCompare call
         } else if(command === 'crcp' || command === 'c' || command === 'cs'){
