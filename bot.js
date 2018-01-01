@@ -386,7 +386,8 @@ function getPriceBinance(coin1, coin2, chn){
 
         let c = markets[idx];
         let pd = parseFloat(c.lastPrice);
-        
+
+        console.log(c)
         let curr = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(0,-4) : c.symbol.slice(0,-3);
         if(coin1.indexOf(curr) === -1) continue;
 
@@ -399,7 +400,10 @@ function getPriceBinance(coin1, coin2, chn){
         }
 
         let pch = parseFloat(c.priceChangePercent).toFixed(2);
-        sn[curr].push("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
+        if(base === 'BTC')
+          sn[curr].unshift("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
+        else
+          sn[curr].push("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
       }
 
       for(let coin in sn){
@@ -1030,14 +1034,14 @@ client.on('message', message => {
       color: 'BLUE',
     })
       .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
-      .catch(console.log)
+      .catch(0)
   }
 
   // Remove possibly unsafe files
   if(message.member && !message.member.roles.exists('name', 'File Perms'))
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
-        message.delete().then(msg => console.log(`Deleted message from ${msg.author}`)).catch(console.log);
+        message.delete().then(msg => console.log(`Deleted message from ${msg.author}`)).catch(0);
         break;
       }
     }
@@ -1065,6 +1069,7 @@ client.on('message', message => {
     .then(function(gm) {
       commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }), config);
     })
+    .catch(0);
 
   msgAcc += message;
 
@@ -1463,7 +1468,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
   // Function 1
   if(removeID(messageReaction.message.id) != -1 && messageReaction.emoji.identifier == "%E2%9D%8E" && messageReaction.count == 2){
-    messageReaction.message.delete().catch(console.error);
+    messageReaction.message.delete().catch();
   }
 
 
