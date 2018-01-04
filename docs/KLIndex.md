@@ -20,6 +20,8 @@ Now that a visualization is found for the whole market, how should this be inter
 easy to understand, but understanding the movements is not trivial. There are several things we can get from the KL Plot. I'll mention
 them without going too deep into any.
 
+![KL Plot Example](https://imgur.com/I46EbAC.png)
+
 ## Description and characterization
 
 + There are 3 sections: low mcap, mid mcap, and high mcap.
