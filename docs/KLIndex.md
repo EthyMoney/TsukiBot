@@ -41,3 +41,8 @@ outputs noise.
 
 As a week trader, the first thing I need to find is a crypto in the mid 20% range with a move to the overtrend type. While this method
 doesn't guarantee "moon missions", the last few 1000% cryptos I've followed have had this behavior.
+
+## Example KL Plot zones
+![KL zones](https://imgur.com/BQ1F19s.png)
+The green zone has residuals that are above the 10%. The red zone is approximately the 20% section. Combined, coins entering the yellow
+zone could become (maybe are) major coins in the next few days/weeks.
