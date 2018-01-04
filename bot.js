@@ -452,7 +452,6 @@ function getPriceBinance(coin1, coin2, chn){
         let c = markets[idx];
         let pd = parseFloat(c.lastPrice);
 
-        console.log(c)
         let curr = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(0,-4) : c.symbol.slice(0,-3);
         if(coin1.indexOf(curr) === -1) continue;
 
@@ -670,7 +669,7 @@ function getEtherBalance(address, chn, action = 'b'){
         if(res.result.blockNumber !== null) {
           block.then(function(blockres){
             chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.' + 
-              (res.result ? ' Confirmations: `' + (1 + web3.utils.hexToNumber(blockres.result) - web3.utils.hexToNumber(res.result.blockNumber)) + '`': ''));
+              (blockres.result ? ' Confirmations: `' + (1 + web3.utils.hexToNumber(blockres.result) - web3.utils.hexToNumber(res.result.blockNumber)) + '`': ''));
           }).catch(() => {
             chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.');
           });
@@ -1610,7 +1609,8 @@ async function getCMCData(){
   cmcArray = await clientcmc.ticker({limit: 0})
 
   cmcArray.forEach(function(v){
-    cmcArrayDict[v.symbol] = v;
+    if(!cmcArrayDict[v.symbol])
+      cmcArrayDict[v.symbol] = v;
   });
 }
 /* ---------------------------------
