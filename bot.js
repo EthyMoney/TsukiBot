@@ -662,11 +662,18 @@ function getEtherBalance(address, chn, action = 'b'){
       chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
     });
   } else {
+    let block = api.proxy.eth_blockNumber();
     let tx = api.proxy.eth_getTransactionByHash(address);
+
     tx.then(function(res){
       if(res.result !== null) {
         if(res.result.blockNumber !== null) {
-          chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.');
+          block.then(function(blockres){
+            chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.' + 
+              (res.result ? ' Confirmations: `' + (1 + web3.utils.hexToNumber(blockres.result) - web3.utils.hexToNumber(res.result.blockNumber)) + '`': ''));
+          }).catch(() => {
+            chn.send('Transaction included in block `' + web3.utils.hexToNumber(res.result.blockNumber) + '`.');
+          });
         } else {
           chn.send('Transaction still not mined.');
         }
