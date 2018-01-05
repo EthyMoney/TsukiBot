@@ -914,7 +914,7 @@ function setRoles(name, guild, chn){
         conn.end();
       });
     })
-    .catch(channel.send("Missing permissions: **Manage roles**."));
+    .catch(chn.send("Missing permissions: **Manage roles**."));
 }
 
 
@@ -1249,9 +1249,9 @@ function commands(message, botAdmin, config){
       // Keeping the pad
       params.unshift('0');
 
-      if(config.indexOf(command) === -1 && (params.length > 1 || command === 'cmc')){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cmc', 'subrole', 'sub'].indexOf(command) > -1)){
 
-        // GDAX call
+          // GDAX call
         if(command === 'gdax' || command === 'g'){
           getPriceGDAX(params[1], 'USD', (params[2] != null && !isNaN(params[2]) ? params[2] : -1), channel);
 
@@ -1298,7 +1298,7 @@ function commands(message, botAdmin, config){
           setSubscriptions(message.author, message.guild, params);
 
           // Set coin role perms
-        } else if(command === 'setsub'){
+        } else if(command === 'makeroom'){
           if(hasPermissions(message.author.id, message.guild) || botAdmin){
             params.splice(0,1);
             params.unshift('m');
@@ -1330,8 +1330,8 @@ function commands(message, botAdmin, config){
           // Give a user an expiring role
         } else if(command === 'sub'){
           if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(params[2]) === 'string' && message.mentions.users.size > 0){
-              message.mentions.users.forEach(function(u){ temporarySub(u.id, params[2], message.guild, message.channel); })
+            if(typeof(code_in[2]) === 'string' && message.mentions.users.size > 0){
+              message.mentions.users.forEach(function(u){ temporarySub(u.id, code_in[2], message.guild, message.channel); })
             } else {
               channel.send("Format: `.tb sub @user rolename`.");
             }
@@ -1341,8 +1341,8 @@ function commands(message, botAdmin, config){
           // Create an expiring role
         } else if(command === 'subrole'){
           if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(params[1]) === 'string'){
-              setRoles(params[1], message.guild, message.channel)
+            if(typeof(code_in[1]) === 'string'){
+              setRoles(code_in[1], message.guild, message.channel)
             } else {
               channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)")
             }
