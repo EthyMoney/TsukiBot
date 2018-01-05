@@ -276,9 +276,11 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
   // Get the spot price of the pair and send it to general
   cc.priceFull(query.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
     .then(prices => {
-      let msg = '__CryptoCompare__ Price for:\n';
+      let msg = '__CryptoCompare/CMC__ Price for:\n';
       let ordered = {};
 
+      let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
+      
       for(let i = 0; i < coins.length; i++){
         let bp, up;
 
@@ -288,8 +290,10 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
           up = prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
             Math.round((prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR'])*100)/100 + '%`)';
         } catch(e){
-          bp = 'unavailable`';
-          up = 'unavailable`';
+          bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
+            Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
+          up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']) + ' USD` (`' +
+            Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
         }
         
         coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
