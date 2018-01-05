@@ -289,11 +289,16 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
             Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
           up = prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
             Math.round((prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR'])*100)/100 + '%`)';
-        } catch(e){
-          bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
-            Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
-          up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']) + ' USD` (`' +
-            Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
+        } catch(e) {
+          if(cmcArrayDict[coins[i].toUpperCase()]){
+            bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
+              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
+            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']) + ' USD` (`' +
+              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
+          } else {
+            bp = 'unvavilable`';
+            up = 'unavailable`';
+          }
         }
         
         coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
@@ -303,8 +308,15 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
             break;
 
           case '%':
-            ordered[prices[coins[i].toUpperCase()]['USD']['CHANGEPCT24HOUR']] = 
-              ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+            try {
+              ordered[prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR']] = 
+                ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+            } catch(e) {
+              if(cmcArrayDict[coins[i].toUpperCase()])
+                ordered[cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h']] = 
+                  ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+            }
+
             break;
 
           case '+':
