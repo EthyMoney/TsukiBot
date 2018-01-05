@@ -1612,6 +1612,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 async function getCMCData(){
   cmcArray = await clientcmc.ticker({limit: 0})
 
+  ccmArrayDict = {};
   cmcArray.forEach(function(v){
     if(!cmcArrayDict[v.symbol])
       cmcArrayDict[v.symbol] = v;
