@@ -433,6 +433,7 @@ function getPricePolo(coin1, coin2, chn){
           "`-       ⇒` `" + (body['BTC_' + coin1.toUpperCase()]['last'] * body['USDT_BTC']['last']).toFixed(8) + " USDT`" +
           "\n");
 
+        ans += (Math.random() > 0.8) ? "\n`Want to move from Poloniex? Join Binance with my link:` <https://www.binance.com/?ref=10180938>" : "";
         chn.send(ans);        
       } catch (err){
         console.log(err);
@@ -555,6 +556,7 @@ function getPriceBittrex(coin1, coin2, chn){
 
       }
 
+      s += (Math.random() > 0.6) ? "\n`Tired of Bittrex's policies? Join Binance with my link:` <https://www.binance.com/?ref=10180938>" : "";
       chn.send(s);
     } else {
       chn.send('Bittrex API error.');
