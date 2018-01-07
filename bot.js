@@ -1203,7 +1203,7 @@ function commands(message, botAdmin, config){
   let channel = message.channel;
 
   // Split the message by spaces.
-  let code_in = message.content.split(' ');
+  let code_in = message.content.split(' ').filter(function(v){ return v !== ''});
 
   // Check for prefix start.
   let hasPfx = "";
