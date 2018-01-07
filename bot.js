@@ -1206,7 +1206,7 @@ function commands(message, botAdmin, config){
 
   // Split the message by spaces.
   let code_in = message.content.split(' ').filter(function(v){ return v !== '' });
-  if(code_in.length < 2) return;
+  if(code_in.length < 1) return;
 
   // Check for prefix start.
   let hasPfx = "";
