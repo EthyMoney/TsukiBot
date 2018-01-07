@@ -280,7 +280,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
       let ordered = {};
 
       let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
-      
+
       for(let i = 0; i < coins.length; i++){
         let bp, up;
 
@@ -300,7 +300,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
             up = 'unavailable`';
           }
         }
-        
+
         coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
         switch(action){
           case '-':
@@ -654,7 +654,6 @@ function getKLI(coins, chn){
     coins.forEach(function(v){
       if(kliArrayDict[v.toUpperCase()]){
         let c = kliArrayDict[v.toUpperCase()]
-        console.log(c)
         msg += '`' + c['h.ticker'] + '` - `' + c.kli + '`\n';
       }
     });
@@ -1067,10 +1066,11 @@ client.on('ready', () => {
   });
 
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
-  var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
-  
+  //var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
   var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
+  var csvsend      = schedule.scheduleJob('*/30 * * * *', sendCSV);
 
   getKLIndex();
   getCMCData();
@@ -1131,15 +1131,16 @@ client.on('message', message => {
       .catch(0)
   }
 
+
   // Remove possibly unsafe files
-  if(message.member && !message.member.roles.exists('name', 'File Perms'))
+  if(message.member && !message.member.roles.exists('name', 'File Perms')) {
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
         message.delete().then(msg => console.log(`Deleted message from ${msg.author}`)).catch(0);
-        break;
+        return;
       }
     }
-
+  }
 
   // Update every 100 messages
   if(Math.floor(Math.random() * 100) === 42){
@@ -1165,17 +1166,18 @@ client.on('message', message => {
     })
     .catch(0);
 
-  msgAcc += message;
+  // msgAcc += message;
 
-  checkMentions(message, msgAcc, mentionCounter);
+  // checkMentions(message, msgAcc, mentionCounter);
 
+  /*
   if(msgAcc.length > MESSAGE_LIMIT) {
     msgAcc = "";
     Object.keys(mentionCounter).forEach(function(m){
       mentionCounter[m] = 0;
     });
   }
-
+  */
 })
 
 /* -------------------------------------------------------
@@ -1203,7 +1205,8 @@ function commands(message, botAdmin, config){
   let channel = message.channel;
 
   // Split the message by spaces.
-  let code_in = message.content.split(' ').filter(function(v){ return v !== ''});
+  let code_in = message.content.split(' ').filter(function(v){ return v !== '' });
+  if(code_in.length < 2) return;
 
   // Check for prefix start.
   let hasPfx = "";
@@ -1220,9 +1223,6 @@ function commands(message, botAdmin, config){
 
     // Remove the prefix stub
     code_in.splice(0,1);
-
-    // Make lower case
-    code_in[0] = code_in[0].toLowerCase();
 
     // Get the command
     let command = code_in[0];
@@ -1253,7 +1253,7 @@ function commands(message, botAdmin, config){
 
       if(config.indexOf(command) === -1 && (params.length > 1 || ['cmc', 'subrole', 'sub'].indexOf(command) > -1)){
 
-          // GDAX call
+        // GDAX call
         if(command === 'gdax' || command === 'g'){
           getPriceGDAX(params[1], 'USD', (params[2] != null && !isNaN(params[2]) ? params[2] : -1), channel);
 
@@ -1270,7 +1270,7 @@ function commands(message, botAdmin, config){
           let ext = command.slice(-1);
           code_in.splice(0,1);
           getPriceCMC(code_in, channel, '-', ext);
-          
+
           // CryptoCompare call
         } else if(command === 'crcp' || command === 'c' || command === 'cs'){
           let ext = command.slice(-1);
@@ -1632,6 +1632,7 @@ async function getCMCData(){
       cmcArrayDict[v.symbol] = v;
   });
 }
+
 /* ---------------------------------
 
   getKLIndex()
@@ -1640,6 +1641,13 @@ async function getCMCData(){
 
  ---------------------------------- */
 
+function sendCSV(){
+  client.fetchUser(keys['csv_u'])
+    .then(u => {
+      u.send(Date.now(), {files: ['/tmp/cmc.csv']});
+    })
+    .catch(console.log);
+}
 
 function getKLIndex(){
   try { 
@@ -1647,9 +1655,12 @@ function getKLIndex(){
 
     kliArray.forEach(function(v){
       kliArrayDict[v['h.ticker']] = v;
+
     });
+
+
   } catch(e) {
-    console.log('failed R script execution');
+    console.log(e + ': failed R script execution');
   }
 }
 
