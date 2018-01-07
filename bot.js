@@ -913,9 +913,8 @@ function setRoles(name, guild, chn){
         else { chn.send("Created role `" + r.name + "`.") }
 
         conn.end();
-      });
-    })
-    .catch(chn.send("Missing permissions: **Manage roles**."));
+      })
+    }).catch(console.log);
 }
 
 
@@ -934,7 +933,7 @@ function temporarySub(id, code, guild, chn, term){
   let conn = new pg.Client(conString);
   conn.connect();
 
-  let sqlq = "INSERT INTO temporaryrole VALUES(DEFAULT, $1, (SELECT roleid FROM roleperms WHERE guild = $2 AND function = 3 AND code = $3), current_timestamp, current_timestamp + (30 * interval '$4 day')) RETURNING roleid;"
+  let sqlq = "INSERT INTO temporaryrole VALUES(DEFAULT, $1, (SELECT roleid FROM roleperms WHERE guild = $2 AND function = 3 AND code = $3 LIMIT 1), current_timestamp, current_timestamp + (30 * interval '$4 day')) RETURNING roleid;"
   let queryp = pgp.as.format(sqlq, [id, guild.id, code, term]);
 
   let query = conn.query(queryp, (err, res) => {
