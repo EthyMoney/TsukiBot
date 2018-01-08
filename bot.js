@@ -1069,7 +1069,7 @@ client.on('ready', () => {
 
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
   var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
-  var csvsend      = schedule.scheduleJob('*/30 * * * *', sendCSV);
+  var csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
 
   getKLIndex();
   getCMCData();
@@ -1641,11 +1641,7 @@ async function getCMCData(){
  ---------------------------------- */
 
 function sendCSV(){
-  client.fetchUser(keys['csv_u'])
-    .then(u => {
-      u.send(Date.now(), {files: ['/tmp/cmc.csv']});
-    })
-    .catch(console.log);
+  client.channels.get(keys['csv_u']).send(Date.now(), {files: ['/tmp/cmc.csv']});
 }
 
 function getKLIndex(){
