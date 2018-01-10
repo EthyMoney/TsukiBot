@@ -937,7 +937,7 @@ function temporarySub(id, code, guild, chn, term){
   let queryp = pgp.as.format(sqlq, [id, guild.id, code, term]);
 
   let query = conn.query(queryp, (err, res) => {
-    if (err.column = 'roleid'){ console.log(err); chn.send('Role `' + code + '` not found.'); }
+    if (err){ console.log(err); if(err.column == 'roleid') chn.send('Role `' + code + '` not found.'); }
     else { 
       const role = guild.roles.get(res.rows[0].roleid);
       guild.fetchMember(id)
