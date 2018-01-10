@@ -937,7 +937,7 @@ function temporarySub(id, code, guild, chn, term){
   let queryp = pgp.as.format(sqlq, [id, guild.id, code, term]);
 
   let query = conn.query(queryp, (err, res) => {
-    if (err){ console.log(err); }
+    if (err.column = 'roleid'){ console.log(err); chn.send('Role `' + code + '` not found.'); }
     else { 
       const role = guild.roles.get(res.rows[0].roleid);
       guild.fetchMember(id)
@@ -1069,7 +1069,7 @@ client.on('ready', () => {
 
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
   var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
-  var csvsend      = schedule.scheduleJob('*/1 * * * *', sendCSV);
+  var csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
 
   getKLIndex();
   getCMCData();
