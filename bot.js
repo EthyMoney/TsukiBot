@@ -45,7 +45,7 @@ var schedule            = require('node-schedule');
 var prefix              = ['-t', '.tb'];
 
 // Files allowed
-const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4', 'pdf'];
+const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Allowed coins in commands
 const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
