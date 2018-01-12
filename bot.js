@@ -101,6 +101,9 @@ var kliArrayDict        = {};
 var cmcArray            = {};
 var cmcArrayDict        = {};
 
+// Spellcheck
+var didyoumean = require("didyoumean");
+
 // ----------------------------------------------------------------------------------------------------------------
 
 // Web3
@@ -225,8 +228,13 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
 
   let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
   for(let i = 0; i < coins.length; i++){
-    if(!cmcArrayDict[coins[i].toUpperCase()])
-      continue;
+    if(!cmcArrayDict[coins[i].toUpperCase()]){
+      let g = didyoumean(coins[i].toUpperCase(), Object.keys(cmcArrayDict));
+      if(!g)
+        continue;
+      else
+        coins[i] = g;
+    }
 
     let bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
       Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
@@ -1315,7 +1323,7 @@ function commands(message, botAdmin, config){
           getPriceBittrex(params.slice(1,params.size), (params[2] != null && params[2][0] === "-" ? params[2] : "BTC"), channel)
 
           // Binance call (no filter)
-        } else if(command === 'bin' || command === 'n'){
+        } else if(command === 'bin' || command === 'm'|| command === 'n'){
           getPriceBinance(code_in.slice(1,params.size), (code_in[2] != null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel)
 
           // Etherscan call

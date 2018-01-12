@@ -11,6 +11,7 @@
     "coinbase": "^2.0.6",
     "coinmarketcap": "^0.2.0",
     "cryptocompare": "^0.1.0",
+    "didyoumean": "^1.2.1",
     "discord.js": "^11.2.1",
     "etherscan-api": "^3.0.11",
     "gdax": "^0.5.1",
