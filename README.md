@@ -18,10 +18,13 @@
 + Automanage paid subscriptions and expiring roles.
 + Check messages per minute across crypto servers.
 + Get the KL Index for the top 800 CMC coins.
++ Constant development pushing unseen features.
 
-## In Progress:
-+ Get detailed data of what people are talking about.
-+ Send Tsuki tokens to your friends over Discord with commands.
+## Latest news:
+Set the shortcut for your server to quickaccess CoinMarketCap!
+Example:
+
+![](https://imgur.com/2LT7Baz.png)
 
 ---
 
