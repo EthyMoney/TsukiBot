@@ -1687,7 +1687,7 @@ function getKLIndex(){
  ---------------------------------- */
 
 function toggleShortcut(id, shortcut, chn){
-  if(/^(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut)){
+  if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut)){
     shortcutConfig[id] = shortcut;
     
     fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
