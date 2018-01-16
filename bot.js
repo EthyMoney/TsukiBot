@@ -1698,7 +1698,7 @@ function toggleShortcut(id, shortcut, chn){
     });
 
   } else {
-    chn.send('Shortcut format not allowed.')
+    chn.send('Shortcut format not allowed. (Max. 3 alphanumeric and `!$%._,<>=+*&`)')
   }
 }
 
