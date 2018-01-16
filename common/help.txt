@@ -38,8 +38,12 @@ __Rooms and Roles__
 __(Owner Only)__
 `.tb subrole [Name]`: Create expiring role
 `.tb sub @User RoleName`: Grant a subscription
+
 `.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
 `.tbconfig`: Bot Permission Settings
+
+`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
+(Use as `[prefix] eth btc elf`)
 
 
 **Example usage**:

@@ -90,7 +90,6 @@ const binance           = require('node-binance-api');
 const clientcmc         = require('coinmarketcap');
 
 
-
 // R script calls
 var R                   = require("r-script");
 var kliArray            = {};
@@ -104,6 +103,7 @@ var cmcArrayDict        = {};
 // Spellcheck
 var didyoumean = require("didyoumean");
 
+
 // ----------------------------------------------------------------------------------------------------------------
 
 // Web3
@@ -115,7 +115,6 @@ const abi               = [{"constant":true,"inputs":[],"name":"getRating","outp
 var ProductRegister     = new Web3.eth.Contract(abi, "0x27659AB24B40461Bdc9DC3817683CC0508f74c42");
 
 // ----------------------------------------------------------------------------------------------------------------
-
 
 
 // CryptoCompare requires global fetch
@@ -160,6 +159,10 @@ function removeID(id){
   }
 
 }
+
+
+// Shortcut config
+var shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
 // Bittrex handle
 var bittrexhandle = {};
@@ -224,7 +227,8 @@ function getPriceGDAX(coin1, coin2, base, chn){
 function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   if(!cmcArrayDict['BTC']) return;
 
-  let msg = '__CoinMarketCap__ Price for:\n';
+  let msgh = '__CoinMarketCap__ Price for:\n';
+  let msg  = '';
 
   let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
   for(let i = 0; i < coins.length; i++){
@@ -266,9 +270,9 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
     }
 
   }
-
-  chn.send(msg);
-
+  
+  if(msg !== '')
+    chn.send(msgh + msg);
 
 }
 
@@ -1073,7 +1077,7 @@ client.on('ready', () => {
   });
 
   var deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
-  //var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+  // var mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
 
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
   var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
@@ -1225,7 +1229,10 @@ function commands(message, botAdmin, config){
 
   // Check for bot prefix
   if(hasPfx === ""){
-    return;
+    if(shortcutConfig[message.guild.id] === code_in[0].toLowerCase()){
+        code_in.shift();
+        getPriceCMC(code_in, channel, '-');
+    }
   } else if(prefix.indexOf(code_in_pre) > -1){
 
     // Remove the prefix stub
@@ -1258,7 +1265,7 @@ function commands(message, botAdmin, config){
       // Keeping the pad
       params.unshift('0');
 
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cmc', 'subrole', 'sub'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cmc', 'shortcut', 'subrole', 'sub'].indexOf(command) > -1)){
 
         // GDAX call
         if(command === 'gdax' || command === 'g'){
@@ -1305,6 +1312,12 @@ function commands(message, botAdmin, config){
         } else if(command === 'join'){
           params.splice(0,1);
           setSubscriptions(message.author, message.guild, params);
+
+          // Toggle shortcut
+        } else if(command === 'shortcut'){
+          if(hasPermissions(message.author.id, message.guild) || botAdmin){
+            toggleShortcut(message.guild.id, code_in[1], channel);
+          }
 
           // Set coin role perms
         } else if(command === 'makeroom'){
@@ -1664,6 +1677,28 @@ function getKLIndex(){
 
   } catch(e) {
     console.log(e + ': failed R script execution');
+  }
+}
+
+/* ---------------------------------
+
+  toggleShortcut(guildid, string, channel)
+
+ ---------------------------------- */
+
+function toggleShortcut(id, shortcut, chn){
+  if(/^(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut)){
+    shortcutConfig[id] = shortcut;
+    
+    fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
+      if(err) return console.log(err);
+      
+      chn.send('Set shortcut to `' + shortcut + '`.');
+      console.log("Shortcut config saved");
+    });
+
+  } else {
+    chn.send('Shortcut format not allowed.')
   }
 }
 
