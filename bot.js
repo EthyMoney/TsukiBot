@@ -1180,7 +1180,7 @@ client.on('message', message => {
   }
 
   // Check if it's a DM channel
-  if(message.channel.type !== 'dm') return;
+  if(message.channel.type !== 'text') return;
 
 
   // Get the permission settigs
