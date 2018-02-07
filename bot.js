@@ -975,12 +975,11 @@ function temporarySub(id, code, guild, chn, term){
 
 function checkSubStatus(){
   const conString = "postgres://tsukibot:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  console.log("purging")
 
   let conn = new pg.Client(conString);
   conn.connect();
 
-  let sqlq = "SELECT guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date < current_date;" 
+  let sqlq = "SELECT subid, guild, temporaryrole.roleid, userid FROM roleperms, temporaryrole WHERE temporaryrole.roleid = roleperms.roleid AND end_date < current_date;" 
   let queryp = pgp.as.format(sqlq);
 
   let query = conn.query(queryp, (err, res) => {
@@ -990,13 +989,31 @@ function checkSubStatus(){
         let line        = res.rows[expired];
         let guild       = client.guilds.get(line.guild);
         let role        = guild.roles.get(line.roleid);
+        let entry       = line.subid;
+
+        let deleteids   = [];
 
         guild.fetchMember(line.userid)
           .then(function(gm){
-            gm.removeRole(role);
-            console.log("unsubbed user");
+            gm.removeRole(role)
+              .then(function(gm){
+                deleteids.push(entry);
+              });
           })
           .catch(console.log)
+
+        let conn = new pg.Client(conString);
+        conn.connect();
+
+        let sqlq = "DELETE FROM temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
+        let queryp = pgp.as.format(sqlq);
+
+        let query = conn.query(queryp, (err, res) => {
+          if(err) { console.log(err); }
+          else { console.log('Deleted entries'); }
+
+          conn.end();
+        });
       }
     }
 
