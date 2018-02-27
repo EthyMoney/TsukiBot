@@ -25,6 +25,7 @@
  * ------------------------------------------------------------------- */
 
 
+
 // -------------------------------------------
 // -------------------------------------------
 //
@@ -270,7 +271,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
     }
 
   }
-  
+
   if(msg !== '')
     chn.send(msgh + msg);
 
@@ -841,8 +842,8 @@ function setSubscriptions(user, guild, coins){
 
       guild.fetchMember(user)
         .then(function(gm){
-          roles.forEach(function(r){ if(coinans.indexOf(r.name) > -1){ added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r)
-            : gm.addRole(r)) : (0) } });
+          roles.forEach(function(r){ if(coinans.indexOf(r.name) > -1){ added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r).catch(0)
+            : gm.addRole(r)).catch(0) : (0) } });
 
           user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`."
             : (remove ? "Unsubbed."
@@ -926,7 +927,8 @@ function setRoles(name, guild, chn){
 
         conn.end();
       })
-    }).catch(console.log);
+    })
+    .catch(console.log);
 }
 
 
@@ -954,7 +956,7 @@ function temporarySub(id, code, guild, chn, term){
       const role = guild.roles.get(res.rows[0].roleid);
       guild.fetchMember(id)
         .then(function(gm){
-          gm.addRole(role);
+          gm.addRole(role).catch(0);
           chn.send("Added subscriber `" + gm.displayName + "` to role `" + role.name + "`.") 
         })
         .catch(console.log)
@@ -988,20 +990,26 @@ function checkSubStatus(){
       for(let expired in res.rows){
         let line        = res.rows[expired];
         let guild       = client.guilds.get(line.guild);
-        let role        = guild.roles.get(line.roleid);
         let entry       = line.subid;
+        
+        if(guild != null){ 
+          let role        = guild.roles.get(line.roleid);
 
-        let deleteids   = [];
+          let deleteids   = [];
 
-        guild.fetchMember(line.userid)
-          .then(function(gm){
-            gm.removeRole(role)
-              .then(function(gm){
-                deleteids.push(entry);
-              });
-          })
-          .catch(console.log)
-
+          guild.fetchMember(line.userid)
+            .then(function(gm){
+              gm.removeRole(role)
+                .then(function(gm){
+                  deleteids.push(entry);
+                })
+                .catch(0);
+            })
+            .catch(console.log)
+        } else {
+          deleteids.push(entry);
+        }
+        
         let conn = new pg.Client(conString);
         conn.connect();
 
@@ -1155,7 +1163,7 @@ client.on('message', message => {
       name: 'File Perms',
       color: 'BLUE',
     })
-      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
+      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`).catch(0))
       .catch(0)
   }
 
@@ -1170,8 +1178,8 @@ client.on('message', message => {
     }
   }
 
-  // Update every 100 messages
-  if(Math.floor(Math.random() * 100) === 42){
+  // Update every 1000 messages
+  if(Math.floor(Math.random() * 1000) === 42){
     snekfetch.post(`https://discordbots.org/api/bots/${client.user.id}/stats`)
       .set('Authorization', keys['dbots'])
       .send({ server_count: client.guilds.size })
@@ -1181,6 +1189,7 @@ client.on('message', message => {
 
   // Check if it's a DM channel
   if(message.channel.type !== 'text') return;
+  if(message.guild.id === '405621452096929792') message.guild.leave();
 
 
   // Get the permission settigs
@@ -1190,7 +1199,11 @@ client.on('message', message => {
   // Check for perms (temporary)
   message.guild.fetchMember(message.author)
     .then(function(gm) {
-      commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }), config);
+      try{
+        commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter' }), config);
+      } catch(e){
+        console.log(e);
+      }
     })
     .catch(0);
 
@@ -1247,8 +1260,8 @@ function commands(message, botAdmin, config){
   // Check for bot prefix
   if(hasPfx === ""){
     if(shortcutConfig[message.guild.id] === code_in[0].toLowerCase()){
-        code_in.shift();
-        getPriceCMC(code_in, channel, '-');
+      code_in.shift();
+      getPriceCMC(code_in, channel, '-');
     }
   } else if(prefix.indexOf(code_in_pre) > -1){
 
@@ -1706,10 +1719,10 @@ function getKLIndex(){
 function toggleShortcut(id, shortcut, chn){
   if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4){
     shortcutConfig[id] = shortcut;
-    
+
     fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
       if(err) return console.log(err);
-      
+
       chn.send('Set shortcut to `' + shortcut + '`.');
       console.log("Shortcut config saved");
     });
