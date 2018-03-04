@@ -991,11 +991,10 @@ function checkSubStatus(){
         let line        = res.rows[expired];
         let guild       = client.guilds.get(line.guild);
         let entry       = line.subid;
+        let deleteids   = [];
         
-        if(guild != null){ 
+        if(guild != null){
           let role        = guild.roles.get(line.roleid);
-
-          let deleteids   = [];
 
           guild.fetchMember(line.userid)
             .then(function(gm){
@@ -1017,6 +1016,8 @@ function checkSubStatus(){
         let queryp = pgp.as.format(sqlq);
 
         let query = conn.query(queryp, (err, res) => {
+          console.log("run delete");
+
           if(err) { console.log(err); }
           else { console.log('Deleted entries'); }
 
