@@ -1160,7 +1160,7 @@ client.on('message', message => {
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
-  if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
+  if(message.guild && message.guild.id === '264445053596991498' && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
       name: 'File Perms',
       color: 'BLUE',
@@ -1191,7 +1191,6 @@ client.on('message', message => {
 
   // Check if it's a DM channel
   if(message.channel.type !== 'text') return;
-  if(message.guild.id === '405621452096929792') message.guild.leave();
 
 
   // Get the permission settigs
