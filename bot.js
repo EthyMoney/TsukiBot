@@ -992,7 +992,7 @@ function checkSubStatus(){
         let guild       = client.guilds.get(line.guild);
         let entry       = line.subid;
         let deleteids   = [];
-        
+
         if(guild != null){
           let role        = guild.roles.get(line.roleid);
 
@@ -1008,12 +1008,13 @@ function checkSubStatus(){
         } else {
           deleteids.push(entry);
         }
-        
+
         let conn = new pg.Client(conString);
         conn.connect();
 
         let sqlq = "DELETE FROM temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
         let queryp = pgp.as.format(sqlq);
+        console.log(sqlq)
 
         let query = conn.query(queryp, (err, res) => {
           console.log("run delete");
@@ -1749,6 +1750,13 @@ function toggleShortcut(id, shortcut, chn){
 function hasPermissions(id, guild){
   return guild.owner.id === id;
 }
+
+
+
+// Error event logging
+client.on('error', (err) => {
+  console.log(err);  
+});
 
 
 // Jack in, Megaman. Execute.
