@@ -379,7 +379,7 @@ function getPriceFinex(coin1, coin2, chn){
     if(err) {
       chn.send("API Error: " + err.message);
     } else {
-      let s = res['last_price'];
+      let s = parseFloat(res['last_price']).toFixed(8);
 
       chn.send('__Bitfinex__ Price for **'  + coin1.toUpperCase()
         + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`.");
