@@ -1002,31 +1002,31 @@ function checkSubStatus(){
                 .then(function(gm){
                   deleteids.push(entry);
                 })
-                .catch(0);
+                .catch(e => console.log('Role removed'));
             })
-            .catch(console.log)
+            .catch(e => {if(e.code === 10013) deleteids.push(entry); });
         } else {
           deleteids.push(entry);
         }
 
-        let conn = new pg.Client(conString);
-        conn.connect();
+        
+        let conn2 = new pg.Client(conString);
+        conn2.connect();
 
         let sqlq = "DELETE FROM temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
-        let queryp = pgp.as.format(sqlq);
         console.log(sqlq)
+        let queryp = pgp.as.format(sqlq);
 
-        let query = conn.query(queryp, (err, res) => {
+        let query = conn2.query(queryp, (err, res) => {
           console.log("run delete");
 
-          if(err) { console.log(err); }
+          if(err) { console.log("error:", err); }
           else { console.log('Deleted entries'); }
 
-          conn.end();
+          conn2.end();
         });
       }
     }
-
     conn.end();
   });
 
@@ -1156,12 +1156,11 @@ client.on('message', message => {
     return;
 
   // Check for Ghost users
-  if(message.user == null) return;
+  if(message.author == null) return;
 
   // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
-
 
   // Try to add File Perms Role
   if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
@@ -1210,7 +1209,7 @@ client.on('message', message => {
         console.log(e);
       }
     })
-    .catch(0);
+    .catch(e => (0));
 
 
 })
