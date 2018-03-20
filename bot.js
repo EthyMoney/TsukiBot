@@ -1002,7 +1002,7 @@ function checkSubStatus(){
                 .then(function(gm){
                   deleteids.push(entry);
                 })
-                .catch(e => console.log('Role removed'));
+                .catch(e => deleteids.push(entry));
             })
             .catch(e => {if(e.code === 10013) deleteids.push(entry); });
         } else {
