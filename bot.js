@@ -1097,6 +1097,8 @@ client.on('ready', () => {
     console.log('dev mode');
   }
 
+  console.log('------------------ Bot start ------------------');
+
   client.user.setActivity('.tbhelp');
 
   fs.readFile("common/serverPerms.json", function(err, data){
