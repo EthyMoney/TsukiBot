@@ -1095,7 +1095,7 @@ client.on('ready', () => {
     console.log('dev mode');
   }
 
-  client.user.setGame('.tbhelp');
+  client.user.setActivity('.tbhelp');
 
   fs.readFile("common/serverPerms.json", function(err, data){
     if(err) return console.log(err);
@@ -1155,20 +1155,23 @@ client.on('message', message => {
   if(process.argv[2] === "-d" && message.author.id !== "217327366102319106")
     return;
 
+  // Check for Ghost users
+  if(message.user == null) return;
 
   // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
 
-  if(message.guild && message.guild.id === '264445053596991498' && !message.guild.roles.exists('name', 'File Perms')) {
+
+  // Try to add File Perms Role
+  if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
       name: 'File Perms',
       color: 'BLUE',
     })
-      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`).catch(0))
-      .catch(0)
+      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
+      .catch(e => (0));
   }
-
 
   // Remove possibly unsafe files
   if(message.member && !message.member.roles.exists('name', 'File Perms')) {
@@ -1179,6 +1182,7 @@ client.on('message', message => {
       }
     }
   }
+
 
   // Update every 1000 messages
   if(Math.floor(Math.random() * 1000) === 42){
@@ -1208,18 +1212,7 @@ client.on('message', message => {
     })
     .catch(0);
 
-  // msgAcc += message;
 
-  // checkMentions(message, msgAcc, mentionCounter);
-
-  /*
-  if(msgAcc.length > MESSAGE_LIMIT) {
-    msgAcc = "";
-    Object.keys(mentionCounter).forEach(function(m){
-      mentionCounter[m] = 0;
-    });
-  }
-  */
 })
 
 /* -------------------------------------------------------
@@ -1755,6 +1748,10 @@ function hasPermissions(id, guild){
 // Error event logging
 client.on('error', (err) => {
   console.log(err);  
+});
+
+process.on('unhandledRejection', (reason, p) => {
+  console.log('Unhandled Rejection at: Promise', p, 'reason:', reason); 
 });
 
 
