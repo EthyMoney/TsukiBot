@@ -1009,22 +1009,24 @@ function checkSubStatus(){
           deleteids.push(entry);
         }
 
-        
-        let conn2 = new pg.Client(conString);
-        conn2.connect();
 
-        let sqlq = "DELETE FROM temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
-        console.log(sqlq)
-        let queryp = pgp.as.format(sqlq);
+        if(deleteids.length > 0){
+          let conn2 = new pg.Client(conString);
+          conn2.connect();
 
-        let query = conn2.query(queryp, (err, res) => {
-          console.log("run delete");
+          let sqlq = "DELETE FROM temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
+          let queryp = pgp.as.format(sqlq);
 
-          if(err) { console.log("error:", err); }
-          else { console.log('Deleted entries'); }
+          let query = conn2.query(queryp, (err, res) => {
+            console.log("run delete");
+            console.log(sqlq)
 
-          conn2.end();
-        });
+            if(err) { console.log("error:", err); }
+            else { console.log('Deleted entries'); }
+
+            conn2.end();
+          });
+        }
       }
     }
     conn.end();
