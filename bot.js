@@ -49,9 +49,8 @@ var prefix              = ['-t', '.tb'];
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Allowed coins in commands
-const pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
-const pairs_filtered    = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
-const volcoins 		= ['ETH', 'ETHX'];
+let pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 
 // Coin request counter initialization
 var requestCounter      = {};
@@ -173,6 +172,8 @@ var clientGDAX          = new Client({'apiKey':keys['coinbase'][0],'apiSecret': 
 var clientKraken        = new KrakenClient();
 var bfxRest             = new BFX().rest;
 
+// Reload Coins
+var reloader            = require('./getCoins');
 
 // -------------------------------------------
 // -------------------------------------------
@@ -1113,7 +1114,9 @@ client.on('ready', () => {
   var klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
   var cmcfetch     = schedule.scheduleJob('*/1 * * * *', getCMCData);
   var csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
+  var updateList   = schedule.scheduleJob('* * 12 * *', updateCoins);
 
+  updateCoins();
   getKLIndex();
   getCMCData();
 
@@ -1691,6 +1694,18 @@ async function getCMCData(){
 function sendCSV(){
   client.channels.get(keys['csv_u']).send(Date.now(), {files: ['/tmp/kli.csv']});
 }
+
+function updateCoins(){
+  reloader.update()
+    .then(arr => {
+      pairs = arr[0].slice();
+      pairs_filtered = arr[1].slice();
+
+      console.log('Reloaded coins');
+    })
+    .catch(e => console.error('Failed update: ' + e));
+}
+
 
 function getKLIndex(){
   try { 
