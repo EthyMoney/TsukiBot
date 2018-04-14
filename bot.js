@@ -175,6 +175,9 @@ var bfxRest             = new BFX().rest;
 // Reload Coins
 var reloader            = require('./getCoins');
 
+const donationAdd       = "0x50376a9B2619D14f0270a4C91E9d9CA8730752b1";
+const quote             = '"If I was given 1 wei for every misattributed quote, I\'d be address 0x0." -A. Lincoln';
+
 // -------------------------------------------
 // -------------------------------------------
 //
@@ -273,6 +276,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
 
   }
 
+  msg += (Math.random() > 0.8) ? "\n`" + quote + " " + donationAdd + "`" : "";
   if(msg !== '')
     chn.send(msgh + msg);
 
@@ -447,7 +451,7 @@ function getPricePolo(coin1, coin2, chn){
           "`-       ⇒` `" + (body['BTC_' + coin1.toUpperCase()]['last'] * body['USDT_BTC']['last']).toFixed(8) + " USDT`" +
           "\n");
 
-        ans += (Math.random() > 0.8) ? "\n`Want to move from Poloniex? Join Binance with my link:` <https://launchpad.binance.com/register.html?ref=10180938>" : "";
+        ans += (Math.random() > 0.6) ? "\n`Tired of Bittrex's policies? Join Binance with my link:` <https://launchpad.binance.com/register.html?ref=10180938>" : "";
         chn.send(ans);        
       } catch (err){
         console.log(err);
@@ -509,7 +513,7 @@ function getPriceBinance(coin1, coin2, chn){
 
       }
 
-      s += (Math.random() > 0.8) ? "\n`Don't want to donate but still support this awesome bot? Join Binance with my link:` <https://launchpad.binance.com/register.html?ref=10180938>" : "";
+      s += (Math.random() > 0.8) ? "\n`" + quote + " " + donationAdd + "`" : "";
       chn.send(s);
     } else {
       chn.send('Binance API error.');
@@ -570,7 +574,7 @@ function getPriceBittrex(coin1, coin2, chn){
 
       }
 
-      s += (Math.random() > 0.6) ? "\n`Tired of Bittrex's policies? Join Binance with my link:` <https://launchpad.binance.com/register.html?ref=10180938>" : "";
+      s += (Math.random() > 0.8) ? "\n`" + quote + " " + donationAdd + "`" : "";
       chn.send(s);
     } else {
       chn.send('Bittrex API error.');
