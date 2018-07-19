@@ -1696,7 +1696,6 @@ async function getCMCData(){
  ---------------------------------- */
 
 function sendCSV(){
-  client.channels.get(keys['csv_u']).send(Date.now(), {files: ['/tmp/kli.csv']});
 }
 
 function updateCoins(){

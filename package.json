@@ -8,7 +8,8 @@
   "license": "MIT",
   "dependencies": {
     "bitfinex-api-node": "^1.2.1",
-    "coinbase": "^2.0.7",
+    "bufferutil": "^3.0.4",
+    "coinbase": "^2.0.8",
     "coinmarketcap": "^0.2.0",
     "cryptocompare": "^0.1.0",
     "didyoumean": "^1.2.1",
@@ -26,7 +27,7 @@
     "r-script": "0.0.3",
     "request": "^2.85.0",
     "snekfetch": "^3.6.4",
-    "web3": "^1.0.0-beta.30",
-    "ws": "^5.1.0"
+    "web3": "^1.0.0-beta.34",
+    "ws": "^5.1.1"
   }
 }
