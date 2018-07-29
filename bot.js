@@ -17,7 +17,7 @@
  * No parameters on start, except -d for dev mode.
 
  * If you like this service, consider donating
- * ETH to my address: 0xE2784BE97A7B993553F20c120c011274974EC505 
+ * ETH to my address: 0xd234168c142D2771cD96eA8d59b1f57304604533 
 
 
 
@@ -175,7 +175,7 @@ var bfxRest             = new BFX().rest;
 // Reload Coins
 var reloader            = require('./getCoins');
 
-const donationAdd       = "0x50376a9B2619D14f0270a4C91E9d9CA8730752b1";
+const donationAdd       = "0xd234168c142D2771cD96eA8d59b1f57304604533";
 const quote             = '"If I was given 1 wei for every misattributed quote, I\'d be address 0x0." -A. Lincoln';
 
 // -------------------------------------------
@@ -1526,8 +1526,8 @@ function commands(message, botAdmin, config){
         + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
         + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
         + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
-        + "⇒ Support or share Tsuki here: <https://discordbots.org/bot/313452464399581194>.\n"
-        + "`⇒ ETH donations appreciated at: 0xE2784BE97A7B993553F20c120c011274974EC505.`");
+        + "⇒ Support or share Tsuki here: <https://discordbots.org/bot/tsuki>.\n"
+        + "`⇒ ETH donations appreciated at: 0xd234168c142D2771cD96eA8d59b1f57304604533.`");
 
       let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
