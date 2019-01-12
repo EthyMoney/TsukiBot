@@ -1,34 +1,50 @@
-__**TsukiBot Commands**__
+﻿__**TsukiBot Commands**__
 
 **General Usage: ** `.tb <command> <parameters>`
 
 __Commands__
+`mc`: returns the total crypto market cap if called alone, otherwise will show the MC for a given coin
+`m`: BitMEX
+`g`: Coinbase (Formerly GDAX)
 `k`: Kraken
-`g`: GDAX  
 `p`: Poloniex
-`c`: CryptoCompare in USD (multi)
-`cs`: CryptoCompare in BTC (multi)
-`cmc`: CoinMarketCap in USD (multi)
-`cmcs`: CoinMarketCap in BTC (multi)
-`b`: Bittrex (multi)
-`n`: Binance (multi)
 `e`: Etherscan (address or transaction)
 `f`: Bitfinex
-`kli`: KL Index value (multi)
-`mc`: KL Comparison
+
+(the following commands accept multiple coins for input)
+`c`: CryptoCompare in USD
+`cs`: CryptoCompare in BTC
+`cmc`: CoinMarketCap in USD
+`cmcs`: CoinMarketCap in BTC
+`b`: Bittrex
+`n`: Binance
 
 __Personal Array__
-`.tb pa`: Set your personal array
-`.tb pa+`: Add a coin to your current pa
-`.tb pa-`: Remove a coin from yout current pa
+`.tb pa`: Create or overwrite your personal array
+`.tb pa+`: Add coins to your current pa
+`.tb pa-`: Remove coins from your current pa
 
 `.tbpa`: Call the array
 `.tbpa+`: Call the array with BTC prices
-`.tbpa*`: Call the array in expanded format
-`.tbpa*`: Call the array ordered by % change 
+`.tbpa*`: Call the array in expanded format with BTC prices
+`.tbpa%`: Call the array ordered by % change (least to greatest)
 
 __Extras__
-`.tbstat`: Session Statistics
+`.tbstat`: Bot Session Statistics
+`.tbconfig`: Bot Permission Settings
+`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
+(Use as `[prefix] eth btc xrp`)
+
+
+__Some helpful examples of usage__:
+`.tb k dash usd` ⇒ Kraken price for DASHUSD
+`.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
+`.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
+
+
+
+----------- __The following commands do *NOT* work__ -----------
+ I do plan to get these fixed and working again, but at this time they are disabled.
 
 __Rooms and Roles__
 `.tb join [valid coin]`: TsukiBot assigns the role to the user
@@ -40,15 +56,7 @@ __(Owner Only)__
 `.tb sub @User RoleName`: Grant a subscription
 
 `.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
-`.tbconfig`: Bot Permission Settings
-
-`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
-(Use as `[prefix] eth btc elf`)
 
 
-**Example usage**:
-`.tb k dash usd` ⇒ Kraken price for DASHUSD
-`.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
-`.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
 
 `I delete non-image files if I have deletion perms. Files are unsafe!`

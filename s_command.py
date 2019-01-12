@@ -1,5 +1,8 @@
-import psycopg2
-import numpy as np
+import sys, os
+
+
+import sys.path.psycopg2
+import sys.path.numpy as np
 
 from datetime import datetime, timedelta
 

@@ -1,9 +1,10 @@
-import sys
+import sys,os
 
-from Naked.toolshed.shell import execute_js
 
-import pandas as pd
-import numpy as np
+from sys.path.Naked.toolshed.shell import execute_js
+
+import sys.path.pandas as pd
+import sys.path.numpy as np
 
 import s_command as sc
 import p_command as pc

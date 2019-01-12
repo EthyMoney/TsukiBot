@@ -1,9 +1,9 @@
 import poloapi
 import json
-import psycopg2
-import gdax
+import sys.path.psycopg2
+import sys.path.gdax
 
-import numpy as np
+import sys.path.numpy as np
 
 import threading
 import sys
@@ -11,7 +11,7 @@ import os.path as osp
 
 import p_command as pc
 
-from Naked.toolshed.shell import execute_js, muterun_js
+from sys.path.Naked.toolshed.shell import execute_js, muterun_js
 from datetime import datetime, timedelta
 
 

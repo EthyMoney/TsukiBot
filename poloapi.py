@@ -1,5 +1,7 @@
+
+import sys,os
 import urllib
-import urllib2
+import sys.path.urllib2
 import json
 import time
 import hmac,hashlib

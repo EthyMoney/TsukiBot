@@ -1,6 +1,8 @@
-import psycopg2
+import sys, os
 
-import numpy as np
+import sys.path.psycopg2
+
+import sys.path.numpy as np
 import os.path as osp
 
 from datetime import datetime, timedelta
