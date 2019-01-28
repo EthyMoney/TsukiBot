@@ -1,6 +1,5 @@
 TsukiBot
-=======
-___
+========
 ##### The ultimate all-in-one cryptocurrency bot for Discord.
 \
 The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view it at `\common\help.txt` here in the repo.
