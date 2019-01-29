@@ -35,5 +35,8 @@ The full detailed list of commands can be found by using the command `.tbhelp` i
 ![](https://imgur.com/3hwrSut.png)
 
 ---
+<a href="https://discordbots.org/bot/313452464399581194" >
+  <img src="https://discordbots.org/api/widget/313452464399581194.svg" alt="TsukiBot" />
+</a>
 
 ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are appreciated.
