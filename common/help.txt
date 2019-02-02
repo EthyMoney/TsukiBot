@@ -5,7 +5,7 @@
 __Commands__
 `mc`: returns the total crypto market cap if called alone, otherwise will show the MC for a given coin
 `m`: BitMEX
-`g`: Coinbase (Formerly GDAX)
+`g`: Coinbase
 `k`: Kraken
 `p`: Poloniex
 `e`: Etherscan (address or transaction)
