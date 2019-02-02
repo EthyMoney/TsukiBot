@@ -3,13 +3,14 @@
 **General Usage: ** `.tb <command> <parameters>`
 
 __Commands__
-`mc`: returns the total crypto market cap if called alone, otherwise will show the MC for a given coin
+`mc`: Market Cap (returns the total crypto market cap if called alone, otherwise will show the MC for a given coin)
 `m`: BitMEX
 `g`: Coinbase
 `k`: Kraken
 `p`: Poloniex
 `e`: Etherscan (address or transaction)
 `f`: Bitfinex
+`cg`: CoinGecko
 
 (the following commands accept multiple coins for input)
 `c`: CryptoCompare in USD
@@ -32,19 +33,21 @@ __Personal Array__
 __Extras__
 `.tbstat`: Bot Session Statistics
 `.tbconfig`: Bot Permission Settings
-`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
-(Use as `[prefix] eth btc xrp`)
+`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters. (When calling your shortcut for prices, you can add a `*` right behind the shortcut set to call the coin(s) in satoshi prices. See below for example.)
+(Use as `[prefix] eth btc xrp`, or as `[prefix]* eth btc xrp` for prices in sats)
 
 
 __Some helpful examples of usage__:
-`.tb k dash usd` ⇒ Kraken price for DASHUSD
+`.tb k dash usd`    ⇒ Kraken price for DASHUSD
 `.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
-`.tb p doge xmr` ⇒ Poloniex price for DOGEXMR
+`.tb p doge xmr`    ⇒ Poloniex price for DOGEXMR
+`.tb cg eth eur`    ⇒ CoinGecko price for ETHEUR
+`.tb m btc`         ⇒ BitMEX price for BTCUSD
+`mc`                ⇒ Total crypto market capitalization and BTC dominance
+`mc eth`            ⇒ Market cap and price history for ETH
 
 
-
------------ __The following commands do *NOT* work__ -----------
- I do plan to get these fixed and working again, but at this time they are disabled.
+__Server Management and Coin Subs__
 
 __Rooms and Roles__
 `.tb join [valid coin]`: TsukiBot assigns the role to the user
