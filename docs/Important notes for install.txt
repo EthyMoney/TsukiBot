@@ -1,0 +1,32 @@
+The graviex.js file in the graviex module will need to have the callbacks uncommented, and the console outputs commented out for the ticker function. This is necessary or the module will not function correctly.
+
+
+
+The ticker function show look as follows:
+
+
+
+exports.ticker = function(market, callback){
+
+		var uri = "tickers/" + market;
+
+		exports.apiRequest(uri, function(result){
+
+			if(result.success){
+
+				return callback(JSON.parse(result.message));
+
+				//console.log(result.message);
+
+			}else{
+
+				return callback(JSON.parse(result.error));
+	
+		        //console.log(result.error);
+
+
+			}
+
+		})
+
+	}
