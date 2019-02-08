@@ -327,9 +327,9 @@ async function getPriceSTEX(chn, coin1, coin2){
     console.log (chalk.green('STEX API ticker response: '+ chalk.cyan(s)));
     
     // Calculate % change from day-old price
-    let c = (yesterday-last)/last * 100;
+    let c = (last-yesterday);
+    c = c / yesterday * 100;
     c = Math.round(c * 100) / 100;
-    c = c * -1;
     
     let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
     chn.send(ans);
@@ -527,7 +527,9 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 // Function that gets Bitfinex prices
 
 function getPriceFinex(coin1, coin2, chn){
-  coin2 = coin2 || (coin1.toUpperCase() === 'BTC' ? 'USD' : 'BTC');
+  if(typeof coin2 === 'undefined'){
+      coin2 = 'USD';
+  }
 
   bfxRest.ticker(coin1.toUpperCase() + coin2.toUpperCase(), (err, res) => {
     if(err) {
