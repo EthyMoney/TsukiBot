@@ -887,7 +887,7 @@ function getMarketCap(message){
 // Function for getting market cap data of a specific coin
 
 function getMarketCapSpecific(message){
-    	cur = message.content.split(" ")[1].toUpperCase();
+    	cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
             (async () => {
 		console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
 		let ticker = cmcArrayDictParsed;
@@ -1634,7 +1634,7 @@ function commands(message, botAdmin, config){
     let command = code_in[0].toLowerCase();
     
     // Check if there is content
-    if(code_in.length > 1 && code_in.length < 30){
+    if((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1)){
 
       /* --------------------------------------------------------------------------------
         First we need to get the supplied coin list. Then we apply a filter function. 
@@ -1655,8 +1655,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'shortcut', 'subrole', 'sub'].indexOf(command) > -1)){
-          
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'shortcut', 'subrole', 'sub', 'mc'].indexOf(command) > -1)){
           
         // GDAX call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -1707,9 +1706,14 @@ function commands(message, botAdmin, config){
           code_in.splice(0,1);
           getKLI(code_in, channel);
 
-          // MC cpmpare call (skip the filter)
-        } else if(command === 'mc'){
-            getMarketCap();
+          // MC call (skip the filter)
+        } else if(command.toString().trim() === 'mc'){
+            if(typeof code_in[1] === 'undefined'){
+                getMarketCap(message);
+            }
+            else{
+                getMarketCapSpecific(message);
+            }
 
           // Configure personal array
         } else if( /pa[\+\-]?/.test(command)){
