@@ -195,6 +195,9 @@ const clientKraken        = new ccxt.kraken();
 const bfxRest             = new BFX().rest;
 const bitmex              = new ccxt.bitmex();
 const CoinGeckoClient     = new CoinGecko();
+const clientPoloniex      = new ccxt.poloniex();
+const clientBinance       = new ccxt.binance();
+const clientBittrex       = new ccxt.bittrex();
 let clientcmc;            //Will be initialied upon bot bootup
 
 // Reload Coins
@@ -289,28 +292,48 @@ function getPriceUplexaGraviex(chn, author){
 // Function for grabbing prices from STEX
 
 async function getPriceSTEX(chn, coin1, coin2){
-  let coin3 = '';
+  //default to usdt if none is provided
+  if (typeof coin2 === 'undefined') {
+    coin2 = 'USDT';
+  }
   let tickerJSON = '';
   let fail = false;
-  stexClient.ticker(function (res) {
-    console.log(JSON.parse(res));
-  });
-  if(coin2 === undefined){coin3 = 'btc';} //Default the comparison coin to btc if none is provided
-     else{coin3 = coin2;}
-     
-  if(fail){
-    //exit the function if ticker didn't exist, or api failed to respond
+  let yesterday = 0;
+  let last = 0;
+  
+  //grab last traded price and make sure requested pair is valid
+  await stexClient.tradeHistoryPub(coin1.toUpperCase() + "_" + coin2.toUpperCase(), function (res) {
+    tickerJSON = JSON.parse(res);
+    if(tickerJSON.success === 0 || typeof tickerJSON.success === 'undefined'){ fail = true;}
+    
+    //exit the function if ticker didn't exist or api failed to respond
+    if(fail){
+    chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
     return;
-  }
-  console.log(tickerJSON);
-//    let s = tickerJSON['last'];
-//    console.log (chalk.green('Kraken API ticker response: '+ chalk.cyan(s)));
-//    // Calculate % change from daily opening
-//    let c = tickerJSON['info'].o - s;
-//    c = (c / tickerJSON['info'].o) * 100;
-//    c = Math.round(c * 100) / 100;
-//    c = c * -1;
-;
+    }
+  });
+  
+  //grab 24hr data
+  await stexClient.ticker(function (res) {
+    let tickerStexSummary = JSON.parse(res);
+    for(var i = 0, len = tickerStexSummary.length; i < len; i++) {
+      if(tickerStexSummary[i].market_name === (coin1.toUpperCase() + "_" + coin2.toUpperCase())){
+          last = tickerStexSummary[i].last;
+          yesterday = tickerStexSummary[i].lastDayAgo;
+          break;
+      }
+    }
+    let s = tickerJSON.result[0].price;
+    console.log (chalk.green('STEX API ticker response: '+ chalk.cyan(s)));
+    
+    // Calculate % change from day-old price
+    let c = (yesterday-last)/last * 100;
+    c = Math.round(c * 100) / 100;
+    c = c * -1;
+    
+    let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
+  });
 }
 
 //------------------------------------------
@@ -534,8 +557,8 @@ async function getPriceKraken(coin1, coin2, base, chn) {
     }
     tickerJSON = await clientKraken.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Kraken error: Ticker '
-                + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
-        chn.send('**API ERROR:**  Kraken does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Kraken does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
         fail = true;
     });
     if (fail) {
@@ -562,7 +585,7 @@ async function getPriceKraken(coin1, coin2, base, chn) {
 // Function that gets Bitmex prices
 
 async function getPriceMex(coin1, err, chn){
-  let bitmex     = new ccxt.bitmex();
+  
   let s = '';
   let c = '';
   let coin2 = 'btc';
@@ -611,45 +634,36 @@ async function getPriceMex(coin1, err, chn){
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
 
 // Function that gets Poloniex prices
 
-function getPricePolo(coin1, coin2, chn){
+async function getPricePolo(coin1, coin2, chn){
 
-  let url = "https://poloniex.com/public?command=returnTicker";
-  coin2 = coin2.toUpperCase();
-
-  if(coin2 === 'BTC' || coin2 === 'ETH' || coin2 === 'USDT'){
-    request({
-      url: url,
-      json: true
-    }, function(error, response, body){
-      let pair = coin2.toUpperCase() + '_' + coin1.toUpperCase();
-
-      try {
-        let s = body[pair]['last'];
-
-        let ans = ('__Poloniex__ Price for:\n');
-
-        ans += ("`• " + coin1.toUpperCase() + ' '.repeat(6-coin1.length) + '⇒ ' + s + " " + coin2.toUpperCase() + " " +
-          "(" + (body[pair]['percentChange']*100).toFixed(2) + "%)` ∭ `(V." + Math.trunc(body[pair]['baseVolume']) + ")`\n" +
-          "`-       ⇒` `" + (body['BTC_' + coin1.toUpperCase()]['last'] * body['USDT_BTC']['last']).toFixed(8) + " USDT`" +
-          "\n");
-
-        chn.send(ans);        
-      } catch (err){
-        console.log(chalk.red.bold(err + "------Polo function error"));
-        chn.send("Poloniex API Error.");
-      }
-
-
+    let fail = false;
+    let tickerJSON = '';
+    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+        coin2 = 'USDT';
+    }
+    tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+        console.log(chalk.red.bold('Kraken error: Ticker '
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Poloniex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+        fail = true;
     });
-  }
+    if (fail) {
+        //exit the function if ticker didn't exist, or api failed to respond
+        return;
+    }
+    let s = parseFloat(tickerJSON['last']).toFixed(8);
+    console.log(chalk.green('Poloniex API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON['info'].percentChange * 100;
+    c = Math.round(c * 100) / 100;
 
+    let ans = '__Poloniex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
 }
 
 
@@ -658,119 +672,62 @@ function getPricePolo(coin1, coin2, chn){
 
 //Binance Function
 
-function getPriceBinance(coin1, coin2, chn){
+async function getPriceBinance(coin1, coin2, chn){
 
-  coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
-  coin1.push('BTC');
-
-  binance.prevDay(false, function(data) {
-
-    if(data){
-      let markets = data;
-      let s = "__Binance__ Price for: \n";
-      let sn = [];
-      let vp = {};
-
-      for(let idx in markets){
-
-        let c = markets[idx];
-        let pd = parseFloat(c.lastPrice);
-
-        let curr = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(0,-4) : c.symbol.slice(0,-3);
-        if(coin1.indexOf(curr) === -1) continue;
-
-        let base = (c.symbol.slice(-4) === 'USDT') ? c.symbol.slice(-4) : c.symbol.slice(-3);
-
-        pd = (base === 'BTC') ? (pd.toFixed(8)) : pd;
-
-        if(!sn[curr]){
-          sn[curr] = [];
-        }
-
-        let pch = parseFloat(c.priceChangePercent).toFixed(2);
-        if(base === 'BTC')
-          sn[curr].unshift("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
-        else
-          sn[curr].push("`" + pd + " " + base + " (" + pch + "%)` ∭ `(V." + Math.trunc(parseFloat(c.quoteVolume)) + ")`"); 
-      }
-
-      for(let coin in sn){
-        s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
-          + (coin !== "BTC" && coin !== "ETH" && coin !== "BNB" && sn[coin][4] === null ? "\n`-       ⇒` `" +
-            Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
-          + "\n");
-
-      }
-
-      s += (Math.random() > 0.95) ? "\n`" + quote + " " + donationAdd + "`" : "";
-      chn.send(s);
-    } else {
-      chn.send('Binance API error.');
+    let fail = false;
+    let tickerJSON = '';
+    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+        coin2 = 'USDT';
     }
+    tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+        console.log(chalk.red.bold('Binance error: Ticker '
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+        fail = true;
+    });
+    if (fail) {
+        //exit the function if ticker didn't exist, or api failed to respond
+        return;
+    }
+    let s = parseFloat(tickerJSON['last']).toFixed(8);
+    console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON['info'].percentChange * 100;
+    c = Math.round(c * 100) / 100;
 
-  });
-
+    let ans = '__Binance__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
 }
 
 
 //------------------------------------------
 //------------------------------------------
 
-// Bittrex API v2
+// Bittrex Function
 
-bittrex.options({
-  'stream' : false,
-  'verbose' : false,
-  'cleartext' : true
-});
+async function getPriceBittrex(coin1, coin2, chn){
 
-function getPriceBittrex(coin1, coin2, chn){
-
-  coin1 = coin1.map(function(c){ return c.toUpperCase(); }).sort();
-  coin1.push('BTC');
-
-  bittrex.sendCustomRequest('https://bittrex.com/Api/v2.0/pub/Markets/GetMarketSummaries', function( data ){
-
-    data = JSON.parse(data);
-
-    if(data && data['result']){
-      let p = data['result'];
-      let s = "__Bittrex__ Price for: \n";
-      let sn = [];
-      let vp = {};
-
-      let markets = p.filter(function(item){ return coin1.indexOf(item.Market.MarketCurrency) > -1;});
-
-      for(let idx in markets){
-        let c = markets[idx];
-        let pd = c.Summary.Last;
-        pd = (c.Market.BaseCurrency === 'BTC') ? (pd.toFixed(8)) : pd;
-
-        if(!sn[c.Market.MarketCurrency]){
-          sn[c.Market.MarketCurrency] = [];
-        }
-
-        let pch = (((pd/c.Summary.PrevDay)-1)*100).toFixed(2);
-        sn[c.Market.MarketCurrency].push("`" + pd + " " + c.Market.BaseCurrency + " (" + pch + "%)` ∭ `(V." + Math.trunc(c.Summary.BaseVolume) + ")`"); 
-      }
-
-
-      for(let coin in sn){
-        s += ("`• " + coin + ' '.repeat(6-coin.length) + '⇒` ' + sn[coin].join("\n`-       ⇒` ")
-          + (coin !==  "BTC" && coin !== "ETH" && sn[coin][2] === null ? "\n`-       ⇒` `" +
-            Math.floor((sn[coin][0].substring(1,10).split(" ")[0]) * (sn["BTC"][0].substring(1,8).split(" ")[0]) * 100000000) / 100000000 + " USDT`" : "" )
-          + "\n");
-
-      }
-
-      s += (Math.random() > 0.8) ? "\n`" + quote + " " + donationAdd + "`" : "";
-      chn.send(s);
-    } else {
-      chn.send('Bittrex API error.');
+    let fail = false;
+    let tickerJSON = '';
+    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+        coin2 = 'USDT';
     }
+    tickerJSON = await clientBittrex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+        console.log(chalk.red.bold('Bittrex error: Ticker '
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Bittrex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+        fail = true;
+    });
+    if (fail) {
+        //exit the function if ticker didn't exist, or api failed to respond
+        return;
+    }
+    let s = parseFloat(tickerJSON['last']).toFixed(8);
+    console.log(chalk.green('Bittrex API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON['percentage'];
+    c = Math.round(c * 100) / 100;
 
-  });
-
+    let ans = '__Bittrex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
 }
 
 
@@ -785,13 +742,12 @@ function getPriceBittrex(coin1, coin2, chn){
 
 // Create a logger for a certain set of coins
 function createLogger(coins){
-  PythonShell.run('./tsukiserverlog.py', {args:coins}, function(err){if(err) console.log(chalk.red.bold(err + "****Check createLogger Method for details! (671)*****"));});
+  PythonShell.run('./tsukiserverlog.py', {args:coins}, function(err){if(err) console.log(chalk.red.bold(err + "****Check createLogger Method*****"));});
 }
 
 
 //------------------------------------------
 //------------------------------------------
-
 
 // This function runs python scripts once
 // and gets their stdout output. It calls
@@ -1781,17 +1737,17 @@ function commands(message, botAdmin, config){
             setSubscriptions(message.author, message.guild, params);
           }
 
-          // Poloniex call
-        } else if(command === 'polo' || command === 'p'){
-          getPricePolo(params[1], (params[2] === null ? 'BTC' : params[2]), channel);
+          // Poloniex call (no filter)
+        } else if(command === 'polo' || command === 'p' || command === 'poloniex'){
+          getPricePolo(code_in[1], code_in[2], channel);
 
-          // Bittrex call
+          // Bittrex call (no filter)
         } else if(command === 'bittrex' || command === 'b'){
-          getPriceBittrex(params.slice(1,params.size), (params[2] !== null && params[2][0] === "-" ? params[2] : "BTC"), channel);
+          getPriceBittrex(code_in[1], code_in[2], channel);
 
           // Binance call (no filter)
         } else if(command === 'binance' || command === 'n'){
-          getPriceBinance(code_in.slice(1,params.size), (code_in[2] !== null && code_in[2][0] === "-" ? code_in[2] : "BTC"), channel);
+          getPriceBinance(code_in[1], code_in[2], channel);
 
           // Etherscan call
         } else if((command === 'etherscan' || command === 'e')){
@@ -1803,7 +1759,7 @@ function commands(message, botAdmin, config){
             channel.send("Format: `.tb e [HEXADDRESS or TXHASH]` (with prefix 0x).");
           }
 
-          // Give a user an expiring role (Disabled)
+          // Give a user an expiring role (Enabled)
         } else if(command === 'sub'){
           if(hasPermissions(message.author.id, message.guild)){
             if(typeof(code_in[2]) === 'string' && message.mentions.users.size > 0){
@@ -1864,16 +1820,12 @@ function commands(message, botAdmin, config){
 
       // Get personal array prices
     } else if( /pa[\+\-\*]?/.test(scommand)){
-      // ----------------------------------------------------------------------------------------------------------------
-      // ----------------------------------------------------------------------------------------------------------------
+
       if(message.author.id !== client.user.id){
               getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
-          
           };
-      // ----------------------------------------------------------------------------------------------------------------
-      // ----------------------------------------------------------------------------------------------------------------
 
-      // Get available roles (Disabled)
+      // Get available roles (Enabled)
     } else if(scommand === 'list'){
       code_in.splice(0,1);
       code_in.unshift('g');
@@ -1891,7 +1843,6 @@ function commands(message, botAdmin, config){
 
       // Get Kraken ETHX
     } else if (scommand === 'k'){
-      console.log(code_in[0] + 'ETHX call');
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
         getPriceKraken('ETH','EUR',-1, channel);
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
@@ -1900,17 +1851,17 @@ function commands(message, botAdmin, config){
         getPriceKraken('ETH','USD',-1, channel);
       }
      
-      // Get Poloniex ETHBTC
+      // Get Poloniex ETHUSDT
     } else if (scommand === 'p'){
-      getPricePolo('ETH', 'BTC', channel);
+      getPricePolo('ETH', 'USD', channel);
 
       // Get prices of popular currencies
     } else if (scommand === 'pop'){
-      getPriceCC(['ETH','BTC','XRP','LTC','GNT'], channel);
+      getPriceCC(['ETH','BTC','XRP','LTC','EOS','TRON','XMR'], channel);
 
-      // Get Bittrex ETHBTC
+      // Get Bittrex ETHUSDT
     } else if (scommand === 'b'){
-      getPriceBittrex('ETH', 'BTC', channel);
+      getPriceBittrex('ETH', 'USD', channel);
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
