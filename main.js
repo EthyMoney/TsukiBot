@@ -44,7 +44,7 @@ const pgp               = require('pg-promise');
 const schedule          = require('node-schedule');
 
 // Set the prefix
-const prefix            = ['-t', '.tb'];
+const prefix            = ['-t', '.tb', '-T', '.TB'];
 
 // Current CMC API key
 let cmcKey              = 1; 
@@ -99,6 +99,8 @@ const ccxt              = require('ccxt-js');
 const graviex           = require("graviex");
 const CoinGecko         = require('coingecko-api');
 
+// Import web3
+const Web3              = require('web3');
 
 // STEX API client seup
 const stex = require('stocks-exchange-client'),
@@ -108,21 +110,17 @@ const stex = require('stocks-exchange-client'),
     },
 stexClient              = new stex.client(option);
 
-
 // Include fancy console outputs
 const chalk             = require('chalk');
-
 
 // Graviex key insertion
 graviex.accessKey       = keys['graviexAccessKey'];    
 graviex.secretKey       = keys['graviexSecretKey'];
 
-
 // R script calls
 const R                 = require("r-script");
 let kliArray            = {};
 let kliArrayDict        = {};
-
 
 // CMC Cache
 let cmcArray            = {};
@@ -130,10 +128,18 @@ let cmcArrayDict        = {};
 let cmcArrayDictParsed  = [];
 let fails               = 0;
 
-
 // Spellcheck
 const didyoumean        = require("didyoumean");
 
+//// Language detection
+//const LanguageDetect    = require('languagedetect');
+//const lngDetector       = new LanguageDetect();
+//
+
+// Google translate
+const translateSimple   = require('translate-google');
+const {Translate}       = require('@google-cloud/translate');
+const translate         = new Translate();
 
 // CryptoCompare requires global fetch
 global.fetch            = require('node-fetch');
@@ -175,7 +181,6 @@ function removeID(id){
     blockIDs.splice(index, 1);
     blockIDs = blockIDs.splice(0,4);
   }
-
 }
 
 // Shortcut config
@@ -197,7 +202,7 @@ const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
 const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
-const quote               = 'Enjoying TsukiBot? Consider supporting it\'s creator:';
+const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
 
 // -------------------------------------------
 // -------------------------------------------
@@ -340,7 +345,7 @@ async function getPriceCoinGecko(coin, coin2, chn) {
     include_24hr_vol : [true],
     include_24hr_change : [true]
     }); 
-  chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + parseFloat(data["data"][coinID][coin2]).toFixed(9) + " " + coin2.toUpperCase() + "` (`" +
+  chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + parseFloat(data["data"][coinID][coin2]).toFixed(8) + " " + coin2.toUpperCase() + "` (`" +
           Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100 + "%`).");
   }
   else{
@@ -976,7 +981,9 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
   conn.connect();
 
   let query;
-
+  
+  //delete .tbpa command after 5 min
+  msg.delete(300000);
 
   // .tbpa call
   if(coins === ''){
@@ -1522,7 +1529,22 @@ client.on('message', message => {
 
   // Get the permission settigs
   const config = serverConfigs[message.guild.id] || [];
+  
  
+  // Automatic language translation (BETA, disabled)
+  
+//  const guildID = message.guild.id;
+//  const language = '';
+//  
+//  if(message.content.charAt(0) !== '.' && !message.content.includes('http') && 
+//  message.content.charAt(0) !== ':' && !message.content.includes('www') && !message.content.includes('.com') &&
+//  !message.content.includes('@') && message.content.charAt(0) !== '<' && !message.content.includes('<:') &&
+//  (guildID === '290891518829658112' || guildID === '524594133264760843') && message.author.id !== '506918730790600704'){
+//    
+//    //Check language
+//    detectLanguage();
+//    
+//  }
 
   // Check for perms (temporary)
   message.guild.fetchMember(message.author)
@@ -1581,12 +1603,8 @@ function commands(message, botAdmin, config){
     //-------------------------------
     //    Some fun text responses
     //-------------------------------
-  if (message.content.toUpperCase() === "HEY TSUKI, UR A BITCH" && message.author.id === '210259922888163329') {
-      channel.send("Hey Ethy, fuck you!");
-      flag = true;
-    }
   if (string.includes("HEY TSUKI") && message.author.id === '235406107416330250') {
-      channel.send("HOLY FUCK! IS THAT CEHH!?? AAAAAHHHHHHHHHHHHHH");
+      channel.send("IS THAT CEHH!?? AAAAAHHHHHHHHHHHHHH");
       flag = true;
     }
   if ((string.includes("HEY TSUKI") || (string.includes("HI TSUKI"))) && flag === false) {
@@ -1632,10 +1650,10 @@ function commands(message, botAdmin, config){
   let cmcBTC = false;
   
   // Check for *BTC CMC call 
-  if(shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase()){
+  if(shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + '+' === code_in[0].toLowerCase()){
     code_in.shift();
     console.log(chalk.green('CMC *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-    getPriceCMC(code_in, channel, '*');
+    getPriceCMC(code_in, channel, '+');
     cmcBTC = true;
   }   
   
@@ -1679,7 +1697,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'shortcut', 'subrole', 'sub'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'shortcut', 'subrole', 'sub'].indexOf(command) > -1)){
           
           
         // GDAX call
@@ -1721,7 +1739,7 @@ function commands(message, botAdmin, config){
           getPriceSTEX(channel, code_in[1], code_in[2]);
 
           // CryptoCompare call
-        } else if(command === 'crcp' || command === 'c' || command === 'cs' || command === 'cc'){
+        } else if(command === 'cryptocompare' || command === 'c' || command === 'cs' || command === 'cc'){
           let ext = command.slice(-1);
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
@@ -1793,7 +1811,6 @@ function commands(message, botAdmin, config){
             } else {
               channel.send("Format: `.tb sub @user rolename`.");
             }
-
           }
 
           // Create an expiring role (Disabled)
@@ -1805,6 +1822,8 @@ function commands(message, botAdmin, config){
               channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)");
             }
           }
+        } else if(command === 'translate'){
+            translateEN(channel, message);
 
           // Catch-all help
         } else {
@@ -1816,6 +1835,10 @@ function commands(message, botAdmin, config){
     } else {
       postHelp(channel, command);
     }
+
+
+// --------------------------------------------------------------------------------------------------------
+
 
     // Shortcut section
     } else {
@@ -1975,7 +1998,7 @@ function commands(message, botAdmin, config){
     if((scommand === '.yeet' || scommand === 'yeet') && (guildID === '290891518829658112' || guildID === '524594133264760843' || guildID === '417982588498477060')){
         const author = message.author.username;
         // Delete the command message
-        message.delete(1000).then(message => console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
+        message.delete(100).then(message => console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
             // Report if delete permissions are missing
             console.log(chalk.yellow('Warning: ') + chalk.red.bold('Could not delete yeet command from ') + chalk.yellow(author) + chalk.red.bold(' due to failure: ' + 
                     chalk.cyan(rej.name) + ' with reason: ' + chalk.cyan(rej.message)));});
@@ -2015,7 +2038,29 @@ function coinArrayMax(counter) {
   return [maxCrypto, Math.trunc((max / sum) * 100)];
 }
 
-//F unction to add commas to long numbers
+// Detect language with google translate
+async function detectLanguage(){
+  let [detections] = await translate.detect("I walked the cat to school");
+  detections = Array.isArray(detections) ? detections : [detections];
+  console.log('Detections:');
+  detections.forEach(detection => {
+  console.log(`${detection.input} => ${detection.language}`);
+  });
+}
+
+// Traslate message to english
+function translateEN(chn, msg){
+    //remove the command string
+    let message = msg.content.replace('.tb translate','');
+    translateSimple(message, {to: 'en'}).then(res => {
+        //console.log(chalk.green('google translated: ' + chalk.cyan(res)));
+        chn.send('Translation: `' + res + '`');
+    }).catch(err => {
+        console.error(err);
+    });
+}
+
+//Function to add commas to long numbers
 const numberWithCommas = (x) => {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
@@ -2084,7 +2129,6 @@ function loadConfiguration(msg){
     });
 
 }
-
 
 
 /* ----------------------------------------------------
@@ -2265,8 +2309,6 @@ function toggleShortcut(id, shortcut, chn){
 function hasPermissions(id, guild){
   return guild.owner.id === id;
 }
-
-
 
 // Error event logging
 client.on('error', (err) => {
