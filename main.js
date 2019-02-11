@@ -300,6 +300,7 @@ async function getPriceSTEX(chn, coin1, coin2){
   let fail = false;
   let yesterday = 0;
   let last = 0;
+  let s = 0;
   
   //grab last traded price and make sure requested pair is valid
   await stexClient.tradeHistoryPub(coin1.toUpperCase() + "_" + coin2.toUpperCase(), function (res) {
@@ -311,10 +312,10 @@ async function getPriceSTEX(chn, coin1, coin2){
     chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
     return;
     }
-  });
+    s = tickerJSON.result[0].price;
   
   //grab 24hr data
-  await stexClient.ticker(function (res) {
+  stexClient.ticker(function (res) {
     let tickerStexSummary = JSON.parse(res);
     for(var i = 0, len = tickerStexSummary.length; i < len; i++) {
       if(tickerStexSummary[i].market_name === (coin1.toUpperCase() + "_" + coin2.toUpperCase())){
@@ -323,16 +324,15 @@ async function getPriceSTEX(chn, coin1, coin2){
           break;
       }
     }
-    let s = tickerJSON.result[0].price;
     console.log (chalk.green('STEX API ticker response: '+ chalk.cyan(s)));
     
     // Calculate % change from day-old price
     let c = (last-yesterday);
     c = c / yesterday * 100;
     c = Math.round(c * 100) / 100;
-    
     let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
     chn.send(ans);
+  });
   });
 }
 
