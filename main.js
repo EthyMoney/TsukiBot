@@ -265,16 +265,20 @@ function getPriceGDAX(coin1, coin2, base, chn){
 
 // Function for grabbing UPX price from Graviex
 
-function getPriceUplexaGraviex(chn, author){
+async function getPriceUplexaGraviex(chn, author){
     let graviexJSON;
     let price = 0;
     let change = 0;
     let volume = 0;
     let volumeUPX = 0;
-    try{
-    graviex.ticker("upxbtc", function(res){
+    await graviex.ticker("upxbtc", function(res){
         let moon = "";
         graviexJSON = res;
+        if(typeof graviexJSON.ticker === 'undefined'){
+            chn.send("Internal error. Graviex is currently overloaded or down.");
+            console.log((chalk.red("Graviex error : graviex failed to respond.")));
+            return;
+        }
         price = graviexJSON.ticker.last;
         console.log(chalk.green("Graviex API ticker response: " + chalk.cyan(price) + " by " + chalk.yellow(author.username)));
         change = graviexJSON.ticker.change;
@@ -288,11 +292,6 @@ function getPriceUplexaGraviex(chn, author){
             '\n//// **24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' BTC` ' + '➪ `' + numberWithCommas(parseFloat(volumeUPX).toFixed(0)) + ' UPX`';
             chn.send(ans);
     });
-    }
-    catch(e){
-        chn.send("Internal error, Graviex may be down.");
-        alert(chalk.red("Graviex function error ::: \n" + e));
-    }
 }
 
 //------------------------------------------
