@@ -204,6 +204,15 @@ let clientcmc;            //Will be initialied upon bot bootup
 const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
+// Scheduled Actions
+// let deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
+// let mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+// let klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
+let cmcfetch     = schedule.scheduleJob('*/5 * * * *', getCMCData);
+let csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
+let updateList   = schedule.scheduleJob('0 12 * * *', updateCoins);
+let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
+
 const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
 const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
 
@@ -1384,18 +1393,7 @@ client.on('ready', () => {
     serverConfigs = JSON.parse(data);
   });
 
-    // 
-    // Disabled currently due to not being ready to use
-    // 
-  // let deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
-  // let mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
-
-  // let klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
-  let cmcfetch     = schedule.scheduleJob('*/5 * * * *', getCMCData);
-  let csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
-  let updateList   = schedule.scheduleJob('0 12 * * *', updateCoins);
-  let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
-
+  // First run of scheduled executions
   updateCoins();
   //getKLIndex(); //Disabled until new script is ready.
   updateCmcKey();
