@@ -3,22 +3,25 @@
 **General Usage: ** `.tb <command> <parameters>`
 
 __Commands__
-`mc`: Market Cap (returns the total crypto market cap if called alone, otherwise will show the MC for a given coin)
+`mc`: Market Cap (returns total market cap if called alone, otherwise will show the MC for a given coin)
 `m`: BitMEX
 `g`: Coinbase
 `k`: Kraken
 `p`: Poloniex
-`e`: Etherscan (address or transaction)
+`n`: Binance
 `f`: Bitfinex
+`b`: Bittrex
+`stex`: STEX
+`e`: Etherscan (address or transaction)
 `cg`: CoinGecko
+`t`: Translation
 
 (the following commands accept multiple coins for input)
 `c`: CryptoCompare in USD
 `cs`: CryptoCompare in BTC
-`cmc`: CoinMarketCap in USD
+`cmc`: CoinMarketCap in USD (CMC can be called using a quicker custom shortcut, see below for details)
 `cmcs`: CoinMarketCap in BTC
-`b`: Bittrex
-`n`: Binance
+
 
 __Personal Array__
 `.tb pa`: Create or overwrite your personal array
@@ -32,34 +35,8 @@ __Personal Array__
 
 __Extras__
 `.tbstat`: Bot Session Statistics
-`.tbconfig`: Bot Permission Settings
-`.tb shortcut [prefix]`: Custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters. (When calling your shortcut for prices, you can add a `*` right behind the shortcut set to call the coin(s) in satoshi prices. See below for example.)
+`.tb shortcut [prefix]`: Set a custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
+When calling your shortcut for prices, you can add a `*` right behind the shortcut set to call the coin(s) in satoshi prices. See below for example.
 (Use as `[prefix] eth btc xrp`, or as `[prefix]* eth btc xrp` for prices in sats)
 
 
-__Some helpful examples of usage__:
-`.tb k dash usd`    ⇒ Kraken price for DASHUSD
-`.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
-`.tb p doge xmr`    ⇒ Poloniex price for DOGEXMR
-`.tb cg eth eur`    ⇒ CoinGecko price for ETHEUR
-`.tb m btc`         ⇒ BitMEX price for BTCUSD
-`mc`                ⇒ Total crypto market capitalization and BTC dominance
-`mc eth`            ⇒ Market cap and price history for ETH
-
-
-__Server Management and Coin Subs__
-
-__Rooms and Roles__
-`.tb join [valid coin]`: TsukiBot assigns the role to the user
-`.tbleave`: Leave rooms
-`.tblist`: Get the available rooms for the server
-
-__(Owner Only)__
-`.tb subrole [Name]`: Create expiring role
-`.tb sub @User RoleName`: Grant a subscription
-
-`.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
-
-
-
-`I delete non-image files if I have deletion perms. Files are unsafe!`
