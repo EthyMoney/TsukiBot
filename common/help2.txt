@@ -1,0 +1,28 @@
+__Some helpful examples of usage__:
+`.tb k dash usd`    ⇒ Kraken price for DASHUSD
+`.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
+`.tb p doge xmr`    ⇒ Poloniex price for DOGEXMR
+`.tb cg eth eur`    ⇒ CoinGecko price for ETHEUR
+`.tb m btc`         ⇒ BitMEX price for BTCUSD
+`mc`                ⇒ Total crypto market capitalization and BTC dominance
+`mc eth`            ⇒ Market cap and price history for ETH
+`.tb t [text]`      ⇒ Translate text to English
+`.tbg`              ⇒ Shortcut Coinbase price for ETHUSD
+`.tbg eur`          ⇒ Shortcut Coinbase price for ETHEUR
+`.tbk`              ⇒ Shortcut Kraken price for ETHUSD
+
+
+__**Server Management and Coin Subs**__
+
+__Rooms and Roles__
+`.tb join [valid coin]` : TsukiBot assigns the role to the user, granting the user access to the corresponding room
+`.tbleave`              : Leave all rooms
+`.tblist`               : Get the available rooms for the server
+
+__(Owner Only)__
+`.tb subrole [Name]`       : Create a role
+`.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
+
+
+
+`I delete non-image files if I have deletion perms. Files are unsafe!`
