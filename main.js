@@ -70,7 +70,8 @@ pairs_filtered.forEach(p => mentionCounter[p] = 0);
 // Help string
 let title 		= '__**TsukiBot**__ :full_moon: \n';
 const github		= 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
-const helpStr           = fs.readFileSync('./common/help.txt','utf8');
+const helpStr1          = fs.readFileSync('./common/help.txt','utf8');
+const helpStr2          = fs.readFileSync('./common/help2.txt','utf8');
 const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
 
 // Discord Bots List
@@ -1399,7 +1400,7 @@ client.on('ready', () => {
   updateCmcKey();
   getCMCData();
 
-//Notify dad when the bot is booted up (Disabled cuz it's annoying rn)
+//Notify dad when the bot is booted up (Disabled because it's annoying for now)
 //    client.fetchUser("210259922888163329")
 //    .then(u => {
 //      u.send("TsukiBot online.")
@@ -1413,8 +1414,10 @@ client.on('ready', () => {
 function postHelp(author, code){
   code = code || "none";
   if(code === 'ask' || helpjson[code] !== undefined) {
-    const helptext = code === "none" || helpjson[code] === undefined ? helpStr : "Format for " + helpjson[code][0] + "`" + prefix[1] + "` " + helpjson[code][1];
-    author.send(helptext);
+    const helptext1 = code === "none" || helpjson[code] === undefined ? helpStr1 : console.log("Help1 document not found!");
+    const helptext2 = code === "none" || helpjson[code] === undefined ? helpStr2 : console.log("Help2 document not found!");
+    author.send(helptext1);
+    author.send(helptext2);
     console.log(chalk.green("Sent help message to: " + chalk.yellow(author.username)));
   } else {
     author.send("Use `.tbhelp` to get a list of commands and their usage.");

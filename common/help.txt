@@ -37,6 +37,3 @@ __Extras__
 `.tbstat`: Bot Session Statistics
 `.tb shortcut [prefix]`: Set a custom prefix to access CMC in the server. Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters.
 When calling your shortcut for prices, you can add a `*` right behind the shortcut set to call the coin(s) in satoshi prices. See below for example.
-(Use as `[prefix] eth btc xrp`, or as `[prefix]* eth btc xrp` for prices in sats)
-
-

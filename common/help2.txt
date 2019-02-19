@@ -1,3 +1,16 @@
+(Use as [prefix] eth btc xrp, or as [prefix]* eth btc xrp for prices in sats)
+
+
+__Server Management and Coin Subs__
+
+__Rooms and Roles__
+`.tb join [valid coin]` : TsukiBot assigns the role to the user, granting the user access to the corresponding room
+`.tbleave`              : Leave all rooms
+`.tblist`               : Get the available rooms for the server
+
+__(Owner Only)__
+`.tb subrole [Name]`       : Create a role
+`.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
 
 
 
@@ -14,21 +27,7 @@ __Some helpful examples of usage__:
 `.tbg eur`          ⇒ Shortcut Coinbase price for ETHEUR
 `.tbk`              ⇒ Shortcut Kraken price for ETHUSD
 
-__Side Note__:
+__Side Notes__:
 All exchange price commands will default to showing the requested coin in terms of USD unless you specify a coin to show it in.
-
-
-__**Server Management and Coin Subs**__
-
-__Rooms and Roles__
-`.tb join [valid coin]` : TsukiBot assigns the role to the user, granting the user access to the corresponding room
-`.tbleave`              : Leave all rooms
-`.tblist`               : Get the available rooms for the server
-
-__(Owner Only)__
-`.tb subrole [Name]`       : Create a role
-`.tb makeroom [valid coin]`: Create a private room and a role for a whitelisted coin
-
-
 
 `I delete non-image files if I have deletion perms. Files are unsafe!`
