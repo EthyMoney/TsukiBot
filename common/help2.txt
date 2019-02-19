@@ -1,3 +1,6 @@
+
+
+
 __Some helpful examples of usage__:
 `.tb k dash usd`    ⇒ Kraken price for DASHUSD
 `.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
