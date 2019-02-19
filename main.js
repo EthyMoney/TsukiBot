@@ -1105,10 +1105,10 @@ function setSubscriptions(user, guild, coins){
     // Case default
   } else if(!change){
     sqlq = "WITH arr AS " +
-      "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) " +
+      "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM tsukibot.allowedby WHERE guild = $3)] ))) " +
       "INSERT INTO tsukibot.coinsubs(id, coins) VALUES($1, (select * from arr)) " +
       "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
-      "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM allowedby WHERE guild = $3)] ))) RETURNING coins;";
+      "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM tsukibot.allowedby WHERE guild = $3)] ))) RETURNING coins;";
 
     // Case M
   } else {
@@ -1484,7 +1484,7 @@ client.on('message', message => {
   if(message.channel.type !== 'text') return;
 
 
-  // Get the serve permission configuration settings
+  // Get the server permission configuration settings
   const config = serverConfigs[message.guild.id] || [];
   
  
