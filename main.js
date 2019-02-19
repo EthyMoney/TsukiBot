@@ -44,7 +44,7 @@ const pgp               = require('pg-promise');
 const schedule          = require('node-schedule');
 
 // Set the prefix
-const prefix            = ['-t', '.tb', '-T', '.TB'];
+const prefix            = ['-t', '.tb', '-T', '.TB', '.Tb', '.tB'];
 
 // Current CMC API key
 let cmcKey              = 1; 
@@ -1603,10 +1603,9 @@ function commands(message, botAdmin, config){
   // Cut the prefix.
   let code_in_pre = code_in[0];
   code_in[0] = code_in[0].replace(hasPfx,"");
-
-  let cmcBTC = false;
   
   // Check for *BTC CMC call 
+  let cmcBTC = false;
   if(shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + '+' === code_in[0].toLowerCase()){
     code_in.shift();
     console.log(chalk.green('CMC *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
