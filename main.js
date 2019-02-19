@@ -334,7 +334,7 @@ async function getPriceSTEX(chn, coin1, coin2){
     }
     console.log (chalk.green('STEX API ticker response: '+ chalk.cyan(s)));
     
-    // Calculate % change from day-old price
+    //calculate % change from day-old price
     let c = (last-yesterday);
     c = c / yesterday * 100;
     c = Math.round(c * 100) / 100;
@@ -350,7 +350,8 @@ async function getPriceSTEX(chn, coin1, coin2){
 // Function for grabbing price from CoinGecko
 
 async function getPriceCoinGecko(coin, coin2, chn) {
-  coin = coin + "";
+  coin = coin.toLowerCase() + "";
+  coin2 = coin2.toLowerCase() +"";
   //default to usd if no comparison is provided
   if(typeof coin2 === 'undefined'){
       coin2 = 'usd';
@@ -689,7 +690,7 @@ async function getPriceBinance(coin1, coin2, chn){
     if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
         coin2 = 'USDT';
     }
-    tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+    tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Binance error: Ticker '
             + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
         chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
@@ -701,7 +702,7 @@ async function getPriceBinance(coin1, coin2, chn){
     }
     let s = parseFloat(tickerJSON['last']).toFixed(8);
     console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s)));
-    let c = tickerJSON['info'].percentChange * 100;
+    let c = tickerJSON['info'].priceChangePercent;
     c = Math.round(c * 100) / 100;
 
     let ans = '__Binance__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
@@ -1440,8 +1441,8 @@ client.on('guildCreate', guild => {
 client.on('message', message => {
 
   // Developer mode
-    if (process.argv[2] === "-d" && message.author.id !== "210259922888163329")
-    return;
+  if (process.argv[2] === "-d" && message.author.id !== "210259922888163329")
+  return;
 
   // Check for Ghost users
   if(message.author === null) return;
@@ -1449,8 +1450,9 @@ client.on('message', message => {
   // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
-  if(messageCount % 100 === 0){
-  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
+//  if(messageCount % 100 === 0){
+//  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
+  
   // Try to add File Perms Role
   if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
@@ -1478,11 +1480,11 @@ client.on('message', message => {
 //      console.log(chalk.green("Updated dbots.org stats!"));
 //  }
 
-  // Check if it's a DM channel
+  // Check for, and ignore DM channels
   if(message.channel.type !== 'text') return;
 
 
-  // Get the permission settigs
+  // Get the serve permission configuration settings
   const config = serverConfigs[message.guild.id] || [];
   
  
@@ -1652,7 +1654,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'shortcut', 'subrole', 'sub', 'mc'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc'].indexOf(command) > -1)){
           
         // GDAX call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -1781,7 +1783,7 @@ function commands(message, botAdmin, config){
               channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)");
             }
           }
-        } else if(command === 'translate'){
+        } else if(command === 'translate' || command === 't' || command === 'trans'){
             translateEN(channel, message);
 
           // Catch-all help
@@ -1885,6 +1887,10 @@ function commands(message, botAdmin, config){
         .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
 
       channel.send({embed});
+      
+      // Message Translation
+    } else if (scommand === 't'){
+      translateEN(channel, message);
 
       // Statistics
     } else if (scommand === 'stat'){
@@ -1952,7 +1958,7 @@ function commands(message, botAdmin, config){
     if((scommand === '.yeet' || scommand === 'yeet') && (guildID === '290891518829658112' || guildID === '524594133264760843' || guildID === '417982588498477060')){
         const author = message.author.username;
         // Delete the command message
-        message.delete(100).then(message => console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
+        message.delete().then(console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
             // Report if delete permissions are missing
             console.log(chalk.yellow('Warning: ') + chalk.red.bold('Could not delete yeet command from ') + chalk.yellow(author) + chalk.red.bold(' due to failure: ' + 
                     chalk.cyan(rej.name) + ' with reason: ' + chalk.cyan(rej.message)));});
@@ -1992,7 +1998,7 @@ function coinArrayMax(counter) {
   return [maxCrypto, Math.trunc((max / sum) * 100)];
 }
 
-// Detect language with google translate
+// Detect language with google translate (In Beta)
 async function detectLanguage(){
   let [detections] = await translate.detect("I walked the cat to school");
   detections = Array.isArray(detections) ? detections : [detections];
@@ -2004,14 +2010,20 @@ async function detectLanguage(){
 
 // Traslate message to english
 function translateEN(chn, msg){
-    //remove the command string
-    let message = msg.content.replace('.tb translate','');
-    translateSimple(message, {to: 'en'}).then(res => {
-        //console.log(chalk.green('google translated: ' + chalk.cyan(res)));
-        chn.send('Translation: `' + res + '`');
-    }).catch(err => {
-        console.error(err);
-    });
+  //remove the command string and potential mentions
+  let message  = msg.content + "";
+  message      = message.replace(/<.*>/, '');
+  message      = message.replace('.tb translate','');
+  message      = message.replace('.tb t','');
+  message      = message.replace('.tb trans','');
+  message      = message.replace('.tbt','');
+  //do the translation
+  translateSimple(message, {to: 'en'}).then(res => {
+      //console.log(chalk.green('google translated: ' + chalk.cyan(res)));
+      chn.send('Translation: `' + res + '`');
+  }).catch(err => {
+      console.error(err);
+  });
 }
 
 //Function to add commas to long numbers
@@ -2032,7 +2044,7 @@ function makeYeet() {
   const numberOfE = Math.random() * (85 - 1) + 1;
   for (let i = 0; i < numberOfE; i++)
     text += possible;
-  console.log(chalk.green("Yeet of size " + chalk.cyan(numberOfE) + " generated!"));
+  //console.log(chalk.green("Yeet of size " + chalk.cyan(numberOfE) + " generated!"));
   return text;
 }
 
@@ -2060,8 +2072,8 @@ function updateCmcKey() {
     //Update client to operate with new key
     clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
     
-    console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
-            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
+//    console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
+//            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
 }
 
 function loadConfiguration(msg){
@@ -2175,7 +2187,7 @@ async function getCMCData(){
     fails++;
     console.error(chalk.red.bold("failed to update cmc dictionary " + chalk.cyan(fails) + " times!" ));
   }
-  console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
+  //console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
 }
 
 function sendCSV(){
