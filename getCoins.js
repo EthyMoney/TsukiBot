@@ -67,7 +67,7 @@ var update = function(){
   //console.log("Coins list started");
   return new Promise(function(resolve, reject){
     let url         = "https://min-api.cryptocompare.com/data/all/coinlist";
-    let extras      = ["USD","EUR","GBP","SGD","XBT","XLM","MXN","BCC","STR","QNT","ELF"]; 
+    let extras      = ["USD","EUR","GBP","SGD","XBT","XLM","MXN","BCC","STR","QNT","ELF","MIOTA"]; 
     let filters     = ["POST", "U", "AND", "IN", "POLL","AM","GOT","GOOD","TODAY"];
 
     request({url: url, json: true}, function(err, res, body){

@@ -352,7 +352,6 @@ async function getPriceSTEX(chn, coin1, coin2){
 
 async function getPriceCoinGecko(coin, coin2, chn) {
   coin = coin.toLowerCase() + "";
-  coin2 = coin2.toLowerCase() +"";
   //default to usd if no comparison is provided
   if(typeof coin2 === 'undefined'){
       coin2 = 'usd';
@@ -951,7 +950,7 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
   let query;
   
   //delete .tbpa command after 5 min
-  msg.delete(300000);
+  //msg.delete(300000);
 
   // .tbpa call
   if(coins === ''){
@@ -1909,13 +1908,13 @@ function commands(message, botAdmin, config){
         + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
         + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
         + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
-        + "⇒ Originally written by Hiro Inu, actively updated and maintained by EthyMoney\n"
+        + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
         + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02.`");
 
       let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
         .setColor('WHITE')
-        .setThumbnail('https://i.imgur.com/qpjsv09.png')
+        .setThumbnail('https://imgur.com/7pLQHei.png')
         .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
       channel.send({embed});
 
