@@ -903,6 +903,7 @@ function getMarketCapSpecific(message){
                 j = ticker.length;
 		for (let i = 0; i < j; i++) {
                     if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["rank"]) {
+                        //console.log(ticker[i]);
 			let name = ticker[i]["name"];
 			let price = ticker[i]["quote"]["USD"]["price"];
 			let percent = ticker[i]["quote"]["USD"]["percent_change_24h"];
@@ -921,7 +922,8 @@ function getMarketCapSpecific(message){
 			console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
                         
                         message.channel.send("**[" + rank + "]** `" + name + " " + ticker[i]["symbol"] +
-                                "` **|**" + " *Price:* `$" + price + "` ***mcap:*** `$" + numberWithCommas(marketcap) + 
+                                "` **|**" + " ***mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price +
+                                "`\n" + "*Circulating Supply:* `" + numberWithCommas(supply) + "` *Total Supply:* `" + numberWithCommas(parseFloat(totalSupply).toFixed(0)) +
                                 "`\n\n" + "*1h:* `" + parseFloat(percent1h).toFixed(2) + "%` " + "*24h:* `" + 
                                 parseFloat(percent).toFixed(2) + "%` *7d:* `" + parseFloat(percent7).toFixed(2) + "%`");
                     }
