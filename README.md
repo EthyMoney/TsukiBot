@@ -2,7 +2,7 @@ TsukiBot
 ========
 ##### The ultimate all-in-one cryptocurrency bot for Discord.
 \
-The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view it at `\common\help.txt` here in the repo.
+The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view it at `\common\commands.txt` here in the repo.
 
 
 
@@ -21,22 +21,22 @@ The full detailed list of commands can be found by using the command `.tbhelp` i
 ## A Glimpse of Some Abilities:
 ##### Setting a custom shortcut to use in your server to quickly and easily call CMC prices:
 
-![](https://imgur.com/QceGnar.png)
+![](https://i.imgur.com/MFNKHuV.png)
 
 ##### Checking market cap data and ranking both globally, and for specific coins:
-![](https://imgur.com/jL4UR9u.png)
+![](https://i.imgur.com/T5Q1py4.png)
 
 ##### Checking specific pairs on many different  exchanges (you can specifiy to use USD, BTC, EUR, and whatever else the the exchange supports when making these calls):
-![](https://imgur.com/TIOV5wS.png)
-![](https://imgur.com/LX4baW0.png)
+![](https://i.imgur.com/Xgofway.png)
+![](https://i.imgur.com/EQ8qOOF.png)
 
 ##### A true fan-favorite feature, setting and checking your own personal array of coins:
-![](https://imgur.com/MezyukJ.png)
-![](https://imgur.com/3hwrSut.png)
+![](https://i.imgur.com/24B3N64.png)
+![](https://i.imgur.com/hrYR2UV.png)
 
 ---
-<a href="https://discordbots.org/bot/313452464399581194" >
-  <img src="https://discordbots.org/api/widget/313452464399581194.svg" alt="TsukiBot" />
+<a href="https://discordbots.org/bot/506918730790600704" >
+  <img src="https://discordbots.org/api/widget/506918730790600704.svg" alt="TsukiBot" />
 </a>
 
 ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are appreciated.
