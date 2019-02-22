@@ -57,6 +57,9 @@ let pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
 let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
 
+// Banned words
+const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json","utf8"));
+
 // Coin request counter initialization
 let requestCounter      = {};
 pairs.forEach(p => requestCounter[p] = 0);
@@ -76,7 +79,7 @@ const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'
 
 // Discord Bots List
 const DBL               = require("dblapi.js");
-let dbl;    //will be initialized upon startup
+let dbl;                //will be initialized upon startup
 
 // HTTP request
 const request           = require("request");
@@ -104,11 +107,11 @@ const CoinGecko         = require('coingecko-api');
 const Web3              = require('web3');
 
 // STEX API client seup
-const stex = require('stocks-exchange-client'),
-    option = {
-        api_key:keys['stex'],
-        api_secret:keys['stexSecret']
-    },
+const stex              = require('stocks-exchange-client'),
+                        option = {
+                          api_key:keys['stex'],
+                          api_secret:keys['stexSecret']
+                        },
 stexClient              = new stex.client(option);
 
 // Include fancy console outputs
@@ -129,13 +132,15 @@ let cmcArrayDict        = {};
 let cmcArrayDictParsed  = [];
 let fails               = 0;
 
+// Spam limit count
+let yeetLimit           = 0;
+
 // Spellcheck
 const didyoumean        = require("didyoumean");
 
-//// Language detection
-//const LanguageDetect    = require('languagedetect');
-//const lngDetector       = new LanguageDetect();
-//
+// Language detection
+const LanguageDetect    = require('languagedetect');
+const lngDetector       = new LanguageDetect();
 
 // Google translate
 const translateSimple   = require('translate-google');
@@ -209,9 +214,10 @@ const reloaderCG          = require('./getCoinsCG');
 // let deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
 // let mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
 // let klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
-let cmcfetch     = schedule.scheduleJob('*/5 * * * *', getCMCData);
-let csvsend      = schedule.scheduleJob('*/10 * * * *', sendCSV);
-let updateList   = schedule.scheduleJob('0 12 * * *', updateCoins);
+let cmcfetch      = schedule.scheduleJob('*/5 * * * *', getCMCData);
+let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);
+let csvsend       = schedule.scheduleJob('*/10 * * * *', sendCSV);
+let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
 
 const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
@@ -408,7 +414,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
         coins[i] = g;
     }
     let bp = parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8) + ' BTC`';
-    let up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']) + ' USD` (`' +
+    let up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6) + ' USD` (`' +
       Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['percent_change_24h'])*100)/100 + '%`)';
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
@@ -452,6 +458,11 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
 // Function that gets CryptoCompare prices
 
 function getPriceCC(coins, chn, action = '-', ext = 'd'){
+  
+  for(let i = 0; i < coins.length; i++){
+    //work around the exception of IOTA having different ticker on CMC and CC
+    if(coins[i].toLowerCase() === 'miota'){coins[i] = 'iot';}
+  }
 
   let query = coins.concat(['BTC']);
 
@@ -465,7 +476,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 
       for(let i = 0; i < coins.length; i++){
         let bp, up;
-
+        
         try{
           bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
             Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
@@ -475,7 +486,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
           if(cmcArrayDict[coins[i].toUpperCase()]){
             bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
               Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
-            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']) + ' USD` (`' +
+            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']).toFixed(6) + ' USD` (`' +
               Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
           } else {
             bp = 'unvavilable`';
@@ -560,7 +571,7 @@ function getPriceFinex(coin1, coin2, chn){
 // Function that gets Kraken prices
 
 async function getPriceKraken(coin1, coin2, base, chn) {
-
+    
     let fail = false;
     let tickerJSON = '';
     if (typeof coin2 === 'undefined') {
@@ -877,16 +888,16 @@ function getEtherBalance(address, chn, action = 'b'){
 // Function for getting total market cap data and BTC dominance
 
 function getMarketCap(message){
-    (async () => {
-	console.log(chalk.yellow(message.author.username) + chalk.green(" requested market cap data!"));
-	//gathering info and setting variables
-	let global_market = await clientcmc.getGlobal();
-        //console.log(global_market['data']['quote']);
-	let mcap = numberWithCommas(global_market['data']['quote']['USD']["total_market_cap"]);
-	let btcdom = global_market['data']["btc_dominance"];
-        console.log(chalk.green("mcap: " + chalk.cyan(mcap)));
-	message.channel.send("**[all]** `$" + mcap + "` BTC dominance: `" + (Math.round(btcdom * 100) / 100) + "%`");
-        }) ();
+  (async () => {
+    console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
+    //gathering info and setting variables
+    let global_market = await clientcmc.getGlobal();
+    //console.log(global_market['data']['quote']);
+    let mcap = numberWithCommas(global_market['data']['quote']['USD']["total_market_cap"]);
+    let btcdom = global_market['data']["btc_dominance"];
+    //console.log(chalk.green("mcap: " + chalk.cyan(mcap)));
+    message.channel.send("**[all]** `$" + mcap + "` BTC dominance: `" + (Math.round(btcdom * 100) / 100) + "%`");
+  }) ();
 }
 
 
@@ -896,39 +907,52 @@ function getMarketCap(message){
 // Function for getting market cap data of a specific coin
 
 function getMarketCapSpecific(message){
-    	cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
-            (async () => {
-		console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
-		let ticker = cmcArrayDictParsed;
-                j = ticker.length;
-		for (let i = 0; i < j; i++) {
-                    if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["rank"]) {
-                        //console.log(ticker[i]);
-			let name = ticker[i]["name"];
-			let price = ticker[i]["quote"]["USD"]["price"];
-			let percent = ticker[i]["quote"]["USD"]["percent_change_24h"];
-			let rank = ticker[i]["cmc_rank"];
-			let percent7 = ticker[i]["quote"]["USD"]["percent_change_7d"];
-			let symbol = ticker[i]["symbol"];
-			let marketcap = parseInt(ticker[i]["quote"]["USD"]["market_cap"]);
-			let supply = parseInt(ticker[i]["circulating_supply"]);
-			let totalSupply = ticker[i]["total_supply"];
-			let percent1h = ticker[i]["quote"]["USD"]["percent_change_1h"];
-			//Verbose Logging <ENABLED>
-			console.log(chalk.green("Rank: ") + chalk.cyan(rank));
-                        console.log(chalk.green("Name: " + chalk.cyan(name)));
-			console.log(chalk.green("Price: " + chalk.cyan(price)));
-			console.log(chalk.green("24hr Change: ") + chalk.cyan(percent));
-			console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
-                        
-                        message.channel.send("**[" + rank + "]** `" + name + " " + ticker[i]["symbol"] +
-                                "` **|**" + " ***mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price +
-                                "`\n" + "*Circulating Supply:* `" + numberWithCommas(supply) + "` *Total Supply:* `" + numberWithCommas(parseFloat(totalSupply).toFixed(0)) +
-                                "`\n\n" + "*1h:* `" + parseFloat(percent1h).toFixed(2) + "%` " + "*24h:* `" + 
-                                parseFloat(percent).toFixed(2) + "%` *7d:* `" + parseFloat(percent7).toFixed(2) + "%`");
-                    }
-                }
-            }) ();
+  //collect the data
+  cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
+  (async () => {
+    console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
+    let ticker = cmcArrayDictParsed;
+    j = ticker.length;
+    for (let i = 0; i < j; i++) {
+      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["rank"]) {
+      let name = ticker[i]["name"];
+      let price = ticker[i]["quote"]["USD"]["price"];
+      let percent = ticker[i]["quote"]["USD"]["percent_change_24h"];
+      let rank = ticker[i]["cmc_rank"];
+      let percent7 = ticker[i]["quote"]["USD"]["percent_change_7d"];
+      let symbol = ticker[i]["symbol"];
+      let volume = ticker[i]["quote"]["USD"]["volume_24h"];
+      let marketcap = parseInt(ticker[i]["quote"]["USD"]["market_cap"]);
+      let supply = parseInt(ticker[i]["circulating_supply"]);
+      let totalSupply = ticker[i]["total_supply"];
+      let percent1h = ticker[i]["quote"]["USD"]["percent_change_1h"];
+      
+      //check for missing data and process values
+      if(!supply){supply = "n/a";}             else{supply = numberWithCommas(supply);}
+      if(!totalSupply){totalSupply = "n/a";}   else{totalSupply = numberWithCommas(parseFloat(totalSupply).toFixed(0));}
+      if(!volume){volume = "n/a";}             else{volume = numberWithCommas(parseFloat(volume).toFixed(2));}
+      if(!percent1h){percent = "n/a";}         else{percent1h = parseFloat(percent1h).toFixed(2);}
+      if(!percent){percent = "n/a";}           else{percent = parseFloat(percent).toFixed(2);}
+      if(!percent7){percent7 = "n/a";}         else{percent7 = parseFloat(percent7).toFixed(2);}
+      
+      //verbose logging toggle
+      const verbose = false;
+      if(verbose){
+      console.log(chalk.green("Rank: ") + chalk.cyan(rank));
+      console.log(chalk.green("Name: " + chalk.cyan(name)));
+      console.log(chalk.green("Price: " + chalk.cyan(price)));
+      console.log(chalk.green("24hr Change: ") + chalk.cyan(percent));
+      console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
+      }
+      
+      //deliver the response
+      message.channel.send("**[" + rank + "]** `" + name + " " + symbol +
+         "` **|**" + " ***mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price +
+         "`\n\n" + "*Circulating Supply:* `" + supply + "` *Total Supply:* `" + totalSupply + "` *Volume:* `$" + volume +
+         "`\n\n" + "*1h:* `" + percent1h + "%` " + "*24h:* `" + percent + "%` *7d:* `" + percent7 + "%`");
+      }
+    }
+  }) ();
 }
 
 
@@ -1456,6 +1480,24 @@ client.on('message', message => {
   if(messageCount === 0) referenceTime = Date.now();
 //  if(messageCount % 100 === 0){
 //  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
+
+  //For Scooter
+  if(message.guild.id && message.guild.id === '290891518829658112'){
+    let yeet = message.content + "";
+    let found = false;
+    yeet = yeet.replace(/\s+/g, '');
+    yeet = yeet.replace(/[^a-zA-Z ]/g, "");
+    yeet = yeet.toLowerCase();
+    
+    for (var i = 0, len = restricted.length; i < len; i++) {
+      if(message.content.includes(restricted[i])){found = true;} 
+    }
+    
+    if(found){
+         message.delete();
+         console.log(chalk.cyan("deleted banned word from " + chalk.yellow(message.author.username)));
+    }
+  }
   
   // Try to add File Perms Role
   if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
@@ -1518,6 +1560,41 @@ client.on('message', message => {
     })
     .catch(e => (0));
 
+  // Check if message is in english
+  //console.log(message.content);
+  //console.log(lngDetector.detect(message.content, 3));
+  const guildID = message.guild.id;
+  let SS = guildID === '290891518829658112';
+  //console.log("SS: " + SS);
+  
+  if(message.content.length >= 8 && message.content.charAt(0) !== '.' && !message.content.includes('http') && 
+          message.content.charAt(0) !== ':' && !message.content.includes('www') && !message.content.includes('.com') &&
+          !message.content.includes('@') && message.content.charAt(0) !== '<' && !message.content.includes('<:') &&
+          (guildID === '290891518829658112' || guildID === '524594133264760843') && message.author.id !== '506918730790600704'){
+    //console.log(chalk.green("Entered language processing!"));
+    let language = lngDetector.detect(message.content);
+    let isDutch = false;
+    let certainty = 0;
+    let languages = language.length;
+    if(languages > 3){languages = 3;}
+    
+    if(language[0] && language[0][0] === 'dutch'){
+        console.log(message.content);
+        //console.log(lngDetector.detect(message.content, 3));
+        certainty = language[0][1];
+        if(certainty >= .30){
+          isDutch = true;
+        }
+    }
+  
+    if(isDutch){
+      console.log(chalk.cyan("DUTCH DETECTED"));
+      console.log('Certainty : ' + certainty);
+      //translateEN(message.channel, message);
+    }
+    
+    //console.log(chalk.cyan('------------------------------------------------------------'));
+  }
 
 });
 
@@ -1622,9 +1699,9 @@ function commands(message, botAdmin, config){
     if(shortcutConfig[message.guild.id] === code_in[0].toLowerCase()){
       code_in.shift();
       console.log(chalk.green('CMC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-      let upxRequested = (code_in.indexOf("upx") > -1 || code_in.indexOf("UPX") > -1 || code_in.indexOf("Upx") > -1);
-      if(upxRequested){getPriceUplexaGraviex(channel, message.author);}
-      else{getPriceCMC(code_in, channel, '-');}          
+      //let upxRequested = (code_in.indexOf("upx") > -1 || code_in.indexOf("UPX") > -1 || code_in.indexOf("Upx") > -1);
+      //if(upxRequested){getPriceUplexaGraviex(channel, message.author);}
+      getPriceCMC(code_in, channel, '-');      
     }
     
   } else if(prefix.indexOf(code_in_pre) > -1){
@@ -1966,7 +2043,17 @@ function commands(message, botAdmin, config){
             console.log(chalk.yellow('Warning: ') + chalk.red.bold('Could not delete yeet command from ') + chalk.yellow(author) + chalk.red.bold(' due to failure: ' + 
                     chalk.cyan(rej.name) + ' with reason: ' + chalk.cyan(rej.message)));});
         // Deliver the yeet
+        if(yeetLimit <= 2){
         channel.send(':regional_indicator_y:' + makeYeet() + ':regional_indicator_t:');
+        yeetLimit++;
+        }
+        else{
+            message.reply("Yeet spam protection active :upside_down:")
+            .then(msg => {
+              msg.delete(3500);
+            })
+            .catch(console.log(chalk.green("Yeet spam protection triggered")));
+        }
     }
     
   }
@@ -2049,6 +2136,11 @@ function makeYeet() {
     text += possible;
   //console.log(chalk.green("Yeet of size " + chalk.cyan(numberOfE) + " generated!"));
   return text;
+}
+
+// Reset the spam counter
+function resetSpamLimit() {
+    yeetLimit = 0;
 }
 
 // I do a lot of CMC calls and I'm trying to keep the bot free to use, so I alternate between keys to keep using free credits and still update frequently
