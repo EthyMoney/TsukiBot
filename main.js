@@ -459,11 +459,6 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
 
 function getPriceCC(coins, chn, action = '-', ext = 'd'){
   
-  for(let i = 0; i < coins.length; i++){
-    //work around the exception of IOTA having different ticker on CMC and CC
-    if(coins[i].toLowerCase() === 'miota'){coins[i] = 'iot';}
-  }
-
   let query = coins.concat(['BTC']);
 
   // Get the spot price of the pair and send it to general
@@ -480,14 +475,14 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
         try{
           bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
             Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
-          up = prices[coins[i].toUpperCase()]['USD']['PRICE'] + ' USD` (`' +
+          up = parseFloat(prices[coins[i].toUpperCase()]['USD']['PRICE']).toFixed(6) + ' USD` (`' +
             Math.round((prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR'])*100)/100 + '%`)';
         } catch(e) {
           if(cmcArrayDict[coins[i].toUpperCase()]){
-            bp = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_btc']).toFixed(8) + ' BTC` (`' +
-              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'] - bpchg)*100)/100 + '%`)';
-            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['price_usd']).toFixed(6) + ' USD` (`' +
-              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h'])*100)/100 + '%`)';
+            bp = convertToBTCPrice(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])) + ' BTC` (`' +
+              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"] - bpchg)*100)/100 + '%`)';
+            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6) + ' USD` (`' +
+              Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"])*100)/100 + '%`)';
           } else {
             bp = 'unvavilable`';
             up = 'unavailable`';
@@ -506,7 +501,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
                 ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
             } catch(e) {
               if(cmcArrayDict[coins[i].toUpperCase()])
-                ordered[cmcArrayDict[coins[i].toUpperCase()]['percent_change_24h']] = 
+                ordered[cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"]] = 
                   ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
             }
             break;
@@ -1482,7 +1477,7 @@ client.on('message', message => {
 //  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
 
   //For Scooter
-  if(message.guild.id && message.guild.id === '290891518829658112'){
+  if(message.guild && message.guild.id === '290891518829658112'){
     let yeet = message.content + "";
     let found = false;
     yeet = yeet.replace(/\s+/g, '');
@@ -1579,7 +1574,6 @@ client.on('message', message => {
     if(languages > 3){languages = 3;}
     
     if(language[0] && language[0][0] === 'dutch'){
-        console.log(message.content);
         //console.log(lngDetector.detect(message.content, 3));
         certainty = language[0][1];
         if(certainty >= .30){
@@ -1587,11 +1581,12 @@ client.on('message', message => {
         }
     }
   
-    if(isDutch){
-      console.log(chalk.cyan("DUTCH DETECTED"));
-      console.log('Certainty : ' + certainty);
-      //translateEN(message.channel, message);
-    }
+//    if(isDutch){
+//      console.log(chalk.cyan("DUTCH DETECTED"));
+//      console.log(message.content);
+//      console.log('Certainty : ' + certainty);
+//      //translateEN(message.channel, message);
+//    }
     
     //console.log(chalk.cyan('------------------------------------------------------------'));
   }
@@ -1694,13 +1689,11 @@ function commands(message, botAdmin, config){
     cmcBTC = true;
   }   
   
-  // Check for cmc shortcut and UPX price call, then run CMC check and/or UPX check. Yes, I am shilling UPX here ;)
+  // Check for cmc shortcut then run CMC check
   if(hasPfx === "" && cmcBTC === false){
     if(shortcutConfig[message.guild.id] === code_in[0].toLowerCase()){
       code_in.shift();
       console.log(chalk.green('CMC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-      //let upxRequested = (code_in.indexOf("upx") > -1 || code_in.indexOf("UPX") > -1 || code_in.indexOf("Upx") > -1);
-      //if(upxRequested){getPriceUplexaGraviex(channel, message.author);}
       getPriceCMC(code_in, channel, '-');      
     }
     
@@ -2266,8 +2259,6 @@ client.on('messageReactionAdd', (messageReaction, user) => {
  ---------------------------------- */
 
 async function getCMCData(){
-  //console.log("Updating CMC dictionary");
-  
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
   let cmcJSON = await clientcmc.getTickers({limit: 2200}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
@@ -2297,18 +2288,13 @@ function sendCSV(){
  ---------------------------------- */
                                                                         
 function updateCoins(){
-  reloader.update()
-    .then(arr => {
-      pairs = arr[0].slice();
-      pairs_filtered = arr[1].slice();
-
-      console.log(chalk.green.bold('Reloaded coins'));
-    })
-    .catch(e => console.error(chalk.red.bold('Failed update (ERR): ' + e)));
-    
+  reloader.update();
   reloaderCG.update();
   // Re-read the new set of coins
+  pairs = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+  pairs_filtered = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
   pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
+  console.log(chalk.green.bold('Reloaded known coins'));
 }
 
 /* ---------------------------------
