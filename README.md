@@ -1,6 +1,7 @@
-TsukiBot
+TsukiBot  [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/lib/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
 ========
-##### The ultimate all-in-one cryptocurrency bot for Discord.
+
+#### The ultimate all-in-one cryptocurrency bot for Discord.
 \
 The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view it at `\common\commands.txt` here in the repo.
 
@@ -19,24 +20,25 @@ The full detailed list of commands can be found by using the command `.tbhelp` i
 + Very active development steadily pushing new features and listening to requests and suggestions.
 
 ## A Glimpse of Some Abilities:
-##### Setting a custom shortcut to use in your server to quickly and easily call CMC prices:
+#### Setting a custom shortcut to use in your server to quickly and easily call CMC prices:
 
-![](https://i.imgur.com/MFNKHuV.png)
+![](https://i.imgur.com/DkOlpkC.png)
+![](https://i.imgur.com/6wpmFWf.png)
 
-##### Checking market cap data and ranking both globally, and for specific coins:
-![](https://i.imgur.com/T5Q1py4.png)
+#### Checking market cap data and ranking both globally, and for specific coins:
+![](https://i.imgur.com/uxF5Ppb.png)
 
-##### Checking specific pairs on many different  exchanges (you can specifiy to use USD, BTC, EUR, and whatever else the the exchange supports when making these calls):
-![](https://i.imgur.com/Xgofway.png)
-![](https://i.imgur.com/EQ8qOOF.png)
+#### Checking specific pairs on many different  exchanges (you can specifiy to use USD, BTC, EUR, and whatever else the the exchange supports when making these calls):
+![](https://i.imgur.com/eFUJx0G.png)
+![](https://i.imgur.com/DJsNjA4.png)
 
-##### A true fan-favorite feature, setting and checking your own personal array of coins:
-![](https://i.imgur.com/24B3N64.png)
-![](https://i.imgur.com/hrYR2UV.png)
+#### A true fan-favorite feature, setting and checking your own personal array of coins:
+![](https://i.imgur.com/LfpOO4q.png)
+![](https://i.imgur.com/QviA2vj.png)
+![](https://i.imgur.com/DPhesw0.png)
 
 ---
-<a href="https://discordbots.org/bot/506918730790600704" >
-  <img src="https://discordbots.org/api/widget/506918730790600704.svg" alt="TsukiBot" />
-</a>
 
 ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are appreciated.
+
+[![Discord Bots](https://discordbots.org/api/widget/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
