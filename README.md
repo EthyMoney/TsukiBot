@@ -1,4 +1,4 @@
-TsukiBot  [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/lib/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
+TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/lib/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
 ========
 
 #### The ultimate all-in-one cryptocurrency bot for Discord.

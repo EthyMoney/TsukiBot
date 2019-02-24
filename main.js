@@ -1419,6 +1419,7 @@ client.on('ready', () => {
   //getKLIndex(); //Disabled until new script is ready.
   updateCmcKey();
   getCMCData();
+  publishDblStats();
 
 //Notify dad when the bot is booted up (Disabled because it's annoying for now)
 //    client.fetchUser("210259922888163329")
@@ -1462,7 +1463,7 @@ client.on('guildCreate', guild => {
 
 // Event goes off every time a message is read.
 client.on('message', message => {
-
+   
   // Developer mode
   if (process.argv[2] === "-d" && message.author.id !== "210259922888163329")
   return;
@@ -1514,12 +1515,11 @@ client.on('message', message => {
     }
   }
 
-  //Publish bot statistics to Discord Bots List <discordbots.org>
-  //Updates every 500 messages
-//  if(messageCount % 500 === 0){
-//      dbl.postStats(client.guilds.size, Client.id);
-//      console.log(chalk.green("Updated dbots.org stats!"));
-//  }
+//  Publish bot statistics to Discord Bots List <discordbots.org>
+//  Updates every 5000 messages
+  if(messageCount % 5000 === 0){
+        publishDblStats();
+  }
 
   // Check for, and ignore DM channels
   if(message.channel.type !== 'text') return;
@@ -2134,6 +2134,12 @@ function makeYeet() {
 // Reset the spam counter
 function resetSpamLimit() {
     yeetLimit = 0;
+}
+
+// Publish bot stats to discordbots.org
+function publishDblStats(){
+    dbl.postStats(client.guilds.size, Client.id);
+    console.log(chalk.green("Updated dbots.org stats!"));
 }
 
 // I do a lot of CMC calls and I'm trying to keep the bot free to use, so I alternate between keys to keep using free credits and still update frequently
