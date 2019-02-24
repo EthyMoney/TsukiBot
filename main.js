@@ -1141,7 +1141,7 @@ function setSubscriptions(user, guild, coins){
   // Format in a predictable way
   let queryp = pgp.as.format(sqlq, [ id, coins, '{'+guild.id+'}' ]);
 
-    console.log(queryp);
+    //console.log(queryp);
   // Execute the query
   let query = conn.query(queryp, (err, res) => {
     if (err){console.log(chalk.red.bold(err + "----------Subscription query execute error"));
@@ -1188,14 +1188,14 @@ function setSubscriptions(user, guild, coins){
                 .then(function(r){
                   guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024},
                     {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
-                    .then(console.log)
-                    .catch(console.log);
+                    //.then(console.log)
+                    .catch(console.log("subs error"));
                 })
-                .catch(console.log);
+                .catch(console.log("subs error"));
             }
           }
         })
-        .catch(console.log);
+        .catch(console.log("subs error"));
     }
     conn.end();
   });
@@ -1241,7 +1241,7 @@ function setRoles(name, guild, chn){
         conn.end();
       });
     })
-    .catch(console.log);
+    .catch(console.log("roles error"));
 }
 
 //------------------------------------------
@@ -1271,7 +1271,7 @@ function temporarySub(id, code, guild, chn, term){
           gm.addRole(role).catch(0);
           chn.send("Added subscriber `" + gm.displayName + "` to role `" + role.name + "`.") ;
         })
-        .catch(console.log);
+        .catch(console.log("temp subs error"));
     }
 
     conn.end();
@@ -1329,7 +1329,7 @@ function checkSubStatus(){
 
           let query = conn2.query(queryp, (err, res) => {
             console.log(chalk.cyan("Starting delete of sub"));
-            console.log(sqlq);
+            //console.log(sqlq);
 
             if(err) { console.log(chalk.red.bold("error:", err + "-----------------checkSub delete query error")); }
             else { console.log(chalk.green('Succesfully deleted sub entries')); }
@@ -1432,33 +1432,51 @@ client.on('ready', () => {
 });
 
 // DM's the command list to the caller
-function postHelp(author, code){
+function postHelp(message, author, code){
   code = code || "none";
+  let fail = false;
   if(code === 'ask' || helpjson[code] !== undefined) {
     const helptext1 = code === "none" || helpjson[code] === undefined ? helpStr1 : console.log("Help1 document not found!");
     const helptext2 = code === "none" || helpjson[code] === undefined ? helpStr2 : console.log("Help2 document not found!");
-    author.send(helptext1);
-    author.send(helptext2);
+    author.send(helptext1).catch(function(rej) {
+        const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/help.txt";
+        console.log(chalk.yellow("Failed to send help text to " +  + " via DM, sent link in server instead."));
+        message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link);
+        fail = true;
+    });
+    author.send(helptext2).catch(function(rej) {
+        return;
+    });
+    if(!fail){
     console.log(chalk.green("Sent help message to: " + chalk.yellow(author.username)));
+    }
   } else {
-    author.send("Use `.tbhelp` to get a list of commands and their usage.");
+    message.channel.send("Use `.tbhelp` to get a list of commands and their usage.");
   }
 }
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
 client.on('guildCreate', guild => {
-  if(guild.defaultChannel) {
-    guild.defaultChannel.send("ありがとう! Get a list of commands with `.tbhelp`.");
+  if(guild) {
+    console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
+    guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.");
   }
   guild.createRole({
     name: 'File Perms',
     color: 'BLUE'
   })
     .then(role => {
-      if(guild.defaultChannel) guild.defaultChannel.send(`Created role ${role} for users who should be allowed to send files!`);
+      if(guild.systemChannel) guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`);
     })
-    .catch(console.error);
+    .catch(console.error + "-----file role creation error");
 
+});
+
+// Log when a server removes the bot
+client.on('guildDelete', guild => {
+  if(guild) {
+    console.log(chalk.redBright("A SERVER HAS LEFT THE FAMILY :(  Goodbye: " + chalk.cyan(guild.name)));
+  }
 });
 
 // Event goes off every time a message is read.
@@ -1495,7 +1513,7 @@ client.on('message', message => {
     }
   }
   
-  // Try to add File Perms Role
+  // Try to add File Perms Role if it's not present
   if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
     message.guild.createRole({
       name: 'File Perms',
@@ -1861,13 +1879,13 @@ function commands(message, botAdmin, config){
 
           // Catch-all help
         } else {
-          postHelp(channel, command);
+          postHelp(message, message.author, command);
         }
       } else {
-        postHelp(channel, command);
+        postHelp(message, message.author, command);
       }
     } else {
-      postHelp(channel, command);
+      postHelp(message, message.author, command);
     }
 
 
@@ -1943,7 +1961,7 @@ function commands(message, botAdmin, config){
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
-      postHelp(message.author, 'ask');
+      postHelp(message, message.author, 'ask');
 
       // Call KL Index
     } else if (scommand === 'kli'){
