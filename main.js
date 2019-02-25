@@ -1457,19 +1457,27 @@ function postHelp(message, author, code){
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
 client.on('guildCreate', guild => {
+  let fail = false;
   if(guild) {
     console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
-    guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.");
+    if(guild.systemChannel){
+      guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.").catch(function(rej){
+          console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
+          fail = true;
+      });
+      if(!fail){console.log(chalk.green("Successfully sent introduction message!"));}
+    }
   }
   guild.createRole({
     name: 'File Perms',
     color: 'BLUE'
   })
     .then(role => {
-      if(guild.systemChannel) guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`);
+      if(guild.systemChannel){guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
+         console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
+      });}
     })
-    .catch(console.error + "-----file role creation error");
-
+    .catch(function(rej){console.log(chalk.red("Failed to create file perms role, missing role permissions"));});
 });
 
 // Log when a server removes the bot
@@ -1512,19 +1520,9 @@ client.on('message', message => {
          console.log(chalk.cyan("deleted banned word from " + chalk.yellow(message.author.username)));
     }
   }
-  
-  // Try to add File Perms Role if it's not present
-  if(message.guild && !message.guild.roles.exists('name', 'File Perms')) {
-    message.guild.createRole({
-      name: 'File Perms',
-      color: 'BLUE'
-    })
-      .then(role => message.channel.send(`Created role ${role} for users who should be allowed to send files!`))
-      .catch(e => (0));
-  }
 
   // Remove possibly unsafe files
-  if(message.member && !message.member.roles.exists('name', 'File Perms')) {
+  if(message.member && !message.member.roles.some(r => { return r.name === 'File Perms';})) {
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
         message.delete(10).then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author))).catch(0);
@@ -2027,6 +2025,9 @@ function commands(message, botAdmin, config){
     } else if (scommand === '.moonwhen' || scommand === '.whenmoon'){
       channel.send('Soon™');
       
+    } else if (scommand === 'juice'){
+       channel.send('https://cdn.discordapp.com/attachments/456273188033396736/549189762116878349/juice_1.mp4');
+      
       // Praise the moon!
     }else if (scommand === '.worship'){
       channel.send(':last_quarter_moon_with_face: :candle: :first_quarter_moon_with_face:');}
@@ -2383,12 +2384,12 @@ function hasPermissions(id, guild){
 
 // Error event logging
 client.on('error', (err) => {
-  console.log(chalk.red.bold(err.toString()
+  console.log(chalk.red.bold(err
           + "----General bot client Error. " + chalk.cyan("(Likely a connection interuption, check your internet connection!)")));  
 });
 
 process.on('unhandledRejection', (reason, p) => {
-  console.log(chalk.red.bold('Unhandled Rejection at: Promise', p.toString(), 'reason: ', chalk.cyan.bold(reason))); 
+  console.log(chalk.red.bold('Unhandled Rejection at: Promise', p , 'reason: ', chalk.cyan.bold(reason))); 
 });
 
 
