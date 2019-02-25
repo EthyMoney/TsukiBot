@@ -3,7 +3,7 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 #### The ultimate all-in-one cryptocurrency bot for Discord.
 \
-The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view it at `\common\commands.txt` here in the repo.
+The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view the commands document [right here in the repo](https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md)
 
 
 
@@ -39,6 +39,6 @@ The full detailed list of commands can be found by using the command `.tbhelp` i
 
 ---
 
-ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are appreciated.
+ETH donations to: 0x169381506870283cbABC52034E4ECc123f3FAD02 are greatly appreciated! A lot work goes into making TsukiBot the best crypto bot on Discord. Consider a donation to say thanks and help support future development!
 
 [![Discord Bots](https://discordbots.org/api/widget/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)

@@ -73,8 +73,6 @@ pairs_filtered.forEach(p => mentionCounter[p] = 0);
 // Help string
 let title 		= '__**TsukiBot**__ :full_moon: \n';
 const github		= 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
-const helpStr1          = fs.readFileSync('./common/help.txt','utf8');
-const helpStr2          = fs.readFileSync('./common/help2.txt','utf8');
 const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
 
 // Discord Bots List
@@ -1444,16 +1442,14 @@ client.on('ready', () => {
 function postHelp(message, author, code){
   code = code || "none";
   let fail = false;
+  const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
   if(code === 'ask' || helpjson[code] !== undefined) {
-    const helptext1 = code === "none" || helpjson[code] === undefined ? helpStr1 : console.log("Help1 document not found!");
-    const helptext2 = code === "none" || helpjson[code] === undefined ? helpStr2 : console.log("Help2 document not found!");
-    author.send(helptext1).catch(function(rej) {
-        const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/help.txt";
+    author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function(rej) {
         console.log(chalk.yellow("Failed to send help text to " +  + " via DM, sent link in server instead."));
         message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link);
         fail = true;
     });
-    author.send(helptext2).catch(function(rej) {
+    author.send(link).catch(function(rej) {
         return;
     });
     if(!fail){
@@ -1908,7 +1904,7 @@ function commands(message, botAdmin, config){
     if(scommand === 'id'){
       message.author.send("Your ID is `" + message.author.id + "`.");
 
-      // Remove the sub tags (Disabled)
+      // Remove the sub tags
     } else if(scommand === 'leave'){
       setSubscriptions(message.author, message.guild, ['r']);
 
@@ -1917,7 +1913,7 @@ function commands(message, botAdmin, config){
       if(hasPermissions(message.author.id, message.guild) || botAdmin)
         loadConfiguration(message);
 
-      // Restore the sub tags (Disabled)
+      // Restore the sub tags
     } else if(scommand === 'resub'){
       setSubscriptions(message.author, message.guild, ['S']);
 
