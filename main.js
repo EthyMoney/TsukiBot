@@ -252,7 +252,7 @@ const quote               = 'Enjoying TsukiBot? Consider supporting its creator:
 
 function getPriceGDAX(coin1, coin2, base, chn){
 
-  // Get the spot price and send it to general
+  // Get the spot price and send it to channel
   clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price){
     if(err){chn.send('Coinbase API Error.');}
     else {
@@ -260,9 +260,13 @@ function getPriceGDAX(coin1, coin2, base, chn){
       if (base !== -1){
         per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
       }
+      
+      let s = parseFloat(price.data.amount).toFixed(2);
 
       chn.send('__Coinbase__ Price for **'  + coin1.toUpperCase()
-        + '-' + coin2.toUpperCase() + '** is : `'  + price.data.amount + ' ' + coin2.toUpperCase() + "`." + per);
+        + '-' + coin2.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`." + per);
+
+      console.log(chalk.green('Coinbase API ticker response: ' + chalk.cyan(s)));
     }
   });
 }
@@ -383,8 +387,12 @@ async function getPriceCoinGecko(coin, coin2, chn) {
     include_24hr_vol : [true],
     include_24hr_change : [true]
     }); 
-  chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + parseFloat(data["data"][coinID][coin2]).toFixed(8) + " " + coin2.toUpperCase() + "` (`" +
-          Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100 + "%`).");
+    
+  let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
+  let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+  
+  chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
+  console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
   }
   else{
       chn.send("Ticker **" + coin + "** not found!");
@@ -554,6 +562,7 @@ function getPriceFinex(coin1, coin2, chn){
 
       chn.send('__Bitfinex__ Price for **'  + coin1.toUpperCase()
         + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`.");
+      console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
     }
   });
 }
