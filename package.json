@@ -1,6 +1,6 @@
 {
   "name": "tsukibot",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Discord bot with cryptocurrency functionalities and more",
   "main": "main.js",
   "author": "Oscar Fonseca",
@@ -21,7 +21,7 @@
     "cryptocompare": "^0.1.0",
     "dblapi.js": "^2.3.0",
     "didyoumean": "^1.2.1",
-    "discord.js": "^11.3.2",
+    "discord.js": "^11.4.2",
     "etherscan-api": "^3.0.11",
     "fetch-ponyfill": "^6.0.2",
     "gdax": "^0.8.0",
