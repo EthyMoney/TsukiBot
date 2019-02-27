@@ -88,14 +88,8 @@ const keys              = JSON.parse(fs.readFileSync('./common/keys.api','utf8')
 
 // Include API things
 const Discord 		= require('discord.js');
-const Client 		= require('coinbase').Client;
-const KrakenClient 	= require('kraken-api');
-const Gdax              = require('gdax');
-const bittrex 		= require('node.bittrex.api');
-const BFX               = require('bitfinex-api-node');
 const api 		= require('etherscan-api').init(keys['etherscan']);
 const cc 		= require('cryptocompare');
-const binance           = require('node-binance-api');
 const CoinMarketCap     = require('coinmarketcap-api');
 const ccxt              = require('ccxt-js');
 const graviex           = require("graviex");
@@ -194,14 +188,14 @@ let shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"
 let bittrexhandle = {};
 
 // Initialize api things
-const clientGDAX          = new Client({'apiKey':keys['coinbase'],'apiSecret': keys['apisecret']});
 const clientKraken        = new ccxt.kraken();
-const bfxRest             = new BFX().rest;
 const bitmex              = new ccxt.bitmex();
 const CoinGeckoClient     = new CoinGecko();
 const clientPoloniex      = new ccxt.poloniex();
 const clientBinance       = new ccxt.binance();
 const clientBittrex       = new ccxt.bittrex();
+const clientBitfinex      = new ccxt.bitfinex2();
+const clientCoinbase      = new ccxt.coinbase();
 let clientcmc;            //Will be initialied upon bot bootup
 
 // Reload Coins
@@ -209,8 +203,8 @@ const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
 // Scheduled Actions
-// let deleter      = schedule.scheduleJob('42 * * * *', checkSubStatus);
-// let mentionLog   = schedule.scheduleJob('42 * * * * *', checkMentions);
+ //let deleter      = schedule.scheduleJob('*/5 * * * *', checkSubStatus);
+ //let mentionLog   = schedule.scheduleJob('*/5 * * * *', checkMentions);
 // let klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
 let cmcfetch      = schedule.scheduleJob('*/5 * * * *', getCMCData);
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);
@@ -246,27 +240,33 @@ const quote               = 'Enjoying TsukiBot? Consider supporting its creator:
 //------------------------------------------
 //------------------------------------------
 
-// Function that gets GDAX spot prices
+// Function that gets Coinbase Pro prices
 
-function getPriceGDAX(coin1, coin2, base, chn){
+async function getPriceCoinbase(chn, coin1, coin2){
 
-  // Get the spot price and send it to channel
-  clientGDAX.getSpotPrice({'currencyPair': coin1.toUpperCase() + '-' + coin2.toUpperCase()}, function(err, price){
-    if(err){chn.send('Coinbase API Error.');}
-    else {
-      let per = "";
-      if (base !== -1){
-        per = "\n Change: `" + Math.round(((price.data.amount/base-1) * 100)*100)/100 + "%`";
-      }
-      
-      let s = parseFloat(price.data.amount).toFixed(2);
-
-      chn.send('__Coinbase__ Price for **'  + coin1.toUpperCase()
-        + '-' + coin2.toUpperCase() + '** is : `'  + s + ' ' + coin2.toUpperCase() + "`." + per);
-
-      console.log(chalk.green('Coinbase API ticker response: ' + chalk.cyan(s)));
+    let fail = false;
+    let tickerJSON = '';
+    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+        coin2 = 'USD';
     }
-  });
+    tickerJSON = await clientCoinbase.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+        console.log(chalk.red.bold('Coinbase error: Ticker '
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Coinbase does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+        fail = true;
+    });
+    if (fail) {
+        //exit the function if ticker didn't exist, or api failed to respond
+        return;
+    }
+    //console.log(tickerJSON);
+    let s = parseFloat(tickerJSON['last']).toFixed(8);
+    console.log(chalk.green('Coinbase API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON['info'].priceChangePercent;
+    c = Math.round(c * 100) / 100;
+
+    let ans = '__Coinbase__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` .';// + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
 }
 
 //------------------------------------------
@@ -544,25 +544,41 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 //------------------------------------------
 //------------------------------------------
 
-
 // Function that gets Bitfinex prices
 
-function getPriceFinex(coin1, coin2, chn){
-  if(typeof coin2 === 'undefined'){
-      coin2 = 'USD';
-  }
+async function getPriceBitfinex(coin1, coin2, chn){
 
-  bfxRest.ticker(coin1.toUpperCase() + coin2.toUpperCase(), (err, res) => {
-    if(err) {
-      chn.send("API Error: " + err.message);
-    } else {
-      let s = parseFloat(res['last_price']).toFixed(8);
-
-      chn.send('__Bitfinex__ Price for **'  + coin1.toUpperCase()
-        + '-' + coin2.toUpperCase() + '** is : `'  + s +' ' + coin2.toUpperCase() + "`.");
-      console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
+    let fail = false;
+    let coin3 = coin2;
+    let tickerJSON = '';
+    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+        coin2 = 'USDT';
     }
-  });
+    tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+        console.log(chalk.red.bold('Bitfinex error: Ticker '
+            + chalk.cyan(coin1.toUpperCase() + coin3.toUpperCase()) + ' not found!'));
+        chn.send('API Error:  Bitfinex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+        fail = true;
+    });
+    if (fail) {
+        //exit the function if ticker didn't exist, or api failed to respond
+        return;
+    }
+    //console.log(tickerJSON);
+    let s = parseFloat(tickerJSON['last']).toFixed(6);
+    if (coin2.toUpperCase() === 'BTC'){
+        s = parseFloat(tickerJSON['last']).toFixed(8);
+    }
+    console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON['percentage'] * 100;
+    c = Math.round(c * 100) / 100;
+
+    if(coin2 === 'USDT'){
+        coin2 = 'USD';
+    }
+    
+    let ans = '__Bitfinex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
 }
 
 
@@ -1750,9 +1766,9 @@ function commands(message, botAdmin, config){
       params.unshift('0');
       if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc'].indexOf(command) > -1)){
           
-        // GDAX call
+        // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
-          getPriceGDAX(params[1], 'USD', (params[2] !== null && !isNaN(params[2]) ? params[2] : -1), channel);
+          getPriceCoinbase(channel, code_in[1], code_in[2]);
 
           // Kraken call
         } else if(command === 'kraken' || command === 'k'){
@@ -1760,7 +1776,7 @@ function commands(message, botAdmin, config){
 
           // Finex call
         } else if(command === 'bitfinex' || command === 'f'){
-          getPriceFinex(params[1], params[2] === null ? '' : params[2], channel);
+          getPriceBitfinex(params[1], params[2] === null ? '' : params[2], channel);
           
           // Bitmex call
         } else if(command === 'bitmex' || command === 'm' || command === 'mex'){
@@ -1930,14 +1946,14 @@ function commands(message, botAdmin, config){
       code_in.unshift('g');
       setSubscriptions(message.author, message.guild, code_in);
 
-      // Get GDAX ETHX
+      // Get Coinbase ETHX
     } else if (scommand === 'g'){
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
-        getPriceGDAX('ETH', 'EUR', -1, channel);
+        getPriceCoinbase(channel, 'ETH', 'EUR');
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
-        getPriceGDAX('BTC', 'USD', -1, channel);
+        getPriceCoinbase(channel, 'BTC', 'USD');
       } else {
-        getPriceGDAX('ETH', 'USD', -1, channel);
+        getPriceCoinbase(channel, 'ETH', 'USD');
       }
 
       // Get Kraken ETHX
@@ -2162,7 +2178,7 @@ function resetSpamLimit() {
 
 // Publish bot stats to discordbots.org
 function publishDblStats(){
-    dbl.postStats(client.guilds.size, Client.id);
+    dbl.postStats(client.guilds.size, client.id);
     console.log(chalk.green("Updated dbots.org stats!"));
 }
 
