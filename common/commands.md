@@ -13,7 +13,7 @@ Please make sure that TsukiBot has permission to send and read messages, manage 
 
 ## Exchange/Index Price Checks:
 ##### Usage: `.tb <exchange> <coin> <comparison>` 
-`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to USD if none is provided.
+`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to USD if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
 
 + `g`:   &nbsp; &nbsp; &nbsp; Coinbase
 + `k`:   &nbsp; &nbsp; &nbsp; Kraken
@@ -51,7 +51,7 @@ These commands are used exactly as shown:
 
 ## Server Management and Coin Subs
 These commands allow a server owner to create private crypto channels(subs) that only users with the matching role can see. Users can check available subs and can join subs that they wish to be in. TsukiBot fully automates creation of roles and channels for these subs while also handling the assignment of users to them.
-All of the following commands are used exactly as shown aside from replacing `<coin>` with a valid coin ticker/symbol and replacing `<name>` with the name you would like to give the role.
+All of the following commands are used exactly as shown aside from replacing `<coin>` with a valid coin ticker/symbol.
 
 + `.tb join <coin>` : &nbsp; Get assigned the sub role and gain access to the corresponding room
 + `.tbleave` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Leave all rooms
@@ -71,6 +71,8 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `e <add or tx>`:  &nbsp; &nbsp;  Etherscan details of ethereum address or transaction
 + `t <text>`:   &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Translate provided text to English using Google Translate
 + `subrole <name>` : &nbsp; Create a general role in the server with provided name
++ `.tbmyavatar` : &nbsp; &nbsp; &nbsp; &nbsp; Display and provide a link to your current avatar
++ `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
 
 This one provides the bot session statistics and is used exactly as shown:
 + `.tbstat` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bot session stats, most most requested coin, messages per minute, and link to support server
@@ -82,14 +84,14 @@ These are shortcuts for getting to things a little faster and easier! All shortc
 
 + `.tb shortcut <prefix>` : Set a custom prefix to access CMC in the server. <br>
 Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters and can only be set by a server admin.<br>
-When calling your shortcut for prices, you can add a `*` or `+` right behind the shortcut set to call the coin(s) in satoshi prices. See the examples down below to see this in action.
+When calling your shortcut for prices, you can add a `*` or `+` right behind the shortcut to call the coin(s) in satoshi prices. See the examples down below to see this in action.
 + `.tbpop` : Get prices of some popular coins
 + `.tbp` : Poloniex ETH/USD price
 + `.tbb` : Bittrex ETH/USD price
 
 The following can be used like the ones above to get ETH/USD prices **OR** they can have a comparison currency passed to them them. `<comparison>` is optional and will default to USD if none is provided. USD, EUR, and BTC is supported for the comparison.
-`.tbg <comparison>` : Coinbase ETH price in terms of the proivded comparison currency. 
-`.tbk <comparison>` : Kraken ETH price in terms of the provided comparison currency.
++ `.tbg <comparison>` : Coinbase ETH price in terms of the proivded comparison currency. 
++ `.tbk <comparison>` : Kraken ETH price in terms of the provided comparison currency.
 
 <br>
 
