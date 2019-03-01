@@ -272,34 +272,43 @@ async function getPriceCoinbase(chn, coin1, coin2){
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing UPX price from Graviex
+// Function for grabbing prices from Graviex
 
-async function getPriceUplexaGraviex(chn, author){
+async function getPriceGraviex(chn, coin1, coin2){
     let graviexJSON;
     let price = 0;
     let change = 0;
     let volume = 0;
-    let volumeUPX = 0;
-    await graviex.ticker("upxbtc", function(res){
+    let volumeCoin = 0;
+    if(!coin2 || coin2.toLowerCase() === 'usd'){
+        coin2 = 'usdt';
+    }
+    coin1 = coin1 + '';
+    coin2 = coin2 + '';
+    
+    await graviex.ticker(coin1.toLowerCase() + coin2.toLowerCase(), function(res){
         let moon = "";
         graviexJSON = res;
         if(typeof graviexJSON.ticker === 'undefined'){
-            chn.send("Internal error. Graviex is currently overloaded or down.");
+            chn.send("Internal error. Requested pair does not exist or Graviex is overloaded.");
             console.log((chalk.red("Graviex error : graviex failed to respond.")));
             return;
         }
         price = graviexJSON.ticker.last;
-        console.log(chalk.green("Graviex API ticker response: " + chalk.cyan(price) + " by " + chalk.yellow(author.username)));
+        console.log(chalk.green("Graviex API ticker response: " + chalk.cyan(price)));
         change = graviexJSON.ticker.change;
         change = parseFloat(change * 100).toFixed(2);
         volume = graviexJSON.ticker.volbtc;
-        volumeUPX = graviexJSON.ticker.vol;
+        volumeCoin = graviexJSON.ticker.vol;
         
-        if(change > 10){moon = ":full_moon_with_face:";};
+        if(change > 20){moon = ":full_moon_with_face:";};
         
-        let ans = '__Graviex__ Price for **'  + "UPX" + '-' + "BTC" + '** is: `'  + price + ' ' + "BTC" +  '` ' + '(' + '`' + change + '%' + '`' + ') ' + moon +
-            '\n//// **24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' BTC` ' + '➪ `' + numberWithCommas(parseFloat(volumeUPX).toFixed(0)) + ' UPX`';
-            chn.send(ans);
+        let ans = '__Graviex__ Price for **'  + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `'  + price + ' ' + coin2.toUpperCase() +  '` ' + '(' + '`' + change + '%' + '`' + ') ' + moon;
+        
+        if(coin2.toLowerCase() === 'btc'){
+            ans = ans + '\n//// **24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' ' + coin2.toUpperCase() + '` ' + '➪ `' + numberWithCommas(parseFloat(volumeCoin).toFixed(0)) + ' ' + coin1.toUpperCase() + '`';
+        }
+        chn.send(ans);
     });
 }
 
@@ -1414,7 +1423,6 @@ function checkMentions(msg, msgAcc, mentionCounter){
 // Create a client and a token
 const client = new Discord.Client();
 
-
 // Wait for the client to be ready, then load up.
 client.on('ready', () => {
     
@@ -1463,7 +1471,8 @@ function postHelp(message, author, code){
     author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function(rej) {
         console.log(chalk.yellow("Failed to send help text to " +  + " via DM, sent link in server instead."));
         message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link);
-        fail = true;
+    fail = true;
+    message.reply("I sent you a DM with a link to my commands!").catch(function(rej){console.log(chalk.red("Failed to reply to tbhelp message in chat!"));});
     });
     author.send(link).catch(function(rej) {
         return;
@@ -1484,21 +1493,23 @@ client.on('guildCreate', guild => {
     if(guild.systemChannel){
       guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.").catch(function(rej){
           console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
-          fail = true;
-      });
-      if(!fail){console.log(chalk.green("Successfully sent introduction message!"));}
+      }).then(fail = true);
+      //console.log(fail);
+        if(!fail){console.log(chalk.green("Successfully sent introduction message!"));}
     }
   }
   guild.createRole({
     name: 'File Perms',
     color: 'BLUE'
+  }).catch(function(rej){
+      console.log(chalk.red("Failed to create file perms role, missing role permissions!"));
   })
     .then(role => {
-      if(guild.systemChannel){guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
+      if(guild.systemChannel){
+         guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
          console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
       });}
-    })
-    .catch(function(rej){console.log(chalk.red("Failed to create file perms role, missing role permissions"));});
+    });
 });
 
 // Log when a server removes the bot
@@ -1681,7 +1692,7 @@ function commands(message, botAdmin, config){
       channel.send("Hi " + message.author.username);
       flag = true;
     }
-  if ((string.includes("HEY TSUKI, UR") || string.includes("HEY TSUKI UR")) && flag === false) {
+  if ((string.includes("TSUKI UR") || string.includes("TSUKI, UR")) && flag === false) {
       channel.send("no u");
     }   
   if (((string.includes("MORNING TSUKI") || string.includes("GOOD MORNING TSUKI")) || string.includes("GM TSUKI")) && flag === false) {
@@ -1855,6 +1866,10 @@ function commands(message, botAdmin, config){
           // Poloniex call (no filter)
         } else if(command === 'polo' || command === 'p' || command === 'poloniex'){
           getPricePolo(code_in[1], code_in[2], channel);
+          
+          // Graviex call (no filter)
+        } else if(command === 'graviex' || command === 'gr' || command === 'grav'){
+          getPriceGraviex(channel, code_in[1], code_in[2]);
 
           // Bittrex call (no filter)
         } else if(command === 'bittrex' || command === 'b'){
@@ -2005,8 +2020,9 @@ function commands(message, botAdmin, config){
       // Statistics
     } else if (scommand === 'stat'){
       console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
-      const users       = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
-      const guilds      = (client.guilds.size);
+      let users         = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
+      users             = numberWithCommas(users);
+      const guilds      = numberWithCommas(client.guilds.size);
       const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
       const topCrypto   = coinArrayMax(requestCounter);
       const popCrypto   = coinArrayMax(mentionCounter);
@@ -2022,8 +2038,8 @@ function commands(message, botAdmin, config){
 
       let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
-        .setColor('WHITE')
-        .setThumbnail('https://imgur.com/7pLQHei.png')
+        .setColor('BLUE')
+        .setThumbnail('https://i.imgur.com/H6YVUOX.png')
         .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
       channel.send({embed});
 
