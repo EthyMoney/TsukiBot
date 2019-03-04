@@ -1469,16 +1469,18 @@ function postHelp(message, author, code){
   const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
   if(code === 'ask' || helpjson[code] !== undefined) {
     author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function(rej) {
-        console.log(chalk.yellow("Failed to send help text to " +  + " via DM, sent link in server instead."));
-        message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link);
-    fail = true;
-    message.reply("I sent you a DM with a link to my commands!").catch(function(rej){console.log(chalk.red("Failed to reply to tbhelp message in chat!"));});
+        console.log(chalk.yellow("Failed to send help text to " + author.username + " via DM, sent link in server instead."));
+        message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link).then(fail = true);
     });
     author.send(link).catch(function(rej) {
         return;
     });
+    message.reply("I sent you a DM with a link to my commands!").catch(function(rej){
+        console.log(chalk.red("Failed to reply to tbhelp message in chat!"));
+        fail = true;
+    });
     if(!fail){
-    console.log(chalk.green("Sent help message to: " + chalk.yellow(author.username)));
+    console.log(chalk.green("Successfully sent help message to: " + chalk.yellow(author.username)));
     }
   } else {
     message.channel.send("Use `.tbhelp` to get a list of commands and their usage.");
@@ -1487,29 +1489,7 @@ function postHelp(message, author, code){
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
 client.on('guildCreate', guild => {
-  let fail = false;
-  if(guild) {
-    console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
-    if(guild.systemChannel){
-      guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.").catch(function(rej){
-          console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
-      }).then(fail = true);
-      //console.log(fail);
-        if(!fail){console.log(chalk.green("Successfully sent introduction message!"));}
-    }
-  }
-  guild.createRole({
-    name: 'File Perms',
-    color: 'BLUE'
-  }).catch(function(rej){
-      console.log(chalk.red("Failed to create file perms role, missing role permissions!"));
-  })
-    .then(role => {
-      if(guild.systemChannel){
-         guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
-         console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
-      });}
-    });
+    joinProcedure(guild);
 });
 
 // Log when a server removes the bot
@@ -1984,6 +1964,10 @@ function commands(message, botAdmin, config){
       // Get Poloniex ETHUSDT
     } else if (scommand === 'p'){
       getPricePolo('ETH', 'USD', channel);
+      
+      // Get Bitfinex ETHUSD
+    } else if (scommand === 'f'){
+      getPriceBitfinex('ETH', 'USD', channel);
 
       // Get prices of popular currencies
     } else if (scommand === 'pop'){
@@ -2165,7 +2149,48 @@ function translateEN(chn, msg){
   });
 }
 
-//Function to add commas to long numbers
+// Run through new server procedure
+function joinProcedure(guild){
+  let failGC     = false;
+  let fail2GC    = false;
+  let fail3GC    = false;
+  if(guild) {
+    console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
+    if(guild.systemChannel){
+      guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.").catch(function(rej){
+          console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
+          failGC = true;
+      });
+    }
+  guild.createRole({
+    name: 'File Perms',
+    color: 'BLUE'
+  }).catch(function(rej){
+      console.log(chalk.red("Failed to create file perms role, missing role permissions!"));
+      fail2GC = true;
+  })
+    .then(role => {
+      if(guild.systemChannel){
+         guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
+         console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
+         fail3GC = true;
+      });}
+    });
+    }
+  // Wait for all promises to resolve, then check status
+  setTimeout(function(){
+      if(!failGC && !fail2GC && !fail3GC){
+         console.log(chalk.green("Full introduction and join procedure executed successfully!!!"));
+      }
+      else{
+         if(!failGC){console.log(chalk.green("Successfully sent introduction message!"));}
+         if(!fail2GC){console.log(chalk.green("Successfully created file perms role!"));}
+         if(!fail3GC){console.log(chalk.green("Successfully sent file perms role creation message!"));} 
+      }
+  }, 1500);
+}
+
+// Function to add commas to long numbers
 const numberWithCommas = (x) => {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
