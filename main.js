@@ -952,11 +952,13 @@ function getMarketCapSpecific(message){
       let marketcap = parseInt(ticker[i]["quote"]["USD"]["market_cap"]);
       let supply = parseInt(ticker[i]["circulating_supply"]);
       let totalSupply = ticker[i]["total_supply"];
+      let maxSupply = ticker[i]["max_supply"];
       let percent1h = ticker[i]["quote"]["USD"]["percent_change_1h"];
       
       //check for missing data and process values
       if(!supply){supply = "n/a";}             else{supply = numberWithCommas(supply);}
       if(!totalSupply){totalSupply = "n/a";}   else{totalSupply = numberWithCommas(parseFloat(totalSupply).toFixed(0));}
+      if(!maxSupply){maxSupply = "n/a";}       else{maxSupply = numberWithCommas(parseFloat(maxSupply).toFixed(0));}
       if(!volume){volume = "n/a";}             else{volume = numberWithCommas(parseFloat(volume).toFixed(2));}
       if(!percent1h){percent = "n/a";}         else{percent1h = parseFloat(percent1h).toFixed(2);}
       if(!percent){percent = "n/a";}           else{percent = parseFloat(percent).toFixed(2);}
@@ -974,8 +976,8 @@ function getMarketCapSpecific(message){
       
       //deliver the response
       message.channel.send("**[" + rank + "]** `" + name + " " + symbol +
-         "` **|**" + " ***mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price +
-         "`\n\n" + "*Circulating Supply:* `" + supply + "` *Total Supply:* `" + totalSupply + "` *Volume:* `$" + volume +
+         "` **|**" + " ***Mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price + "` *Vol:* `$" + volume +
+         "`\n\n" + "*Circulating Supply:* `" + supply + "` *Total Supply:* `" + totalSupply + "` *Max Supply:* `" + maxSupply + 
          "`\n\n" + "*1h:* `" + percent1h + "%` " + "*24h:* `" + percent + "%` *7d:* `" + percent7 + "%`");
       }
     }
@@ -1463,28 +1465,37 @@ client.on('ready', () => {
 });
 
 // DM's the command list to the caller
-function postHelp(message, author, code){
+function postHelp(message, author, code) {
   code = code || "none";
   let fail = false;
   const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
-  if(code === 'ask' || helpjson[code] !== undefined) {
-    author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function(rej) {
-        console.log(chalk.yellow("Failed to send help text to " + author.username + " via DM, sent link in server instead."));
-        message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link).then(fail = true);
-    });
-    author.send(link).catch(function(rej) {
-        return;
-    });
-    message.reply("I sent you a DM with a link to my commands!").catch(function(rej){
-        console.log(chalk.red("Failed to reply to tbhelp message in chat!"));
+  if (code === 'ask' || helpjson[code] !== undefined) {
+    author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function (rej) {
+      console.log(chalk.yellow("Failed to send help text to " + author.username + " via DM, sent link in server instead."));
+      message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link).then(function () {
         fail = true;
+      });
     });
-    if(!fail){
-    console.log(chalk.green("Successfully sent help message to: " + chalk.yellow(author.username)));
+    author.send(link).catch(function (rej) {
+      return;
+    });
+    // wait for promises to resolve
+    setTimeout(function () {
+      if (!fail) {
+        message.reply("I sent you a DM with a link to my commands!").catch(function (rej) {
+          console.log(chalk.red("Failed to reply to tbhelp message in chat!"));
+          fail = true;
+        });
+      }
+    }, 1000);
+    setTimeout(function () {
+      if (!fail) {
+        console.log(chalk.green("Successfully sent help message to: " + chalk.yellow(author.username)));
+      }
+    }, 1800);
+  } else {     
+      message.channel.send("Use `.tbhelp` to get a list of commands and their usage.");
     }
-  } else {
-    message.channel.send("Use `.tbhelp` to get a list of commands and their usage.");
-  }
 }
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
