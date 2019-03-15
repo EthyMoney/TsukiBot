@@ -127,6 +127,9 @@ let fails               = 0;
 // Spam limit count
 let yeetLimit           = 0;
 
+// Translation log
+let getEmCoach          = false;
+
 // Spellcheck
 const didyoumean        = require("didyoumean");
 
@@ -428,6 +431,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
       else
         coins[i] = g;
     }
+    let ep = parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8) + ' ETH`';
     let bp = parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8) + ' BTC`';
     let up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6) + ' USD` (`' +
       Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['percent_change_24h'])*100)/100 + '%`)';
@@ -448,6 +452,12 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
         msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒ 💵` `' +
           up + '\n`|        ⇒` `' + 
           bp + "\n");
+        break;
+        
+      case 'e':
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
+          up + ' `⇒` `' + 
+          ep + "\n");
         break;
 
       default:
@@ -697,7 +707,7 @@ async function getPricePolo(coin1, coin2, chn){
         coin2 = 'USDT';
     }
     tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
-        console.log(chalk.red.bold('Kraken error: Ticker '
+        console.log(chalk.red.bold('Poloniex error: Ticker '
             + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
         chn.send('API Error:  Poloniex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
         fail = true;
@@ -1528,6 +1538,12 @@ client.on('message', message => {
 
   //For Scooter
   if(message.guild && message.guild.id === '290891518829658112'){
+    if(message.author.id === '210259922888163329' && message.content.includes("sneektime")){
+        if(getEmCoach){getEmCoach = false;}
+        else{getEmCoach = true;}
+    }
+    if(getEmCoach){
+    translateEN(message.channel, message, true);}
     let yeet = message.content + "";
     let found = false;
     yeet = yeet.replace(/\s+/g, '');
@@ -1900,7 +1916,7 @@ function commands(message, botAdmin, config){
             }
           }
         } else if(command === 'translate' || command === 't' || command === 'trans'){
-            translateEN(channel, message);
+            translateEN(channel, message, false);
 
           // Catch-all help
         } else {
@@ -2010,7 +2026,7 @@ function commands(message, botAdmin, config){
       
       // Message Translation
     } else if (scommand === 't'){
-      translateEN(channel, message);
+      translateEN(channel, message, false);
 
       // Statistics
     } else if (scommand === 'stat'){
@@ -2059,6 +2075,9 @@ function commands(message, botAdmin, config){
       
     } else if (scommand === 'juice'){
        channel.send('https://cdn.discordapp.com/attachments/456273188033396736/549189762116878349/juice_1.mp4');
+       
+    } else if (scommand === 'soup'){
+       channel.send('https://ih1.redbubble.net/image.540280332.2834/pp,550x550.jpg');
       
       // Praise the moon!
     }else if (scommand === '.worship'){
@@ -2143,7 +2162,7 @@ async function detectLanguage(){
 }
 
 // Traslate message to english
-function translateEN(chn, msg){
+function translateEN(chn, msg, sneak){
   //remove the command string and potential mentions
   let message  = msg.content + "";
   message      = message.replace(/<.*>/, '');
@@ -2154,10 +2173,21 @@ function translateEN(chn, msg){
   //do the translation
   translateSimple(message, {to: 'en'}).then(res => {
       //console.log(chalk.green('google translated: ' + chalk.cyan(res)));
-      chn.send('Translation: `' + res + '`');
+      if(!sneak){
+        chn.send('Translation: `' + res + '`');
+      }
+      else{
+        console.log(chalk.yellow(msg.author.username) + ": " + chalk.cyan(res));
+      }
   }).catch(err => {
       console.error(err);
   });
+}
+
+// Convert USD prive to ETH value
+function convertToETHPrice(priceUSD){
+  let ETHPrice = cmcArrayDict['eth'.toUpperCase()]['quote']['USD']['price'];
+  return priceUSD / ETHPrice;
 }
 
 // Run through new server procedure
