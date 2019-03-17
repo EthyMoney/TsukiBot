@@ -2078,12 +2078,19 @@ function commands(message, botAdmin, config){
        
     } else if (scommand === 'soup'){
        channel.send('https://ih1.redbubble.net/image.540280332.2834/pp,550x550.jpg');
+     // George's Kool Commands
+    } else if (scommand === 'tomato'){
+      channel.send('https://cdn.discordapp.com/attachments/549161532315926540/551842468044472320/3451788.6999999974_52701949_2330481980303317_1952146104426430464_n.mp4');
+    } else if (scommand === 'shit'){
+      channel.send('https://cdn.discordapp.com/attachments/549161532315926540/551289660740206604/49709174_2276776759276874_4440576140557418496_n.mp4');
+    } else if (scommand === 'gnome'){
+      channel.send('https://tenor.com/view/gnomed-gnome-meme-epic-prank-gif-13288669');
       
       // Praise the moon!
     }else if (scommand === '.worship'){
       channel.send(':last_quarter_moon_with_face: :candle: :first_quarter_moon_with_face:');}
   
-      // Displays the caller's avatar
+      // Displays the caller's avatar 
     else if (scommand === '.myavatar'){
       channel.send(message.author.avatarURL);}
   
