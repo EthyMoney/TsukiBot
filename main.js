@@ -85,7 +85,6 @@ const request           = require("request");
 // Get the api keys
 const keys              = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
 
-
 // Include API things
 const Discord 		= require('discord.js');
 const api 		= require('etherscan-api').init(keys['etherscan']);
@@ -189,6 +188,10 @@ let shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"
 
 // Bittrex handle
 let bittrexhandle = {};
+
+// Alpha Vintage API
+let Alpha = require('alpha_vantage_api_wrapper').Alpha;
+let alpha = new Alpha(keys['alpha']);
 
 // Initialize api things
 const clientKraken        = new ccxt.kraken();
@@ -789,6 +792,31 @@ async function getPriceBittrex(coin1, coin2, chn){
     chn.send(ans);
 }
 
+
+//------------------------------------------
+//------------------------------------------
+
+// This function grabs price data for traditional markets via Alpha Vintage
+async function getStocksAlpha(coin1, chn, usr){
+    let price = '';
+    let vol = '';
+    let change = '';
+    
+    let alphaJSON = await alpha.stocks.quote(coin1);
+    
+    let quote = JSON.stringify(alphaJSON["Global Quote"]);
+    if(!quote || 2 === quote.length) {
+        chn.send("API Error: Ticker **" + coin1.toUpperCase() + "** not found.");
+        return;
+    }
+    price = alphaJSON["Global Quote"]["05. price"];
+    vol = alphaJSON["Global Quote"]["06. volume"];
+    change = alphaJSON["Global Quote"]["10. change percent"];
+    
+    console.log(chalk.green('Alpha Vintage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
+    
+    chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
+}
 
 //------------------------------------------
 //------------------------------------------
@@ -1782,7 +1810,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock'].indexOf(command) > -1)){
           
         // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -1821,6 +1849,10 @@ function commands(message, botAdmin, config){
           // STEX call (skip the filter)
         } else if(command === 'st' || command === 'stex'){          
           getPriceSTEX(channel, code_in[1], code_in[2]);
+          
+          // STEX call (skip the filter)
+        } else if(command === 'stocks' || command === 'stock'){          
+          getStocksAlpha(code_in[1], channel, message.author);
 
           // CryptoCompare call
         } else if(command === 'cryptocompare' || command === 'c' || command === 'cs' || command === 'cc'){
@@ -2069,7 +2101,7 @@ function commands(message, botAdmin, config){
         "         :trumpet:   :eggplant:                       :sweat_drops:"+'\n' +
         "          :boot:    :boot:");
 
-      // Another meme
+      // Memes
     } else if (scommand === '.moonwhen' || scommand === '.whenmoon'){
       channel.send('Soon™');
       
@@ -2078,6 +2110,7 @@ function commands(message, botAdmin, config){
        
     } else if (scommand === 'soup'){
        channel.send('https://ih1.redbubble.net/image.540280332.2834/pp,550x550.jpg');
+       
      // George's Kool Commands
     } else if (scommand === 'tomato'){
       channel.send('https://cdn.discordapp.com/attachments/549161532315926540/551842468044472320/3451788.6999999974_52701949_2330481980303317_1952146104426430464_n.mp4');

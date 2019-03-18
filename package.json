@@ -8,6 +8,7 @@
   "license": "MIT",
   "dependencies": {
     "@google-cloud/translate": "^2.1.4",
+    "alpha_vantage_api_wrapper": "^0.1.1",
     "babel-runtime": "^6.26.0",
     "ccxt": "^1.18.369",
     "ccxt-compiled": "^1.0.9",
