@@ -1719,7 +1719,7 @@ function commands(message, botAdmin, config){
     //-------------------------------
     //    Some fun text responses
     //-------------------------------
-  if (string.includes("HEY TSUKI") && message.author.id === '235406107416330250') {
+  if ((string.includes("HEY TSUKI") || string.includes("HI TSUKI")) && message.author.id === '235406107416330250') {
       channel.send("IS THAT CEHH!?? AAAAAHHHHHHHHHHHHHH");
       flag = true;
     }
