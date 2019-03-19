@@ -2118,6 +2118,10 @@ function commands(message, botAdmin, config){
       channel.send('https://cdn.discordapp.com/attachments/549161532315926540/551289660740206604/49709174_2276776759276874_4440576140557418496_n.mp4');
     } else if (scommand === 'gnome'){
       channel.send('https://tenor.com/view/gnomed-gnome-meme-epic-prank-gif-13288669');
+    } else if (scommand === 'monster'){
+      channel.send('https://cdn.discordapp.com/attachments/549162488860639252/557655812105830425/20190320_090414.jpg');
+    } else if (scommand === 'thomas'){
+      channel.send('https://cdn.discordapp.com/attachments/549162488860639252/557657026952429568/Screenshot_20190206-195127_Instagram.jpg');
       
       // Praise the moon!
     }else if (scommand === '.worship'){
