@@ -1583,16 +1583,22 @@ client.on('message', message => {
     }
     
     if(found){
-         message.delete();
+         message.delete().catch(function(rej){
+             console.log(chalk.red("Failed to delete banned word from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+         });
          console.log(chalk.cyan("deleted banned word from " + chalk.yellow(message.author.username)));
     }
   }
 
   // Remove possibly unsafe files
-  if(message.member && !message.member.roles.some(r => { return r.name === 'File Perms';})) {
+  if(message.member && !message.member.roles.some && (message.guild.id !== '264445053596991498') (r => { return r.name === 'File Perms';})) {
     for(let a of message.attachments){
       if(extensions.indexOf((ar => ar[ar.length-1])(a[1].filename.split('.')).toLowerCase()) === -1){
-        message.delete(10).then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author))).catch(0);
+        message.delete(10)
+                .then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author)))
+                .catch(function (rej){
+             console.log(chalk.red("Failed to delete unsafe file from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+        });
         return;
       }
     }
@@ -2145,6 +2151,7 @@ function commands(message, botAdmin, config){
     if((scommand === '.yeet' || scommand === 'yeet') && (guildID === '290891518829658112' || guildID === '524594133264760843' || guildID === '417982588498477060')){
         const author = message.author.username;
         // Delete the command message
+        console.log(chalk.magenta("Yeet called, watch for deletion failure!"));
         message.delete().then(console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
             // Report if delete permissions are missing
             console.log(chalk.yellow('Warning: ') + chalk.red.bold('Could not delete yeet command from ') + chalk.yellow(author) + chalk.red.bold(' due to failure: ' + 
@@ -2377,7 +2384,9 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
   // Function 1
   if(removeID(messageReaction.message.id) !== -1 && messageReaction.emoji.identifier === "%E2%9D%8E" && messageReaction.count === 2){
-    messageReaction.message.delete().catch();
+    messageReaction.message.delete().catch(function(rej){
+             console.log(chalk.red("Failed to delete message reaction from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+         });
   }
 
   // Function 2a.
@@ -2415,7 +2424,9 @@ client.on('messageReactionAdd', (messageReaction, user) => {
               message.channel.send("**Settings updated**\nBlocked services: `" + serverConfigs[guild].slice(0,-1).join(" ") + "`.")
                 .catch(console.log);
           })
-          .catch(console.log);
+          .catch(function(rej){
+             console.log(chalk.red("Failed to delete configuration message from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+         });
       }
     }
   }
