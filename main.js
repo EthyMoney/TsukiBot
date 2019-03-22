@@ -105,6 +105,10 @@ const stex              = require('stocks-exchange-client'),
                         },
 stexClient              = new stex.client(option);
 
+// Webpage data extraction
+const extractor         = require('unfluff');
+let pageData            = "{}"; // will be filled later
+
 // Include fancy console outputs
 const chalk             = require('chalk');
 
@@ -233,9 +237,8 @@ const quote               = 'Enjoying TsukiBot? Consider supporting its creator:
 /* --------------------------------------------
 
     These methods are calls on the api of the
-    respective exchanges. The user can send
-    an optional parameter to calculate %
-    change on a base price.
+    respective exchanges and other services
+    for price checks and so much more.
     These methods are the core funcionality
     of the bot. Command calls will usually end
     in one of these.
@@ -818,6 +821,43 @@ async function getStocksAlpha(coin1, chn, usr){
     chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
 }
 
+
+//------------------------------------------
+//------------------------------------------
+
+// Grabs coin purpose and description data from CMC
+async function getCoinDescription(coin1, chn, usr){
+    
+    let name = cmcArrayDict[coin1.toUpperCase()].slug;
+    let url = 'https://coinmarketcap.com/currencies/' + name + '/#social';
+    let html = '';
+    let text = '';
+    console.log(name);
+    console.log(url);
+    
+    await request(url, function (error, response, body) {
+        //console.log('error:', error); // Print the error if one occurred
+        //console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
+        html = body;
+    });
+    
+    setTimeout(function(){   
+        //console.log(html);   
+        data = extractor(html, 'en');   
+        console.log("DATA: " + JSON.stringify(data));
+        text = data.text;
+        chn.send('**NOTICE:** This is a __beta__ feature that is still in development. With that said, there may be errors with the following result. \n```' + text + '```').catch(function(rej){
+            chn.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
+            console.log('info message too long!');
+        });
+    }, 1500);
+  
+    
+    //console.log(chalk.green('Alpha Vintage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
+    
+    //chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
+}
+
 //------------------------------------------
 //------------------------------------------
 
@@ -974,6 +1014,7 @@ function getMarketCap(message){
 function getMarketCapSpecific(message){
   //collect the data
   cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
+  if(cur === 'HAMMER'){message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return;}
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
     let ticker = cmcArrayDictParsed;
@@ -1816,7 +1857,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock', 'info'].indexOf(command) > -1)){
           
         // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -1847,6 +1888,10 @@ function commands(message, botAdmin, config){
           let ext = command.slice(-1);
           code_in.splice(0,1);
           getPriceCMC(code_in, channel, '-', ext);
+          
+        // Coin description call
+        } else if(command === 'info'){
+          getCoinDescription(code_in[1], channel, message.user);
           
           // CG call (skip the filter)
         } else if(command.toString().trim() === 'cg' || command.toString().trim() === 'coingecko'){
