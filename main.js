@@ -148,6 +148,10 @@ const translate         = new Translate();
 // CryptoCompare requires global fetch
 global.fetch            = require('node-fetch');
 
+// JS DOM Selections
+const jsdom             = require("jsdom");
+const { JSDOM }         = jsdom;
+
 // Include stuff
 const PythonShell       = require('python-shell');
 
@@ -812,6 +816,7 @@ async function getStocksAlpha(coin1, chn, usr){
         chn.send("API Error: Ticker **" + coin1.toUpperCase() + "** not found.");
         return;
     }
+    //console.log(alphaJSON);
     price = alphaJSON["Global Quote"]["05. price"];
     vol = alphaJSON["Global Quote"]["06. volume"];
     change = alphaJSON["Global Quote"]["10. change percent"];
@@ -827,35 +832,56 @@ async function getStocksAlpha(coin1, chn, usr){
 
 // Grabs coin purpose and description data from CMC
 async function getCoinDescription(coin1, chn, usr){
-    
+    //check if coin exists on cmc
+    if(cmcArrayDict[coin1.toUpperCase()]){
+    //grab coin name and build url
     let name = cmcArrayDict[coin1.toUpperCase()].slug;
-    let url = 'https://coinmarketcap.com/currencies/' + name + '/#social';
+    let logo = '';
+    let url = 'https://coinmarketcap.com/currencies/' + name + '/';
     let html = '';
     let text = '';
-    console.log(name);
-    console.log(url);
     
-    await request(url, function (error, response, body) {
-        //console.log('error:', error); // Print the error if one occurred
-        //console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-        html = body;
-    });
-    
+    //grab the html
+    fetch(url)
+    .then(res => res.text())
+    .then(body => html = body);
+
+    //after collecting the html, pull the coin description out and send it
     setTimeout(function(){   
-        //console.log(html);   
-        data = extractor(html, 'en');   
-        console.log("DATA: " + JSON.stringify(data));
-        text = data.text;
-        chn.send('**NOTICE:** This is a __beta__ feature that is still in development. With that said, there may be errors with the following result. \n```' + text + '```').catch(function(rej){
+        const dom = new JSDOM(html);
+        let clas = dom.window.document.querySelector(".col-sm-8");
+        let log = dom.window.document.querySelector("h1");
+        logo = log.querySelector("img").src;
+        try{
+        text = clas.querySelector("p").textContent;
+        } catch(e){
+            chn.send("**Error:** CMC does not yet have a description for " + coin1.toUpperCase());
+            console.log(chalk.redBright("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
+            return;
+        }
+        
+        let msgh = text;
+        let embed = new Discord.RichEmbed()
+          .addField("About " + name + ":", msgh)
+          .setColor('#3333ff')
+          .setThumbnail(logo)
+          .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+                'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+
+        chn.send({embed}).catch(function(rej){
             chn.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
-            console.log('info message too long!');
+            console.log(chalk.redBright('info message too long!'));
         });
-    }, 1500);
+    }, 2000);
+    
+    }
+    else{
+        chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
+    }
   
     
     //console.log(chalk.green('Alpha Vintage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
     
-    //chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
 }
 
 //------------------------------------------
