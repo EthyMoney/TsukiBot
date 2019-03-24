@@ -62,7 +62,7 @@ const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json"
 
 // Coin request counter initialization
 let requestCounter      = {};
-pairs.forEach(p => requestCounter[p] = 0);
+pairs.forEach(p         => requestCounter[p] = 0);
 
 // Coin mention counter initialization
 let mentionCounter      = {};
@@ -104,10 +104,6 @@ const stex              = require('stocks-exchange-client'),
                           api_secret:keys['stexSecret']
                         },
 stexClient              = new stex.client(option);
-
-// Webpage data extraction
-const extractor         = require('unfluff');
-let pageData            = "{}"; // will be filled later
 
 // Include fancy console outputs
 const chalk             = require('chalk');
@@ -163,14 +159,13 @@ let referenceTime       = Date.now();
 // Permissions configurations
 let configIDs           = [];
 let serverConfigs       = {};
-const availableCommands = ['k','g','c','p','e','b','pa','join','done'];
-const emojiConfigs      = ["🇰",
-  "🇬",
-  "🇨",
-  "🇵",
-  "🇪",
-  "🇧",
+const availableCommands = ['prices','mc','trans','delet','pa','join','done'];
+const emojiConfigs      = [
+  ":chart_with_upwards_trend: ",
   "💰",
+  ":page_facing_up:",
+  ":octagonal_sign:",
+  ":signal_strength:",
   "📧",
   "✅"
 ];
@@ -717,6 +712,7 @@ async function getPriceMex(coin1, err, chn){
     chn.send(ans);
 }
 
+
 //------------------------------------------
 //------------------------------------------
 
@@ -848,6 +844,7 @@ async function getStocksAlpha(coin1, chn, usr){
 async function getCoinDescription(coin1, chn, usr){
     //check if coin exists on cmc
     if(cmcArrayDict[coin1.toUpperCase()]){
+    console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1.toUpperCase())));
     //grab coin name and build url
     let name = cmcArrayDict[coin1.toUpperCase()].slug;
     let logo = '';
@@ -869,14 +866,14 @@ async function getCoinDescription(coin1, chn, usr){
         try{
         text = clas.querySelector("p").textContent;
         } catch(e){
-            chn.send("**Error:** CMC does not yet have a description for " + coin1.toUpperCase());
-            console.log(chalk.redBright("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
+            chn.send("**Error:** CMC does not yet have a description for __" + coin1.toUpperCase() + "__");
+            console.log(chalk.red("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
             return;
         }
         
         let msgh = text;
         let embed = new Discord.RichEmbed()
-          .addField("About " + name + ":", msgh)
+          .addField("About " + capitalizeFirstLetter(name) + ":", msgh)
           .setColor('#3333ff')
           .setThumbnail(logo)
           .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
@@ -884,7 +881,7 @@ async function getCoinDescription(coin1, chn, usr){
 
         chn.send({embed}).catch(function(rej){
             chn.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
-            console.log(chalk.redBright('info message too long!'));
+            console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
         });
     }, 2000);
     
@@ -1931,7 +1928,7 @@ function commands(message, botAdmin, config){
           
         // Coin description call
         } else if(command === 'info'){
-          getCoinDescription(code_in[1], channel, message.user);
+          getCoinDescription(code_in[1], channel, message.author);
           
           // CG call (skip the filter)
         } else if(command.toString().trim() === 'cg' || command.toString().trim() === 'coingecko'){
@@ -2130,22 +2127,22 @@ function commands(message, botAdmin, config){
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
       postHelp(message, message.author, 'ask');
-
-      // Call KL Index
-    } else if (scommand === 'kli'){
-      let title = 'KL Index Highs';
-      let kl = '';
-      kliArray.forEach(function(v){
-        if(v['h.ticker'] !== 'USDT' && v.x > -10 && v.kli > 0.1)
-          kl += '`' + v['h.ticker'] + '` - `' + v.kli + '`\n';
-      });
-
-      let embed  = new Discord.RichEmbed()
-        .addField(title, kl)
-        .setColor('WHITE')
-        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
-
-      channel.send({embed});
+  
+//      // Call KL Index
+//    } else if (scommand === 'kli'){
+//      let title = 'KL Index Highs';
+//      let kl = '';
+//      kliArray.forEach(function(v){
+//        if(v['h.ticker'] !== 'USDT' && v.x > -10 && v.kli > 0.1)
+//          kl += '`' + v['h.ticker'] + '` - `' + v.kli + '`\n';
+//      });
+//
+//      let embed  = new Discord.RichEmbed()
+//        .addField(title, kl)
+//        .setColor('WHITE')
+//        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
+//
+//      channel.send({embed});
       
       // Message Translation
     } else if (scommand === 't'){
@@ -2287,6 +2284,11 @@ function coinArrayMax(counter) {
   return [maxCrypto, Math.trunc((max / sum) * 100)];
 }
 
+// Capitalize names and titles
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
 // Detect language with google translate (In Beta)
 async function detectLanguage(){
   let [detections] = await translate.detect("I walked the cat to school");
@@ -2422,7 +2424,7 @@ function updateCmcKey() {
     if(hour === 22 || hour === 23){selectedKey = 12;}
     
     //Update client to operate with new key
-    clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
+    clientcmc = new CoinMarketCap(keys['coinmarketcap' + 'failover']);
     
 //    console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
 //            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
@@ -2467,12 +2469,12 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   const guild           = messageReaction.message.guild.id;
   const reactions       = messageReaction.message.reactions;
 
-  // Function 1
-  if(removeID(messageReaction.message.id) !== -1 && messageReaction.emoji.identifier === "%E2%9D%8E" && messageReaction.count === 2){
-    messageReaction.message.delete().catch(function(rej){
-             console.log(chalk.red("Failed to delete message reaction from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
-         });
-  }
+//  // Function 1
+//  if(removeID(messageReaction.message.id) !== -1 && messageReaction.emoji.identifier === "%E2%9D%8E" && messageReaction.count === 2){
+//    messageReaction.message.delete().catch(function(rej){
+//             console.log(chalk.red("Failed to delete message reaction from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+//         });
+//  }
 
   // Function 2a.
   if(configIDs.indexOf(message.id) > -1 && reactions.size < emojiConfigs.length){
