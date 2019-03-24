@@ -57,6 +57,9 @@ let pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
 let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
 
+// Metadata for all coins
+let metadata            = JSON.parse(fs.readFileSync("./common/metadata.json","utf8"));
+
 // Banned words
 const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json","utf8"));
 
@@ -112,7 +115,7 @@ const chalk             = require('chalk');
 graviex.accessKey       = keys['graviexAccessKey'];    
 graviex.secretKey       = keys['graviexSecretKey'];
 
-// R script calls
+// R script calls for KLI
 const R                 = require("r-script");
 let kliArray            = {};
 let kliArrayDict        = {};
@@ -171,7 +174,7 @@ const emojiConfigs      = [
 ];
 
 // Array of IDs for block removal
-let blockIDs = [];
+let blockIDs            = [];
 
 // BlockIDs remove function
 function removeID(id){
@@ -187,14 +190,11 @@ function removeID(id){
 }
 
 // Shortcut config
-let shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
-
-// Bittrex handle
-let bittrexhandle = {};
+let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
 // Alpha Vintage API
-let Alpha = require('alpha_vantage_api_wrapper').Alpha;
-let alpha = new Alpha(keys['alpha']);
+let Alpha                 = require('alpha_vantage_api_wrapper').Alpha;
+let alpha                 = new Alpha(keys['alpha']);
 
 // Initialize api things
 const clientKraken        = new ccxt.kraken();
@@ -874,7 +874,7 @@ async function getCoinDescription(coin1, chn, usr){
         let msgh = text;
         let embed = new Discord.RichEmbed()
           .addField("About " + capitalizeFirstLetter(name) + ":", msgh)
-          .setColor('#3333ff')
+          .setColor('#1b51be')
           .setThumbnail(logo)
           .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
                 'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
@@ -888,11 +888,7 @@ async function getCoinDescription(coin1, chn, usr){
     }
     else{
         chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
-    }
-  
-    
-    //console.log(chalk.green('Alpha Vintage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
-    
+    }   
 }
 
 //------------------------------------------
@@ -1059,7 +1055,8 @@ function getMarketCapSpecific(message){
     for (let i = 0; i < j; i++) {
       if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["rank"]) {
       let name = ticker[i]["name"];
-      let price = ticker[i]["quote"]["USD"]["price"];
+      let price = parseFloat(ticker[i]["quote"]["USD"]["price"]).toFixed(6);
+      let priceBTC = convertToBTCPrice(price).toFixed(8);
       let percent = ticker[i]["quote"]["USD"]["percent_change_24h"];
       let rank = ticker[i]["cmc_rank"];
       let percent7 = ticker[i]["quote"]["USD"]["percent_change_7d"];
@@ -1090,11 +1087,45 @@ function getMarketCapSpecific(message){
       console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
       }
       
-      //deliver the response
-      message.channel.send("**[" + rank + "]** `" + name + " " + symbol +
-         "` **|**" + " ***Mcap:*** `$" + numberWithCommas(marketcap) + "` *Price:* `$" + price + "` *Vol:* `$" + volume +
-         "`\n\n" + "*Circulating Supply:* `" + supply + "` *Total Supply:* `" + totalSupply + "` *Max Supply:* `" + maxSupply + 
-         "`\n\n" + "*1h:* `" + percent1h + "%` " + "*24h:* `" + percent + "%` *7d:* `" + percent7 + "%`");
+      let logo = '';
+      for (let j = 0, len = metadata.data.length; j < len; j++) {
+        if(metadata.data[j].coin === symbol){
+            logo = metadata.data[j].logo;
+            break;
+        }
+        else{
+            // default to cmc logo
+            logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+              'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
+        }
+      }
+    
+      let l1 = "Rank: `#" + rank + "`\n";
+      let l2 = "Market Cap: `" + numberWithCommas(marketcap) + " USD" + "`\n";
+      let l3 = "24hr Volume: `" + volume + " USD" + "`\n";
+      let l4 = "Circulating Supply: `" + supply + " " + symbol + "`\n";
+      let l5 = "Total Supply: `" + totalSupply + " " + symbol + "`\n";
+      let l6 = '';
+      if(maxSupply === 'n/a'){
+        l6 = "Maximum Supply: `" + maxSupply + "`\n\n";
+      } else{
+        l6 = "Maximum Supply: `" + maxSupply + " " + symbol + "`\n\n";
+      }
+      let l7 = "Current Price: `" + price + " USD" +  " | " + priceBTC + " BTC`\n";
+      let l8 = "Change: *1h:* `" + percent1h + "%` " + "*24h:* `" + percent + "%` *7d:* `" + percent7 + "%`";
+      let msgh = l1+l2+l3+l4+l5+l6+l7+l8;
+      
+      let embed = new Discord.RichEmbed()
+        .addField("Market Data for: " + name + " (" + symbol + ")", msgh)
+        .setColor('#1b51be')
+        .setThumbnail(logo)
+        .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+              'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+
+      message.channel.send({embed}).catch(function(rej){
+          message.channel.send.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
+          console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
+      });
       }
     }
   }) ();
