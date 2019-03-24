@@ -659,6 +659,21 @@ async function getPriceMex(coin1, err, chn){
   let c = '';
   let coin2 = 'btc';
   let tickerJSON = '';
+  let today = new Date();
+  let dd = String(today.getDate()).padStart(2, '0');
+  let mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+  let yy = today.getFullYear() - 2000;
+  let m = '';
+  let done = false;
+  //console.log(mm + "::" + dd + ":::" + yy);
+ 
+  // Figure out current contract code
+  if ((mm <= 12 && (mm >= 1 && mm <= 3)) && !done) {if((mm === 3 && dd >= 28)){m = 'M'; done=true;} else{m = 'H'; done=true;}}
+  if (mm >= 3 && mm <= 6 && !done) {if((mm === 6 && dd >= 28)){m = 'U'; done=true;} else{m = 'M'; done=true;}}
+  if (mm >= 6 && mm <= 9 && !done) {if((mm === 9 && dd >= 28)){m = 'Z'; done=true;} else{m = 'U'; done=true;}}
+  if (mm >= 9 && mm <= 12 && !done) {if((mm === 12 && dd >= 28)){m = 'H';} else{m = 'Z';}}
+  let contractCode = m + yy;
+  //console.log(chalk.blue(contractCode));
   
   // This implementation changes as the BitMEX contract period code changes every 3 months
   switch(coin1.toUpperCase()) {
@@ -671,22 +686,22 @@ async function getPriceMex(coin1, err, chn){
         coin2 = 'usd';
         break;
     case 'BCH':
-        tickerJSON = await bitmex.fetchTicker('BCHH19');
+        tickerJSON = await bitmex.fetchTicker('BCH' + contractCode);
         break;
     case 'EOS':
-        tickerJSON = await bitmex.fetchTicker('EOSH19');
+        tickerJSON = await bitmex.fetchTicker('EOS' + contractCode);
         break;
     case 'ADA':
-        tickerJSON = await bitmex.fetchTicker('ADAH19');
+        tickerJSON = await bitmex.fetchTicker('ADA' + contractCode);
         break;
     case 'LTC':
-        tickerJSON = await bitmex.fetchTicker('LTCH19');
+        tickerJSON = await bitmex.fetchTicker('LTC' + contractCode);
         break;
     case 'TRX':
-        tickerJSON = await bitmex.fetchTicker('TRXH19');
+        tickerJSON = await bitmex.fetchTicker('TRX' + contractCode);
         break
     case 'XRP':
-        tickerJSON = await bitmex.fetchTicker('XRPH19');
+        tickerJSON = await bitmex.fetchTicker('XRP' + contractCode);
         break
     default:
         chn.send('BitMEX Error: `Ticker "' + err.toUpperCase() + '" not found.`');
@@ -701,7 +716,6 @@ async function getPriceMex(coin1, err, chn){
     let ans = '__BitMEX__ Price for **'  + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `'  + s + ' ' + coin2.toUpperCase() +  '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
     chn.send(ans);
 }
-
 
 //------------------------------------------
 //------------------------------------------
