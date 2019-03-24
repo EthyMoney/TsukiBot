@@ -852,38 +852,36 @@ async function getCoinDescription(coin1, chn, usr){
     let html = '';
     let text = '';
     
-    //grab the html
-    fetch(url)
-    .then(res => res.text())
-    .then(body => html = body);
-
-    //after collecting the html, pull the coin description out and send it
-    setTimeout(function(){   
-        const dom = new JSDOM(html);
-        let clas = dom.window.document.querySelector(".col-sm-8");
-        let log = dom.window.document.querySelector("h1");
-        logo = log.querySelector("img").src;
-        try{
-        text = clas.querySelector("p").textContent;
-        } catch(e){
+    for (let j = 0, len = metadata.data.length; j < len; j++) {
+      if(metadata.data[j].coin === coin1.toUpperCase()){
+        if(metadata.data[j].logo){
+            logo = metadata.data[j].logo;
+        } else{
+           // default to cmc logo
+           logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+             'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
+        }
+        if(metadata.data[j].description){
+            text = metadata.data[j].description;
+            break;
+        } else{
             chn.send("**Error:** CMC does not yet have a description for __" + coin1.toUpperCase() + "__");
             console.log(chalk.red("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
             return;
         }
-        
-        let msgh = text;
+      } 
+    }
         let embed = new Discord.RichEmbed()
-          .addField("About " + capitalizeFirstLetter(name) + ":", msgh)
+          .addField("About " + capitalizeFirstLetter(name) + ":", text)
           .setColor('#1b51be')
           .setThumbnail(logo)
-          .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+          .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
                 'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
         chn.send({embed}).catch(function(rej){
             chn.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
             console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
         });
-    }, 2000);
     
     }
     else{
@@ -1116,10 +1114,10 @@ function getMarketCapSpecific(message){
       let msgh = l1+l2+l3+l4+l5+l6+l7+l8;
       
       let embed = new Discord.RichEmbed()
-        .addField("Market Data for: " + name + " (" + symbol + ")", msgh)
+        .addField("Market Data for " + name + " (" + symbol + ")", msgh)
         .setColor('#1b51be')
         .setThumbnail(logo)
-        .setFooter('Data sourced from CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+        .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
               'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
       message.channel.send({embed}).catch(function(rej){
