@@ -86,7 +86,10 @@ let dbl;                //will be initialized upon startup
 const request           = require("request");
 
 // Get the api keys
-const keys              = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
+let keys                = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
+
+// Get the admin commands
+const admin             = JSON.parse(fs.readFileSync('./common/admin.json','utf8'));
 
 // Include API things
 const Discord 		= require('discord.js');
@@ -100,7 +103,7 @@ const CoinGecko         = require('coingecko-api');
 // Import web3
 const Web3              = require('web3');
 
-// STEX API client seup
+// STEX API client setup
 const stex              = require('stocks-exchange-client'),
                         option = {
                           api_key:keys['stex'],
@@ -125,6 +128,8 @@ let cmcArray            = {};
 let cmcArrayDict        = {};
 let cmcArrayDictParsed  = [];
 let fails               = 0;
+let auto                = true;
+let selectedKey         = 0;
 
 // Spam limit count
 let yeetLimit           = 0;
@@ -254,7 +259,10 @@ async function getPriceCoinbase(chn, coin1, coin2){
 
     let fail = false;
     let tickerJSON = '';
-    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USD';
     }
     tickerJSON = await clientCoinbase.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -288,8 +296,11 @@ async function getPriceGraviex(chn, coin1, coin2){
     let change = 0;
     let volume = 0;
     let volumeCoin = 0;
-    if(!coin2 || coin2.toLowerCase() === 'usd'){
-        coin2 = 'usdt';
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
+        coin2 = 'USDT';
     }
     coin1 = coin1 + '';
     coin2 = coin2 + '';
@@ -328,7 +339,10 @@ async function getPriceGraviex(chn, coin1, coin2){
 async function getPriceSTEX(chn, coin1, coin2){
   //default to usdt if none is provided
   if (typeof coin2 === 'undefined') {
-    coin2 = 'USDT';
+      coin2 = 'BTC';
+  }
+  if (coin2.toLowerCase() === 'usd'){
+      coin2 = 'USDT';
   }
   let tickerJSON = '';
   let fail = false;
@@ -575,7 +589,10 @@ async function getPriceBitfinex(coin1, coin2, chn){
     let fail = false;
     let coin3 = coin2;
     let tickerJSON = '';
-    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -617,6 +634,9 @@ async function getPriceKraken(coin1, coin2, base, chn) {
     let fail = false;
     let tickerJSON = '';
     if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USD';
     }
     tickerJSON = await clientKraken.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -723,7 +743,10 @@ async function getPricePolo(coin1, coin2, chn){
 
     let fail = false;
     let tickerJSON = '';
-    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -755,7 +778,10 @@ async function getPriceBinance(coin1, coin2, chn){
 
     let fail = false;
     let tickerJSON = '';
-    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -787,7 +813,10 @@ async function getPriceBittrex(coin1, coin2, chn){
 
     let fail = false;
     let tickerJSON = '';
-    if (typeof coin2 === 'undefined' || coin2.toLowerCase() === 'usd') {
+    if (typeof coin2 === 'undefined') {
+        coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBittrex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -1724,21 +1753,6 @@ client.on('message', message => {
   // Get the server permission configuration settings
   const config = serverConfigs[message.guild.id] || [];
   
- 
-  // Automatic language translation (BETA, disabled)
-  
-//  const guildID = message.guild.id;
-//  const language = '';
-//  
-//  if(message.content.charAt(0) !== '.' && !message.content.includes('http') && 
-//  message.content.charAt(0) !== ':' && !message.content.includes('www') && !message.content.includes('.com') &&
-//  !message.content.includes('@') && message.content.charAt(0) !== '<' && !message.content.includes('<:') &&
-//  (guildID === '290891518829658112' || guildID === '524594133264760843') && message.author.id !== '506918730790600704'){
-//    
-//    //Check language
-//    detectLanguage();
-//    
-//  }
 
   // Check for perms (temporary)
   message.guild.fetchMember(message.author)
@@ -1750,43 +1764,36 @@ client.on('message', message => {
       }
     })
     .catch(e => (0));
-
-  // Check if message is in english
-  //console.log(message.content);
-  //console.log(lngDetector.detect(message.content, 3));
-  const guildID = message.guild.id;
-  let SS = guildID === '290891518829658112';
-  //console.log("SS: " + SS);
-  
-  if(message.content.length >= 8 && message.content.charAt(0) !== '.' && !message.content.includes('http') && 
-          message.content.charAt(0) !== ':' && !message.content.includes('www') && !message.content.includes('.com') &&
-          !message.content.includes('@') && message.content.charAt(0) !== '<' && !message.content.includes('<:') &&
-          (guildID === '290891518829658112' || guildID === '524594133264760843') && message.author.id !== '506918730790600704'){
-    //console.log(chalk.green("Entered language processing!"));
-    let language = lngDetector.detect(message.content);
-    let isDutch = false;
-    let certainty = 0;
-    let languages = language.length;
-    if(languages > 3){languages = 3;}
     
-    if(language[0] && language[0][0] === 'dutch'){
-        //console.log(lngDetector.detect(message.content, 3));
-        certainty = language[0][1];
-        if(certainty >= .30){
-          isDutch = true;
-        }
-    }
-  
-//    if(isDutch){
-//      console.log(chalk.cyan("DUTCH DETECTED"));
-//      console.log(message.content);
-//      console.log('Certainty : ' + certainty);
-//      //translateEN(message.channel, message);
-//    }
     
-    //console.log(chalk.cyan('------------------------------------------------------------'));
+  // Internal bot admin controls
+  if(message.author.id === '210259922888163329'){
+      if(message.content.includes(admin['1'])){
+          if(auto){
+              message.channel.send("Already set to auto.");
+          }
+          else{
+              auto = true;
+              updateCmcKey();
+              message.channel.send(admin['11'] + selectedKey);
+          }  
+      }
+      if(message.content.includes(admin['2'])){
+          auto = false;
+          updateCmcKey(message.content.split(" ").slice(-1));
+          message.channel.send(admin['22'] + selectedKey);
+      }
+      if(message.content.includes(admin['3'])){
+          message.channel.send(admin['33'] + selectedKey);
+      }
+      if(message.content.includes(admin['4'])){
+          keys = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
+          message.channel.send(admin['44']);
+      }
+      if(message.content.includes(admin['5'])){
+          message.channel.send(admin['55'] + cmcArrayDictParsed.length);
+      }
   }
-
 });
 
 /* -------------------------------------------------------
@@ -2432,9 +2439,8 @@ function publishDblStats(){
 }
 
 // I do a lot of CMC calls and I'm trying to keep the bot free to use, so I alternate between keys to keep using free credits and still update frequently
-function updateCmcKey() {
+function updateCmcKey(override) {
     //Get the time
-    let selectedKey = 0;
     let d = new Date();
     let hour = d.getUTCHours();
     
@@ -2453,10 +2459,19 @@ function updateCmcKey() {
     if(hour === 22 || hour === 23){selectedKey = 12;}
     
     //Update client to operate with new key
-    clientcmc = new CoinMarketCap(keys['coinmarketcap' + 'failover']);
-    
-//    console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
+    if(auto){
+        clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
+//        console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
 //            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
+        return selectedKey;
+    }
+    else{
+        clientcmc = new CoinMarketCap(keys['coinmarketcap' + override]);
+        selectedKey = override;
+//        console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
+//            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
+        return selectedKey;
+    }
 }
 
 function loadConfiguration(msg){
