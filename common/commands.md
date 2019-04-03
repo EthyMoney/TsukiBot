@@ -4,7 +4,10 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 #### Welcome to the commands list! Here you can find all available commands and details on how to use them. <br>
 
 ### NOTE: If you didn't see an introduction message when the bot joined or the bot does not respond to you, it is missing permissions! 
+
 Please make sure that TsukiBot has permission to send and read messages, manage roles, manage channels, and manage messages. These permissions are **REQUIRED** for the bot to work correctly!! If you need help, join the support server using the link at the bottom of this document.
+
+TsukiBot deletes files that are not photos or videos by default. Add the created role named "File Perms" to be allowed to send files. This a recommended protection measure for crypo users to prevent spread of malicious scripts or accidentally sharing key files.
 
 #### All commands follow this general structure: `.tb <command> <parameters>`
 
@@ -13,7 +16,7 @@ Please make sure that TsukiBot has permission to send and read messages, manage 
 
 ## Exchange/Index Price Checks:
 ##### Usage: `.tb <exchange> <coin> <comparison>` 
-`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to USD if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
+`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to USD/USDT if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
 
 + `g`:   &nbsp; &nbsp; &nbsp; Coinbase
 + `k`:   &nbsp; &nbsp; &nbsp; Kraken
@@ -45,6 +48,7 @@ These commands are used exactly as shown:
 + `.tbpa`: &nbsp; &nbsp; &nbsp; Call the array
 + `.tbpa+`: &nbsp; &nbsp; Call the array with BTC prices
 + `.tbpa*`: &nbsp; &nbsp; Call the array in expanded format with BTC prices
++ `.tbpae`: &nbsp; &nbsp; Call the array with ETH prices
 + `.tbpa%`: &nbsp; &nbsp; Call the array ordered by % change (least to greatest)
 
 <br>
@@ -72,6 +76,8 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `t <text>`:   &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Translate provided text to English using Google Translate
 + `subrole <name>` : &nbsp; Create a general role in the server with provided name
 + `.tbmyavatar` : &nbsp; &nbsp; &nbsp; &nbsp; Display and provide a link to your current avatar
++ `stock`:  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NSADAQ/NYSE Averaged price for a stock!
++ `info`:  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Description about a given coin
 + `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
 
 This one provides the bot session statistics and is used exactly as shown:
@@ -107,6 +113,8 @@ The following can be used like the ones above to get ETH/USD prices **OR** they 
 + `.tbg`              ⇒ Shortcut Coinbase price for ETHUSD
 + `.tbg eur`          ⇒ Shortcut Coinbase price for ETHEUR
 + `.tbk`              ⇒ Shortcut Kraken price for ETHUSD
++ `.tb stock amd`     ⇒ Stock price for $AMD
++ `.tb info eth`      ⇒ Information about Ethereum (ETH)
 
 <br>
 
@@ -123,6 +131,6 @@ Join the support server here: [discordapp.com/TsukiBot](https://discord.gg/VWNUb
 
 ---
 
-ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are greatly appreciated! A lot work goes into making TsukiBot the best crypto bot on Discord. Consider a donation to say thanks and help support future development!
+ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are greatly appreciated! The bot is 100% free to use and a lot work goes into making TsukiBot the best crypto bot on Discord. Consider a donation to say thanks and help support future development!
 
 [![Discord Bots](https://discordbots.org/api/widget/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
