@@ -197,7 +197,7 @@ function removeID(id){
 // Shortcut config
 let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
-// Alpha Vintage API
+// Alpha Vantage API
 let Alpha                 = require('alpha_vantage_api_wrapper').Alpha;
 let alpha                 = new Alpha(keys['alpha']);
 
@@ -842,7 +842,7 @@ async function getPriceBittrex(coin1, coin2, chn){
 //------------------------------------------
 //------------------------------------------
 
-// This function grabs price data for traditional markets via Alpha Vintage
+// This function grabs price data for traditional markets via Alpha Vantage
 async function getStocksAlpha(coin1, chn, usr){
     let price = '';
     let vol = '';
@@ -860,7 +860,7 @@ async function getStocksAlpha(coin1, chn, usr){
     vol = alphaJSON["Global Quote"]["06. volume"];
     change = alphaJSON["Global Quote"]["10. change percent"];
     
-    console.log(chalk.green('Alpha Vintage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
+    console.log(chalk.green('Alpha Vantage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
     
     chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
 }
@@ -1613,7 +1613,7 @@ client.on('ready', () => {
   console.log(chalk.yellow('------------------------------------------------------ ' + chalk.greenBright('Bot start') + ' ------------------------------------------------------'));
 
   // Display help command on bot's status
-  client.user.setActivity('.tbhelp');
+  client.user.setActivity('.tb help');
 
   // Load in the server permissions configurations
   fs.readFile("common/serverPerms.json", function(err, data){
@@ -1668,7 +1668,7 @@ function postHelp(message, author, code) {
       }
     }, 1800);
   } else {     
-      message.channel.send("Use `.tbhelp` to get a list of commands and their usage.");
+      message.channel.send("Use `.tb help` to get a list of commands and their usage.");
     }
 }
 
@@ -1908,6 +1908,50 @@ function commands(message, botAdmin, config){
     // Get the command
     let command = code_in[0].toLowerCase();
     
+    
+    //
+    // Check commands that don't require paramers
+    //
+    
+    // Remove the sub tags
+    if(command === 'leave'){
+        setSubscriptions(message.author, message.guild, ['r']);
+        
+    // Get DiscordID via DM
+    }else if(command === 'id'){
+        message.author.send("Your ID is `" + message.author.id + "`.");
+
+    // Load configuration message
+    } else if(command === 'config'){
+        if(hasPermissions(message.author.id, message.guild) || botAdmin)
+            loadConfiguration(message);
+
+    // Restore the sub tags
+    } else if(command === 'resub'){
+        setSubscriptions(message.author, message.guild, ['S']);
+            
+    // Get available roles (Enabled)
+    } else if(command === 'list'){
+        code_in.splice(0,1);
+        code_in.unshift('g');
+        setSubscriptions(message.author, message.guild, code_in);
+
+    // Statistics
+    } else if (command === 'stat'){
+        postSessionStats(message);
+    
+    // Call help scommand
+    } else if (command === 'help' || command === 'h'){
+        postHelp(message, message.author, 'ask');
+        
+    } else{
+        
+    
+    //
+    // Done checking for no-input commands, now checking rest of commands:
+    //
+            
+    
     // Check if there is content
     if((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1)){
 
@@ -1930,7 +1974,8 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock', 'info'].indexOf(command) > -1)){
+      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock', 'info'
+      ].indexOf(command) > -1)){
           
         // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -2071,9 +2116,10 @@ function commands(message, botAdmin, config){
               channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)");
             }
           }
+          
         } else if(command === 'translate' || command === 't' || command === 'trans'){
             translateEN(channel, message, false);
-
+            
           // Catch-all help
         } else {
           postHelp(message, message.author, command);
@@ -2084,6 +2130,7 @@ function commands(message, botAdmin, config){
     } else {
       postHelp(message, message.author, command);
     }
+  }
 
 
 // --------------------------------------------------------------------------------------------------------
@@ -2094,38 +2141,15 @@ function commands(message, botAdmin, config){
 
     let scommand = code_in[0];
 
-    // Get DiscordID via DM
-    if(scommand === 'id'){
-      message.author.send("Your ID is `" + message.author.id + "`.");
-
-      // Remove the sub tags
-    } else if(scommand === 'leave'){
-      setSubscriptions(message.author, message.guild, ['r']);
-
-      // Load configuration message
-    } else if(scommand === 'config'){
-      if(hasPermissions(message.author.id, message.guild) || botAdmin)
-        loadConfiguration(message);
-
-      // Restore the sub tags
-    } else if(scommand === 'resub'){
-      setSubscriptions(message.author, message.guild, ['S']);
-
       // Get personal array prices
-    } else if( /pa[\+\-\*]?/.test(scommand)){
+      if( /pa[\+\-\*]?/.test(scommand)){
 
-      if(message.author.id !== client.user.id){
-              getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
-          };
-
-      // Get available roles (Enabled)
-    } else if(scommand === 'list'){
-      code_in.splice(0,1);
-      code_in.unshift('g');
-      setSubscriptions(message.author, message.guild, code_in);
+        if(message.author.id !== client.user.id){
+            getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
+        };
 
       // Get Coinbase ETHX
-    } else if (scommand === 'g'){
+    } else if (scommand === 'g' || scommand === 'cb'){
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
         getPriceCoinbase(channel, 'ETH', 'EUR');
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
@@ -2163,6 +2187,7 @@ function commands(message, botAdmin, config){
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
       postHelp(message, message.author, 'ask');
+      
   
 //      // Call KL Index
 //    } else if (scommand === 'kli'){
@@ -2186,36 +2211,14 @@ function commands(message, botAdmin, config){
 
       // Statistics
     } else if (scommand === 'stat'){
-      console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
-      let users         = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
-      users             = numberWithCommas(users);
-      const guilds      = numberWithCommas(client.guilds.size);
-      const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
-      const topCrypto   = coinArrayMax(requestCounter);
-      const popCrypto   = coinArrayMax(mentionCounter);
-
-
-      const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
-        + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
-        + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
-        + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
-        + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
-        + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
-        + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02.`");
-
-      let embed         = new Discord.RichEmbed()
-        .addField("TsukiBot Stats", msgh)
-        .setColor('BLUE')
-        .setThumbnail('https://i.imgur.com/H6YVUOX.png')
-        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
-      channel.send({embed});
-
+        postSessionStats(message);
+        
+        
 
       //
       // The following meme commands are set to only work in SpaceStation until a configuration option is added to disable them when not wanted
       //
       
-
       // Meme
     } else if (scommand === '.dank' && guildID === '290891518829658112'){
       channel.send(":ok_hand:           :tiger:"+ '\n' +
@@ -2266,7 +2269,7 @@ function commands(message, botAdmin, config){
     }
     
     // YEET on 'em
-    if((scommand === '.yeet' || scommand === 'yeet') && (guildID === '290891518829658112' || guildID === '524594133264760843' || guildID === '417982588498477060')){
+    if((scommand === '.yeet' || scommand === 'yeet') && (guildID === '290891518829658112' || guildID === '524594133264760843' || guildID === '417982588498477060' || guildID === '349720796035284993')){
         const author = message.author.username;
         // Delete the command message
         console.log(chalk.magenta("Yeet called, watch for deletion failure!"));
@@ -2287,10 +2290,7 @@ function commands(message, botAdmin, config){
             .catch(console.log(chalk.green("Yeet spam protection triggered")));
         }
     }
-    
   }
-
-
 }
   
 
@@ -2356,6 +2356,33 @@ function translateEN(chn, msg, sneak){
   }).catch(err => {
       console.error(err);
   });
+}
+
+// Send the session stats of the bot
+function postSessionStats(message){
+    console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
+    let users         = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
+    users             = numberWithCommas(users);
+    const guilds      = numberWithCommas(client.guilds.size);
+    const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
+    const topCrypto   = coinArrayMax(requestCounter);
+    const popCrypto   = coinArrayMax(mentionCounter);
+
+
+    const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
+        + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
+        + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
+        + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
+        + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
+        + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
+        + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02.`");
+
+    let embed         = new Discord.RichEmbed()
+        .addField("TsukiBot Stats", msgh)
+        .setColor('BLUE')
+        .setThumbnail('https://i.imgur.com/H6YVUOX.png')
+        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
+    message.channel.send({embed});
 }
 
 // Convert USD prive to ETH value
@@ -2574,7 +2601,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
 async function getCMCData(){
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({limit: 2200}).then().catch(console.error);
+  let cmcJSON = await clientcmc.getTickers({limit: 100}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
