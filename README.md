@@ -3,18 +3,20 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 #### The ultimate all-in-one cryptocurrency bot for Discord.
 \
-The full detailed list of commands can be found by using the command `.tbhelp` in discord. You can also view the commands document [right here in the repo.](https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md)
+The full detailed list of commands can be found by using the command `.tb help` in discord. You can also view the commands document [right here in the repo.](https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md)
 
 
 
 ## Features:
-+ Fetch detailed data for specific pairs on many various exhanges.
-+ Quickly and easily check price averages in real time against USD and BTC.
++ Fetch detailed price data for specific pairs on many various exhanges.
++ Quickly and easily check price averages in real time against USD, BTC, and more.
 + Set, track, and manage your own personal list of coins that you can check as you please.
-+ Fetch volume and market capitalization data on selected pairs.
++ Fetch volume, market capitalization, supply, and price history data on selected coins.
++ Get information about a given coin, such as it's purpose and who created it.
++ Check prices of stocks using averages from NASDAQ/NYSE.
 + Automanage private channels and roles for crypto subgroups.
-+ Automanage paid subscriptions and expiring roles.
-+ Check messages per minute and number of users across crypto servers.
++ Instantly translate foreign languages to english with a simple in-chat command.
++ Check messages per minute, most requested coin, and number of users across crypto servers.
 + Auto delete unsafe files to protect crypto users from malicious programs and scripts
 + Full integration of many popular APIs, including CoinMarketCap, CryptoCompare, CoinGecko, numorous exchanges, and more!
 + Very active development steadily pushing new features and listening to requests and suggestions.
