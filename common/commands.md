@@ -21,11 +21,11 @@ TsukiBot deletes files that are not photos or videos by default. Add the created
 + `g`:   &nbsp; &nbsp; &nbsp; Coinbase
 + `k`:   &nbsp; &nbsp; &nbsp; Kraken
 + `p`:   &nbsp; &nbsp; &nbsp; Poloniex
-+ `n`:   &nbsp; &nbsp; &nbsp;  Binance
++ `b`:   &nbsp; &nbsp; &nbsp;  Binance
 + `cg`:  &nbsp; &nbsp;  CoinGecko
 + `f`:   &nbsp; &nbsp; &nbsp;  Bitfinex
 + `m`:   &nbsp; &nbsp; &nbsp;  BitMEX
-+ `b`:   &nbsp; &nbsp; &nbsp; Bittrex
++ `x`:   &nbsp; &nbsp; &nbsp; Bittrex
 + `st`:  &nbsp; &nbsp; STEX
 
 The following have this usage: `.tb <exchange> <coins>` Where `<coins>` can be either a single coin, or a space-separated list of multiple coins. Note, CMC can be called using a custom shortcut to access easier. See further down for details.
@@ -58,8 +58,8 @@ These commands allow a server owner to create private crypto channels(subs) that
 All of the following commands are used exactly as shown aside from replacing `<coin>` with a valid coin ticker/symbol.
 
 + `.tb join <coin>` : &nbsp; Get assigned the sub role and gain access to the corresponding room
-+ `.tbleave` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Leave all rooms
-+ `.tblist` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the available rooms for the server
++ `.tb leave` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Leave all rooms
++ `.tb list` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the available rooms for the server
 
 This command is for the server owner **only**. There will not be any subs to join until the following command is used to make them:
 + `.tb makeroom <coin>`: Create a private room and a sub role for a whitelisted coin
@@ -81,7 +81,7 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
 
 This one provides the bot session statistics and is used exactly as shown:
-+ `.tbstat` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bot session stats, most most requested coin, messages per minute, and link to support server
++ `.tb stat` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bot session stats, most most requested coin, messages per minute, and link to support server
 
 <br>
 
