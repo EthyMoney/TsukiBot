@@ -78,6 +78,9 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `.tbmyavatar` : &nbsp; &nbsp; &nbsp; &nbsp; Display and provide a link to your current avatar
 + `stock`:  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NSADAQ/NYSE Averaged price for a stock!
 + `info`:  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Description about a given coin
++ `id` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get your unique Discord ID number DM'd to you
++ `funding` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the BitMEX perpetual swap contracts funding rates
++ `fg` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the current Bitcoin fear and greed index value
 + `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
 
 This one provides the bot session statistics and is used exactly as shown:
