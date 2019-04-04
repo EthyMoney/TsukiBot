@@ -82,8 +82,9 @@ const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'
 const DBL               = require("dblapi.js");
 let dbl;                //will be initialized upon startup
 
-// HTTP request
+// HTTP and websocket request
 const request           = require("request");
+const WebSocket         = require('ws');
 
 // Get the api keys
 let keys                = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
@@ -629,7 +630,7 @@ async function getPriceBitfinex(coin1, coin2, chn){
 
 // Function that gets Kraken prices
 
-async function getPriceKraken(coin1, coin2, base, chn) {
+async function getPriceKraken(coin1, coin2, chn) {
     
     let fail = false;
     let tickerJSON = '';
@@ -916,6 +917,76 @@ async function getCoinDescription(coin1, chn, usr){
     else{
         chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
     }   
+}
+
+async function getFearGreedIndex(chn, usr){
+  //create embed and insert image 
+  let embed = new Discord.RichEmbed()
+      .setAuthor("Current Fear/Greed Index:", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+      .setImage("https://alternative.me/crypto/fear-and-greed-index.png")
+      .setColor('#1b51be')
+      .setFooter("This image updates automatically when reloaded by Discord");
+
+  chn.send({embed}).catch(function(rej){
+  chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
+      console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
+  });
+}
+
+
+async function getMexFunding(chn){
+  let messageNumber = 0;
+  //create websocket listener
+  const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
+    perMessageDeflate: false
+  });
+ 
+  ws.on('message', function incoming(data) {
+    messageNumber++;
+    //timestamp
+    let d = new Date();
+    let day = d.getDay();
+    let month = d.getMonth();
+    let year = d.getFullYear();
+    let hour = d.getHours();
+    let minute = d.getMinutes();
+    let ts = month + "/" + day + "/" + year + " at " + hour + ":" + minute;
+    if(messageNumber === 4){
+        let btc = '';
+        let eth = '';
+        
+        //find the btc and eth objects
+        let dataJSON = JSON.parse(data).data;
+        for(let i=0; i< dataJSON.length; i++){
+            if(dataJSON[i].symbol === 'XBTUSD'){
+                btc = dataJSON[i];
+            }
+            if(dataJSON[i].symbol === 'ETHUSD'){
+                eth = dataJSON[i];
+            }
+        }
+        
+        let text = 'Current Funding Rate: `' + parseFloat(btc.fundingRate*100).toFixed(4) + "%` \n" +
+                   'Predicted Funding Rate: `' + parseFloat(btc.indicativeFundingRate*100).toFixed(4) + '%`';
+        let text2 = 'Current Funding Rate: `' + parseFloat(eth.fundingRate*100).toFixed(4) + "%` \n" +
+                   'Predicted Funding Rate: `' + parseFloat(eth.indicativeFundingRate*100).toFixed(4) + '%`';
+           
+        let embed = new Discord.RichEmbed()
+          .setAuthor("BitMEX Perpetual Swap Contract Funding Data")
+          .addField("XBT/USD:", text)
+          .addField("ETH/USD:", text2)
+          .setThumbnail('https://firebounty.com/image/751-bitmex')
+          .setColor('#1b51be')
+          .setFooter("BitMEX    " + ts, 'https://firebounty.com/image/751-bitmex');
+
+        chn.send({embed}).catch(function(rej){
+          chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
+          console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(rej)));
+        });
+    }
+  });
+  
+
 }
 
 //------------------------------------------
@@ -1668,7 +1739,8 @@ function postHelp(message, author, code) {
       }
     }, 1800);
   } else {     
-      message.channel.send("Use `.tb help` to get a list of commands and their usage.");
+      message.channel.send("Command not recognized. Use `.tb help` to see the commands and their usage. \n" + 
+        "Keep in mind that commands follow this format: `.tb <command> <parameter(s)>`");
     }
 }
 
@@ -1944,6 +2016,15 @@ function commands(message, botAdmin, config){
     } else if (command === 'help' || command === 'h'){
         postHelp(message, message.author, 'ask');
         
+    // Feer/Greed index call
+    } else if(command === 'fg' || command === 'feargreed' || command === 'fear/greed'){
+        getFearGreedIndex(channel);
+        
+    // Bitmex funding data
+    } else if(command === 'funding' || command === 'fund'){
+        getMexFunding(channel);
+        
+        
     } else{
         
     
@@ -1983,7 +2064,7 @@ function commands(message, botAdmin, config){
 
           // Kraken call
         } else if(command === 'kraken' || command === 'k'){
-          getPriceKraken(params[1], (params[2] === null ? 'USD' : params[2]), (params[3] !== null && !isNaN(params[3]) ? params[3] : -1), channel);
+          getPriceKraken(code_in[1], code_in[2], channel);
 
           // Finex call
         } else if(command === 'bitfinex' || command === 'f'){
@@ -2080,11 +2161,11 @@ function commands(message, botAdmin, config){
           getPriceGraviex(channel, code_in[1], code_in[2]);
 
           // Bittrex call (no filter)
-        } else if(command === 'bittrex' || command === 'b'){
+        } else if(command === 'bittrex' || command === 'x'){
           getPriceBittrex(code_in[1], code_in[2], channel);
 
           // Binance call (no filter)
-        } else if(command === 'binance' || command === 'n'){
+        } else if(command === 'binance' || command === 'n' || command === 'b'){
           getPriceBinance(code_in[1], code_in[2], channel);
 
           // Etherscan call
@@ -2601,7 +2682,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
 async function getCMCData(){
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({limit: 100}).then().catch(console.error);
+  let cmcJSON = await clientcmc.getTickers({limit: 10}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
