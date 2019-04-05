@@ -593,9 +593,6 @@ async function getPriceBitfinex(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
-        coin2 = 'USDT';
-    }
     tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Bitfinex error: Ticker '
             + chalk.cyan(coin1.toUpperCase() + coin3.toUpperCase()) + ' not found!'));
@@ -2682,7 +2679,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
 async function getCMCData(){
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({limit: 10}).then().catch(console.error);
+  let cmcJSON = await clientcmc.getTickers({limit: 2200}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
