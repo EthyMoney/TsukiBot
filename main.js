@@ -263,7 +263,7 @@ async function getPriceCoinbase(chn, coin1, coin2){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USD';
     }
     tickerJSON = await clientCoinbase.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -300,7 +300,7 @@ async function getPriceGraviex(chn, coin1, coin2){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USDT';
     }
     coin1 = coin1 + '';
@@ -342,7 +342,7 @@ async function getPriceSTEX(chn, coin1, coin2){
   if (typeof coin2 === 'undefined') {
       coin2 = 'BTC';
   }
-  if (coin2.toLowerCase() === 'usd'){
+  if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
       coin2 = 'USDT';
   }
   let tickerJSON = '';
@@ -588,17 +588,16 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 async function getPriceBitfinex(coin1, coin2, chn){
 
     let fail = false;
-    let coin3 = coin2;
     let tickerJSON = '';
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
-        coin2 = 'USDT'
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+        coin2 = 'USDT';
     }
     tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Bitfinex error: Ticker '
-            + chalk.cyan(coin1.toUpperCase() + coin3.toUpperCase()) + ' not found!'));
+            + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
         chn.send('API Error:  Bitfinex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
         fail = true;
     });
@@ -615,7 +614,7 @@ async function getPriceBitfinex(coin1, coin2, chn){
     let c = tickerJSON['percentage'] * 100;
     c = Math.round(c * 100) / 100;
 
-    if(coin2 === 'USDT'){
+    if(coin2.toUpperCase() === 'USDT'){
         coin2 = 'USD';
     }
     
@@ -637,7 +636,7 @@ async function getPriceKraken(coin1, coin2, chn) {
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USD';
     }
     tickerJSON = await clientKraken.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -747,7 +746,7 @@ async function getPricePolo(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -782,7 +781,7 @@ async function getPriceBinance(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -817,7 +816,7 @@ async function getPriceBittrex(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBittrex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -935,6 +934,12 @@ async function getFearGreedIndex(chn, usr){
 
 
 async function getMexFunding(chn){
+  //timestamp
+  let d = new Date();
+  let date = new Date().toLocaleDateString();
+  let hour = d.getHours();
+  let minute = d.getMinutes();
+  let ts = date + " at " + hour + ":" + minute + " UTC";
   let messageNumber = 0;
   //create websocket listener
   const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
@@ -943,14 +948,6 @@ async function getMexFunding(chn){
  
   ws.on('message', function incoming(data) {
     messageNumber++;
-    //timestamp
-    let d = new Date();
-    let day = d.getDay();
-    let month = d.getMonth();
-    let year = d.getFullYear();
-    let hour = d.getHours();
-    let minute = d.getMinutes();
-    let ts = month + "/" + day + "/" + year + " at " + hour + ":" + minute;
     if(messageNumber === 4){
         let btc = '';
         let eth = '';
@@ -2068,7 +2065,7 @@ function commands(message, botAdmin, config){
 
           // Finex call
         } else if(command === 'bitfinex' || command === 'f'){
-          getPriceBitfinex(params[1], params[2] === null ? '' : params[2], channel);
+          getPriceBitfinex(code_in[1], code_in[2], channel);
           
           // Bitmex call
         } else if(command === 'bitmex' || command === 'm' || command === 'mex'){
