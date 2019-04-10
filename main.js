@@ -593,6 +593,9 @@ async function getPriceBitfinex(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
+    if (coin2.toLowerCase() === 'usd'){
+        coin2 = 'USDT'
+    }
     tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Bitfinex error: Ticker '
             + chalk.cyan(coin1.toUpperCase() + coin3.toUpperCase()) + ' not found!'));
