@@ -1141,14 +1141,19 @@ function getMarketCap(message){
 
 function getMarketCapSpecific(message){
   //collect the data
-  cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
+  if(message.content.includes('.tb')){
+      cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
+  }
+  else{
+      cur = message.content.replace('-t ', '').split(" ")[1].toUpperCase();
+  }
   if(cur === 'HAMMER'){message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return;}
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
     let ticker = cmcArrayDictParsed;
     j = ticker.length;
     for (let i = 0; i < j; i++) {
-      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["rank"]) {
+      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["cmc_rank"]) {
       let name = ticker[i]["name"];
       let price = parseFloat(ticker[i]["quote"]["USD"]["price"]).toFixed(6);
       let priceBTC = convertToBTCPrice(price).toFixed(8);
