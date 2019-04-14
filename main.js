@@ -1153,7 +1153,7 @@ function getMarketCapSpecific(message){
     let ticker = cmcArrayDictParsed;
     j = ticker.length;
     for (let i = 0; i < j; i++) {
-      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["cmc_rank"]) {
+      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || cur === ticker[i]["cmc_rank"]) {
       let name = ticker[i]["name"];
       let price = parseFloat(ticker[i]["quote"]["USD"]["price"]).toFixed(6);
       let priceBTC = convertToBTCPrice(price).toFixed(8);
