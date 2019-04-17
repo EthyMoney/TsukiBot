@@ -918,18 +918,34 @@ async function getCoinDescription(coin1, chn, usr){
     }   
 }
 
-async function getFearGreedIndex(chn, usr){
-  //create embed and insert image 
-  let embed = new Discord.RichEmbed()
-      .setAuthor("Current Fear/Greed Index:", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
-      .setImage("https://alternative.me/crypto/fear-and-greed-index.png")
-      .setColor('#1b51be')
-      .setFooter("This image updates automatically when reloaded by Discord");
+async function getFearGreedIndex(chn, usr) {
+    request('https://api.alternative.me/fng/?limit=1&format=json', function (error, response, body) {
+        let color = '';
+        //parse response data
+        let resJSON = JSON.parse(body);
+        //calculate embed color based on value
+        if(resJSON.data[0].value >= 40 && resJSON.data[0].value <= 60){color = '#f2f207';}
+        else{
+          if(resJSON.data[0].value > 60){color = '#0eed11';}
+            else{color = '#ea0215';}
+        }
+        //calculate next update countdown
+        let d = resJSON.data[0].time_until_update;
+        let h = Math.floor(d / 3600);
+        let m = Math.floor(d % 3600 / 60);
+        //create embed and insert data 
+        let embed = new Discord.RichEmbed()
+                .setAuthor("Fear/Greed Index", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+                .addField("Current Value:", resJSON.data[0].value + " (" + resJSON.data[0].value_classification + ")")
+                .setColor(color)
+                .setFooter("Next update: " + h + " hrs, " + m + " mins");
 
-  chn.send({embed}).catch(function(rej){
-  chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
-      console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
-  });
+        chn.send({embed}).catch(function (rej) {
+            chn.send("Sorry, unable to process this response at this time.");
+            console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
+        });
+    });
+
 }
 
 
@@ -1141,6 +1157,7 @@ function getMarketCap(message){
 
 function getMarketCapSpecific(message){
   //collect the data
+  let cur = '';
   if(message.content.includes('.tb')){
       cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
   }
@@ -1153,7 +1170,7 @@ function getMarketCapSpecific(message){
     let ticker = cmcArrayDictParsed;
     j = ticker.length;
     for (let i = 0; i < j; i++) {
-      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || cur === ticker[i]["cmc_rank"]) {
+      if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["cmc_rank"]+'' === cur) {
       let name = ticker[i]["name"];
       let price = parseFloat(ticker[i]["quote"]["USD"]["price"]).toFixed(6);
       let priceBTC = convertToBTCPrice(price).toFixed(8);
