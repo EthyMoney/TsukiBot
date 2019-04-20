@@ -53,7 +53,7 @@ let cmcKey              = 1;
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Allowed coins in commands
-let pairs		= JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+let pairs		        = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
 let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
 
@@ -74,8 +74,8 @@ const MESSAGE_LIMIT     = 100000;
 pairs_filtered.forEach(p => mentionCounter[p] = 0);
 
 // Help string
-let title 		= '__**TsukiBot**__ :full_moon: \n';
-const github		= 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
+let title 		        = '__**TsukiBot**__ :full_moon: \n';
+const github		    = 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
 const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
 
 // Discord Bots List
@@ -93,9 +93,9 @@ let keys                = JSON.parse(fs.readFileSync('./common/keys.api','utf8')
 const admin             = JSON.parse(fs.readFileSync('./common/admin.json','utf8'));
 
 // Include API things
-const Discord 		= require('discord.js');
-const api 		= require('etherscan-api').init(keys['etherscan']);
-const cc 		= require('cryptocompare');
+const Discord 		    = require('discord.js');
+const api 		        = require('etherscan-api').init(keys['etherscan']);
+const cc 		        = require('cryptocompare');
 const CoinMarketCap     = require('coinmarketcap-api');
 const ccxt              = require('ccxt-js');
 const graviex           = require("graviex");
