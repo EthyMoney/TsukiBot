@@ -57,6 +57,9 @@ let pairs		        = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
 let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
 
+// Tags
+let tagsJSON            = JSON.parse(fs.readFileSync("tags.json", "utf8"));
+
 // Metadata for all coins
 let metadata            = JSON.parse(fs.readFileSync("./common/metadata.json","utf8"));
 
@@ -229,6 +232,7 @@ let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
 
 const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
 const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
+const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 // -------------------------------------------
 // -------------------------------------------
@@ -918,6 +922,12 @@ async function getCoinDescription(coin1, chn, usr){
     }   
 }
 
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Function that retrieves the current fear/greed index value
 async function getFearGreedIndex(chn, usr) {
     request('https://api.alternative.me/fng/?limit=1&format=json', function (error, response, body) {
         let color = '';
@@ -949,6 +959,11 @@ async function getFearGreedIndex(chn, usr) {
 }
 
 
+
+//------------------------------------------
+//------------------------------------------
+
+// Function for grabbing Bitmex swap contract funding data
 async function getMexFunding(chn){
   //timestamp
   let d = new Date();
@@ -998,9 +1013,127 @@ async function getMexFunding(chn){
         });
     }
   });
+}
+
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Tags handler function
+function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink) {
   
+  let valid = false;
+  let validTag = false;
+  let name = null;
+  let tag = null;
+  let resultName = null;
+  let resultTag = null;
+  let resultAuthorName = null;
+  let resultAuthorAvatar = null;
+  let resultTimestamp = null;
+
+  if (command && tagName && tagLink && validURL(tagLink)) {
+    name = tagName.toString().toLowerCase();
+    tag = tagLink;
+    valid = true;
+  }
+
+  if (tagName && !validURL(tagName)) {
+    validTag = true;
+  }
+
+  if (command === 'createtag' && valid) {
+    console.log('tag creation started!');
+    let obj = tagsJSON;
+    obj.tags.push({
+      guild: guild.id,
+      authorName: author.username,
+      authorAvatar: author.avatarURL,
+      timestamp: timestamp,
+      tagName: tagName,
+      tagLink: tagLink
+    }); //add a fresh tag
+    let json = JSON.stringify(obj); //convert it back to json
+    fs.writeFile('tags.json', json, 'utf8', function (err) {
+      if (err) {
+        console.log(chalk.red("ERROR: " + err));
+      } else {
+        tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
+      }
+    }); //write it back 
+    console.log("Tag created!");
+    return;
+
+  } else if (command === 'deletetag' && validTag) {
+    let tags = tagsJSON.tags;
+    for (let i = 0; i < tags.length; i++) {
+      if (tags[i].guild === guild.id) {
+        if (tagName.toString().toLowerCase() === tags[i].tagName) {
+          resultAuthorAvatar = tags[i].authorAvatar;
+          resultAuthorName = tags[i].authorName;
+          resultName = tags[i].tagName;
+          resultTag = tags[i].tagLink;
+          resultTimestamp = tags[i].timestamp;
+          tags.splice(i - 1, 1);
+          tagsJSON.tags = tags;
+          let json = JSON.stringify(tagsJSON); //convert it back to json
+          fs.writeFile('tags.json', json, 'utf8', function (err) {
+            if (err) {
+              console.log(chalk.red("ERROR: " + err));
+            } else {
+              tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
+            }
+          }); //write it back 
+          channel.send("Tag " + "\"" + resultName + "\"" + " deleted.");
+          return;
+        }
+      }
+    }
+
+  } else if (command === 'tag' && validTag) {
+    let tags = tagsJSON.tags;
+    for (let i = 0; i < tags.length; i++) {
+      if (tags[i].guild === guild.id) {
+        if (tagName.toString().toLowerCase() === tags[i].tagName) {
+          resultAuthorAvatar = tags[i].authorAvatar;
+          resultAuthorName = tags[i].authorName;
+          resultName = tags[i].tagName;
+          resultTag = tags[i].tagLink;
+          resultTimestamp = tags[i].timestamp;
+          break;
+        }
+      }
+    }
+
+    if (null === resultName) {
+      channel.send("That tag doesn't exist!");
+      return;
+    }
+
+    let embed = new Discord.RichEmbed()
+            .setAuthor("Tsuki Tags Beta", 'https://ih0.redbubble.net/image.531469145.7688/flat,550x550,075,f.u1.' +
+            'jpghttps://www.google.com/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&cad=rja&uact=8&ved=2ahUKEwj4vvunn-' +
+            'XhAhUHLKwKHZiyCokQjRx6BAgBEAU&url=https%3A%2F%2Fcoub.com%2Fview%2Fdrytd&psig=AOvVaw3vLWQUg0AFuuAax_AUTvg_&ust=1556075154469088')
+            .addField("Tag: \"" + resultName + "\"", resultTag)
+            .setImage(resultTag) 
+            .setColor('#1b51be')
+            .setTimestamp(resultTimestamp)
+            .setFooter(resultAuthorName, resultAuthorAvatar);
+
+    channel.send({embed}).catch(function (rej) {
+      channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
+      console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+    });
+
+  } else {
+    channel.send("Incorrect use of tags command! Here's how to use tags: <coming soon>");
+    return;
+  }
 
 }
+
+
 
 //------------------------------------------
 //------------------------------------------
@@ -1911,6 +2044,9 @@ function commands(message, botAdmin, config){
   // Get the channel where the bot will answer.
   let channel = message.channel;
   
+  // Lazy message rename
+  let msg = message;
+  
   // Get the guild(server) id of the message
   const guildID = message.guild.id;
   
@@ -2040,9 +2176,20 @@ function commands(message, botAdmin, config){
         getFearGreedIndex(channel);
         
     // Bitmex funding data
-    } else if(command === 'funding' || command === 'fund'){
-        getMexFunding(channel);
+    } else if(command === 'createtag'){
+        tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
         
+    } else if(command === 'tag'){
+        tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
+        
+    } else if(command === 'deletetag'){
+        tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
+        
+    } else if(command === 'showjson') {
+        console.log(tagsJSON);
+        
+    } else if(command === 'invite') {
+        msg.channel.send("Add me to your server with this link: \n" + inviteLink);
         
     } else{
         
@@ -2456,6 +2603,17 @@ function translateEN(chn, msg, sneak){
   }).catch(err => {
       console.error(err);
   });
+}
+
+// Check if string is a valid URL
+function validURL(str) {
+  var pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
+          '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
+          '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
+          '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + // port and path
+          '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
+          '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
+  return !!pattern.test(str);
 }
 
 // Send the session stats of the bot
