@@ -1044,7 +1044,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
   }
 
   if (command === 'createtag' && valid) {
-    console.log('tag creation started!');
+    //console.log('tag creation started!');
     let obj = tagsJSON;
     obj.tags.push({
       guild: guild.id,
@@ -1062,7 +1062,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
       }
     }); //write it back 
-    console.log("Tag created!");
+    console.log(chalk.blue("Tag " + "\"" + tagName + "\"" + " created!"));
+	channel.send("Tag " + "\"" + tagName + "\"" + " created!");
     return;
 
   } else if (command === 'deletetag' && validTag) {
@@ -1086,6 +1087,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
             }
           }); //write it back 
           channel.send("Tag " + "\"" + resultName + "\"" + " deleted.");
+          console.log(chalk.blue("Tag " + "\"" + tagName + "\"" + " deleted!"));
           return;
         }
       }
@@ -1112,9 +1114,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
     let embed = new Discord.RichEmbed()
-            .setAuthor("Tsuki Tags Beta", 'https://ih0.redbubble.net/image.531469145.7688/flat,550x550,075,f.u1.' +
-            'jpghttps://www.google.com/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&cad=rja&uact=8&ved=2ahUKEwj4vvunn-' +
-            'XhAhUHLKwKHZiyCokQjRx6BAgBEAU&url=https%3A%2F%2Fcoub.com%2Fview%2Fdrytd&psig=AOvVaw3vLWQUg0AFuuAax_AUTvg_&ust=1556075154469088')
+            .setAuthor("Tsuki Tags Beta", 'https://coubsecure-s.akamaihd.net/get/b1/p/coub/simple/cw_timeline_pic/f4fdb022966/c22be10a216112058c3d8/big_1469634066_image.jpg')
             .addField("Tag: \"" + resultName + "\"", resultTag)
             .setImage(resultTag) 
             .setColor('#1b51be')
