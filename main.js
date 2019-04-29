@@ -2176,6 +2176,9 @@ function commands(message, botAdmin, config){
         getFearGreedIndex(channel);
         
     // Bitmex funding data
+    } else if(command === 'fund' || command === 'funding'){
+        getMexFunding(channel);
+    
     } else if(command === 'createtag'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
         
@@ -2430,6 +2433,10 @@ function commands(message, botAdmin, config){
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b'){
       getPriceBittrex('ETH', 'USD', channel);
+      
+      // Get BitMEX ETHUSDT
+    } else if (scommand === 'm'){
+      getPriceMex('ETH', 'none', channel);
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
