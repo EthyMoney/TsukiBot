@@ -16,6 +16,8 @@ The full detailed list of commands can be found by using the command `.tb help` 
 + Check prices of stocks using averages from NASDAQ/NYSE.
 + Check the fear and greed index of bitcoin
 + Check margin funding rates for margin-enabled pairs
++ Check open long and short positions on BitMEX
++ Create tags within your server to save and access links
 + Automanage private channels and roles for crypto subgroups.
 + Instantly translate foreign languages to english with a simple in-chat command.
 + Check messages per minute, most requested coin, and number of users across crypto servers.
