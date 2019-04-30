@@ -16,7 +16,7 @@ TsukiBot deletes files that are not photos or videos by default. Add the created
 
 ## Exchange/Index Price Checks:
 ##### Usage: `.tb <exchange> <coin> <comparison>` 
-`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to USD/USDT if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
+`<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to BTC or USD (depending on exchange) if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
 
 + `g`:   &nbsp; &nbsp; &nbsp; Coinbase
 + `k`:   &nbsp; &nbsp; &nbsp; Kraken
@@ -81,6 +81,8 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `id` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get your unique Discord ID number DM'd to you
 + `funding` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the BitMEX perpetual swap contracts funding rates
 + `fg` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the current Bitcoin fear and greed index value
++ `ls` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the current open long and short positions for BTC on Bitmex
++ `invite` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get a pre-permissioned link to add TsukiBot to your own server!
 + `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
 
 This one provides the bot session statistics and is used exactly as shown:
@@ -97,6 +99,7 @@ When calling your shortcut for prices, you can add a `*` or `+` right behind the
 + `.tbpop` : Get prices of some popular coins
 + `.tbp` : Poloniex ETH/USD price
 + `.tbb` : Bittrex ETH/USD price
++ `.tbm` : Bitmex ETH/USD price
 
 The following can be used like the ones above to get ETH/USD prices **OR** they can have a comparison currency passed to them them. `<comparison>` is optional and will default to USD if none is provided. USD, EUR, and BTC is supported for the comparison.
 + `.tbg <comparison>` : Coinbase ETH price in terms of the proivded comparison currency. 
