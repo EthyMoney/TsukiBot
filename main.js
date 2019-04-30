@@ -994,10 +994,10 @@ async function getMexFunding(chn){
             }
         }
         
-        let text = 'Current Funding Rate: `' + parseFloat(btc.fundingRate*100).toFixed(4) + "%` \n" +
-                   'Predicted Funding Rate: `' + parseFloat(btc.indicativeFundingRate*100).toFixed(4) + '%`';
-        let text2 = 'Current Funding Rate: `' + parseFloat(eth.fundingRate*100).toFixed(4) + "%` \n" +
-                   'Predicted Funding Rate: `' + parseFloat(eth.indicativeFundingRate*100).toFixed(4) + '%`';
+        let text = 'Current Rate: `' + parseFloat(btc.fundingRate*100).toFixed(4) + "%` \n" +
+                   'Predicted Rate: `' + parseFloat(btc.indicativeFundingRate*100).toFixed(4) + '%`';
+        let text2 = 'Current Rate: `' + parseFloat(eth.fundingRate*100).toFixed(4) + "%` \n" +
+                   'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate*100).toFixed(4) + '%`';
            
         let embed = new Discord.RichEmbed()
           .setAuthor("BitMEX Perpetual Swap Contract Funding Data")
@@ -1012,6 +1012,44 @@ async function getMexFunding(chn){
           console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(rej)));
         });
     }
+  });
+}
+
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Grabs the current data for Bitmex long and short positions
+async function getMexLongsShorts(channel) {
+
+  //grab the html
+  request('https://blockchainwhispers.com/bitmex-position-calculator/', function (error, response, body) {
+    //after collecting the html, pull out the data and send it
+    const dom = new JSDOM(body);
+
+    //BTC data
+    let block = dom.window.document.getElementsByClassName('col-md-4');
+    // 0 is finex, 1 is mex, 2 is total in the block array
+    let title = block[1].querySelector('h3').textContent;
+    let longs = block[1].querySelector('div.single-margin-platform div.field-value span.value.long').textContent.trim().split(" ")[0].trim();
+    let longsPercent = block[1].querySelector('div.single-margin-platform div.field-value span.value.long small').textContent;
+    let shorts = block[1].querySelector('div.single-margin-platform div.field-value span.value.short').textContent.trim().split(" ")[0].trim();
+    let shortsPercent = block[1].querySelector('div.single-margin-platform div.field-value span.value.short small').textContent;
+
+    let embed = new Discord.RichEmbed()
+      .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+      .addField('Longs:', longs + " (" + longsPercent + ")")
+      .addField('Shorts:', shorts + " (" + shortsPercent + ")")
+      .setThumbnail('https://firebounty.com/image/751-bitmex')
+      .setColor('#1b51be')
+      .setTimestamp(new Date())
+      .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
+
+    channel.send({embed}).catch(function (rej) {
+      channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
+      console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+    });
   });
 }
 
@@ -1044,7 +1082,6 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
   }
 
   if (command === 'createtag' && valid) {
-    //console.log('tag creation started!');
     let obj = tagsJSON;
     obj.tags.push({
       guild: guild.id,
@@ -2178,19 +2215,28 @@ function commands(message, botAdmin, config){
     // Bitmex funding data
     } else if(command === 'fund' || command === 'funding'){
         getMexFunding(channel);
+        
+    // Bitmex positions data
+    } else if(command === 'ls' || command === 'longs' || command === 'shorts' || command === 'positions' || command === 'longs/shorts'){
+        getMexLongsShorts(channel);
     
+    // Create a new tag
     } else if(command === 'createtag'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
-        
+    
+    // Call an existing tag
     } else if(command === 'tag'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
-        
+    
+    // Delete a tag
     } else if(command === 'deletetag'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
-        
+    
+    // Dev option to show the tags cache in console
     } else if(command === 'showjson') {
         console.log(tagsJSON);
-        
+    
+    // Send an invite link for the bot
     } else if(command === 'invite') {
         msg.channel.send("Add me to your server with this link: \n" + inviteLink);
         
@@ -2736,6 +2782,11 @@ function updateCmcKey(override) {
     let d = new Date();
     let hour = d.getUTCHours();
     
+    if(override){
+      selectedKey = override;
+    }
+    
+    if(auto){
     //Key assignment by time
     if(hour === 0 || hour === 1){selectedKey = 1;}
     if(hour === 2 || hour === 3){selectedKey = 2;}
@@ -2749,21 +2800,12 @@ function updateCmcKey(override) {
     if(hour === 18 || hour === 19){selectedKey = 10;}
     if(hour === 20 || hour === 21){selectedKey = 11;}
     if(hour === 22 || hour === 23){selectedKey = 12;}
-    
+    }
     //Update client to operate with new key
-    if(auto){
-        clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
+    clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
 //        console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
 //            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
         return selectedKey;
-    }
-    else{
-        clientcmc = new CoinMarketCap(keys['coinmarketcap' + override]);
-        selectedKey = override;
-//        console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
-//            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
-        return selectedKey;
-    }
 }
 
 function loadConfiguration(msg){
