@@ -1985,6 +1985,12 @@ client.on('message', message => {
          });
          console.log(chalk.cyan("deleted banned word from " + chalk.yellow(message.author.username)));
     }
+    
+    if(message.channel.name === 'rules-and-information' && message.author.id === '205190545914462208'){
+      message.delete(5000).catch(function(err){
+        console.log(chalk.red('Failed to delete frostwalker user mention in new users channel of SS due to the following: ' + err));
+      });
+    }
   }
 
   // Remove possibly unsafe files
@@ -2696,7 +2702,7 @@ function postSessionStats(message){
     message.channel.send({embed});
 }
 
-// Convert USD prive to ETH value
+// Convert USD price to ETH value
 function convertToETHPrice(priceUSD){
   let ETHPrice = cmcArrayDict['eth'.toUpperCase()]['quote']['USD']['price'];
   return priceUSD / ETHPrice;
@@ -2776,7 +2782,8 @@ function publishDblStats(){
     console.log(chalk.green("Updated dbots.org stats!"));
 }
 
-// I do a lot of CMC calls and I'm trying to keep the bot free to use, so I alternate between keys to keep using free credits and still update frequently
+// I do a lot of CMC calls and I'm trying to keep the bot free to use, 
+// so I alternate between keys to keep using free credits and still update frequently.
 function updateCmcKey(override) {
     //Get the time
     let d = new Date();
