@@ -2277,7 +2277,7 @@ function commands(message, botAdmin, config){
       // Keeping the pad
       params.unshift('0');
       if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock', 'info'
-      ].indexOf(command) > -1)){
+      , 'gr', 'graviex', 'grav'].indexOf(command) > -1)){
           
         // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
