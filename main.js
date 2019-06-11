@@ -1058,6 +1058,89 @@ async function getMexLongsShorts(channel) {
 //------------------------------------------
 //------------------------------------------
 
+//Fuction that converts Binance currencies into other Binance currencies
+
+async function convertPriceBinance(chn, coin1, coin2, numCoin2){
+
+  let fail = false;
+  let tickerJSON = '';
+  coin3 = 'BTC';
+  coin4 = 'BTC';
+  coin1_backup = coin1;
+  coin2_backup = coin2;
+  if (typeof coin2 === 'undefined') {
+      coin2 = 'BTC';
+  }
+  if (coin2.toLowerCase() === 'usd'){
+      coin4 = 'USDT';
+      coin2 = 'BTC';
+  }
+  if (coin1.toLowerCase() === 'usd'){
+    coin3 = 'USDT';
+    coin1 = 'BTC';
+  }
+  if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt'){
+    coin3 = 'BTC';
+    coin1 = 'ETH';
+  }
+  if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt'){
+    coin4 = 'BTC';
+    coin2 = 'ETH';
+  }
+  
+
+  tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
+      console.log(chalk.red.bold('Binance error: Ticker '
+          + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
+      fail = true;
+  });
+
+  let s1 = parseFloat(tickerJSON['last']).toFixed(8);
+  console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s1)));
+
+  if (coin3.toLowerCase() === 'usdt') {
+    s1 = 1 / s1;
+  }
+  if (coin1_backup.toLowerCase() === 'btc') {
+    s1 = 1;
+  }
+
+  tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
+    console.log(chalk.red.bold('Binance error: Ticker '
+        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+    chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
+    fail = true;
+  });
+
+  let s2 = parseFloat(tickerJSON['last']).toFixed(8);
+  console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s2)));
+
+  if (coin4.toLowerCase() === 'usdt') {
+    s2 = 1 / s2;
+  }
+  if (coin2_backup.toLowerCase() === 'btc') {
+    s2 = 1;
+  }
+
+
+  if (fail) {
+      //exit the function if ticker didn't exist, or api failed to respond
+      return;
+  }
+  
+  convResult = (s2 / s1) * numCoin2;
+  var ansi = numCoin2 + ' ' + coin2_backup.toUpperCase() + ' is equal to **' + convResult.toFixed(6) + ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' + (s1 / s2).toFixed(6) + ' ' + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**'
+
+  
+  chn.send(ansi);
+}
+
+
+
+//------------------------------------------
+//------------------------------------------
+
 // Tags handler function
 function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink) {
   
@@ -2205,6 +2288,10 @@ function commands(message, botAdmin, config){
         code_in.splice(0,1);
         code_in.unshift('g');
         setSubscriptions(message.author, message.guild, code_in);
+    
+    // Converts cryptos at binance rates
+    } else if(command === 'convert' || command === 'cv'){
+       convertPriceBinance(channel, code_in[4], code_in[2], code_in[1]);
 
     // Statistics
     } else if (command === 'stat'){
