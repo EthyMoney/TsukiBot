@@ -1055,86 +1055,88 @@ async function getMexLongsShorts(channel) {
 
 
 
+
 //------------------------------------------
 //------------------------------------------
 
 //Fuction that converts Binance currencies into other Binance currencies
 
-async function convertPriceBinance(chn, coin1, coin2, numCoin2){
+    async function convertPriceBinance(chn, coin1, coin2, numCoin2){
 
-  let fail = false;
-  let tickerJSON = '';
-  coin3 = 'BTC';
-  coin4 = 'BTC';
-  coin1_backup = coin1;
-  coin2_backup = coin2;
-  if (typeof coin2 === 'undefined') {
-      coin2 = 'BTC';
-  }
-  if (coin2.toLowerCase() === 'usd'){
-      coin4 = 'USDT';
-      coin2 = 'BTC';
-  }
-  if (coin1.toLowerCase() === 'usd'){
-    coin3 = 'USDT';
-    coin1 = 'BTC';
-  }
-  if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt'){
-    coin3 = 'BTC';
-    coin1 = 'ETH';
-  }
-  if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt'){
-    coin4 = 'BTC';
-    coin2 = 'ETH';
-  }
-  
-
-  tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
-      console.log(chalk.red.bold('Binance error: Ticker '
-          + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
-      fail = true;
-  });
-
-  let s1 = parseFloat(tickerJSON['last']).toFixed(8);
-  console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s1)));
-
-  if (coin3.toLowerCase() === 'usdt') {
-    s1 = 1 / s1;
-  }
-  if (coin1_backup.toLowerCase() === 'btc') {
-    s1 = 1;
-  }
-
-  tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
-    console.log(chalk.red.bold('Binance error: Ticker '
-        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-    chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
-    fail = true;
-  });
-
-  let s2 = parseFloat(tickerJSON['last']).toFixed(8);
-  console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s2)));
-
-  if (coin4.toLowerCase() === 'usdt') {
-    s2 = 1 / s2;
-  }
-  if (coin2_backup.toLowerCase() === 'btc') {
-    s2 = 1;
-  }
+        let fail = false;
+        let tickerJSON = '';
+        coin3 = 'BTC';
+        coin4 = 'BTC';
+        coin1_backup = coin1;
+        coin2_backup = coin2;
+        if (typeof coin2 === 'undefined') {
+            coin2 = 'BTC';
+        }
+        if (coin2.toLowerCase() === 'usd'){
+            coin4 = 'USDT';
+            coin2 = 'BTC';
+        }
+        if (coin1.toLowerCase() === 'usd'){
+            coin3 = 'USDT';
+            coin1 = 'BTC';
+        }
+        if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt'){
+            coin3 = 'BTC';
+            coin1 = 'ETH';
+        }
+        if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt'){
+            coin4 = 'BTC';
+            coin2 = 'ETH';
+        }
 
 
-  if (fail) {
-      //exit the function if ticker didn't exist, or api failed to respond
-      return;
-  }
-  
-  convResult = (s2 / s1) * numCoin2;
-  var ansi = numCoin2 + ' ' + coin2_backup.toUpperCase() + ' is equal to **' + convResult.toFixed(6) + ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' + (s1 / s2).toFixed(6) + ' ' + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**'
+        tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
+            console.log(chalk.red.bold('Binance error: Ticker '
+                + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+            chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
+            fail = true;
+        });
 
-  
-  chn.send(ansi);
-}
+        let s1 = parseFloat(tickerJSON['last']).toFixed(8);
+        console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s1)));
+
+        if (coin3.toLowerCase() === 'usdt') {
+            s1 = 1 / s1;
+        }
+        if (coin1_backup.toLowerCase() === 'btc') {
+            s1 = 1;
+        }
+
+        tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
+            console.log(chalk.red.bold('Binance error: Ticker '
+                + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+            chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
+            fail = true;
+        });
+
+        let s2 = parseFloat(tickerJSON['last']).toFixed(8);
+        console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s2)));
+
+        if (coin4.toLowerCase() === 'usdt') {
+            s2 = 1 / s2;
+        }
+        if (coin2_backup.toLowerCase() === 'btc') {
+            s2 = 1;
+        }
+
+
+        if (fail) {
+            //exit the function if ticker didn't exist, or api failed to respond
+            return;
+        }
+
+        convResult = (s2 / s1) * numCoin2;
+        var ansi = numCoin2 + ' ' + coin2_backup.toUpperCase() + ' is equal to **' + convResult.toFixed(6) + ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' + (s1 / s2).toFixed(6) + ' ' + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**'
+
+
+        chn.send(ansi);
+    }
+
 
 
 
@@ -1153,6 +1155,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
   let resultAuthorName = null;
   let resultAuthorAvatar = null;
   let resultTimestamp = null;
+  let tagList = [];
 
   if (command && tagName && tagLink && validURL(tagLink)) {
     name = tagName.toString().toLowerCase();
@@ -1213,6 +1216,35 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       }
     }
 
+  } else if (command === 'taglist') {
+      let tags = tagsJSON.tags;
+      let found = false;
+      for (let i = 0; i < tags.length; i++) {
+          if (tags && (tags[i].guild === guild.id)) {
+                  tagList.push(tags[i].tagName);
+                  found = true;
+          }
+      }
+      if(!found){
+          channel.send("There are no tags in this server! Feel free to make one using `.tb createtag <tag name here> <tag link here>`");
+      }
+      else{
+          let msg = '';
+          tagList.forEach(function(item, index, array) {
+              msg += item + ", ";
+          });
+          let embed = new Discord.RichEmbed()
+              .setAuthor("Tsuki Tags Beta", 'https://pbs.twimg.com/profile_images/970894110528688128/nwvybUBn_400x400.jpg')
+              .addField("Available tags in this server: ", msg.substring(0, msg.length-2))
+              .setColor('#1b51be')
+              .setFooter("To see a tag, use  .tb tag <tag name here>");
+
+          channel.send({embed}).catch(function (rej) {
+              channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
+              console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+          });
+      }
+
   } else if (command === 'tag' && validTag) {
     let tags = tagsJSON.tags;
     for (let i = 0; i < tags.length; i++) {
@@ -1234,17 +1266,17 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
     let embed = new Discord.RichEmbed()
-            .setAuthor("Tsuki Tags Beta", 'https://coubsecure-s.akamaihd.net/get/b1/p/coub/simple/cw_timeline_pic/f4fdb022966/c22be10a216112058c3d8/big_1469634066_image.jpg')
-            .addField("Tag: \"" + resultName + "\"", resultTag)
-            .setImage(resultTag) 
-            .setColor('#1b51be')
-            .setTimestamp(resultTimestamp)
-            .setFooter(resultAuthorName, resultAuthorAvatar);
+          .setAuthor("Tsuki Tags Beta", 'https://coubsecure-s.akamaihd.net/get/b1/p/coub/simple/cw_timeline_pic/f4fdb022966/c22be10a216112058c3d8/big_1469634066_image.jpg')
+          .addField("Tag: \"" + resultName + "\"", resultTag)
+          .setImage(resultTag)
+          .setColor('#1b51be')
+          .setTimestamp(resultTimestamp)
+          .setFooter(resultAuthorName, resultAuthorAvatar);
 
-    channel.send({embed}).catch(function (rej) {
-      channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
-      console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
-    });
+      channel.send({embed}).catch(function (rej) {
+          channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
+          console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+      });
 
   } else {
     channel.send("Incorrect use of tags command! Here's how to use tags: <coming soon>");
@@ -2288,10 +2320,10 @@ function commands(message, botAdmin, config){
         code_in.splice(0,1);
         code_in.unshift('g');
         setSubscriptions(message.author, message.guild, code_in);
-    
+
     // Converts cryptos at binance rates
     } else if(command === 'convert' || command === 'cv'){
-       convertPriceBinance(channel, code_in[4], code_in[2], code_in[1]);
+        convertPriceBinance(channel, code_in[4], code_in[2], code_in[1]);
 
     // Statistics
     } else if (command === 'stat'){
@@ -2314,11 +2346,15 @@ function commands(message, botAdmin, config){
         getMexLongsShorts(channel);
     
     // Create a new tag
-    } else if(command === 'createtag'){
+    } else if(command === 'createtag' || command === 'tagcreate'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
     
     // Call an existing tag
     } else if(command === 'tag'){
+        tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
+
+    // Call the tag list for current server
+    } else if(command === 'taglist' || command === 'tags' || command === 'listtags'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
     
     // Delete a tag
@@ -2838,7 +2874,7 @@ function joinProcedure(guild){
 
 // Function to add commas to long numbers
 const numberWithCommas = (x) => {
-  return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
 // Convert a passed-in USD value to BTC value and return it
