@@ -1168,38 +1168,50 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
   }
 
   if (command === 'createtag' && valid) {
+    //load current tags cache and set checkup flag
     let obj = tagsJSON;
-    obj.tags.push({
-      guild: guild.id,
-      authorName: author.username,
-      authorAvatar: author.avatarURL,
-      timestamp: timestamp,
-      tagName: tagName,
-      tagLink: tagLink
-    }); //add a fresh tag
-    let json = JSON.stringify(obj); //convert it back to json
-    fs.writeFile('tags.json', json, 'utf8', function (err) {
-      if (err) {
-        console.log(chalk.red("ERROR: " + err));
-      } else {
-        tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
-      }
-    }); //write it back 
-    console.log(chalk.blue("Tag " + "\"" + tagName + "\"" + " created!"));
-	channel.send("Tag " + "\"" + tagName + "\"" + " created!");
-    return;
+    let tags = tagsJSON.tags;
+    let fail = false;
+
+    //collision detection for creating tags that already exist
+    for (let i = 0; i < tags.length; i++) {
+        if (tags[i].guild === guild.id && !fail) {
+            if (name === tags[i].tagName.toLowerCase()) {
+                channel.send("That tag already exists! Use a different name and try again.");
+                fail = true;
+            }
+        }
+    }
+
+    if(!fail) {
+        //proceed to create the new tag upon all checks succeeding
+        obj.tags.push({
+            guild: guild.id,
+            authorName: author.username,
+            authorAvatar: author.avatarURL,
+            timestamp: timestamp,
+            tagName: name,
+            tagLink: tag
+        }); //add a fresh tag
+        let json = JSON.stringify(obj); //convert it back to json
+        fs.writeFile('tags.json', json, 'utf8', function (err) {
+            if (err) {
+                console.log(chalk.red("ERROR: " + err));
+            } else {
+                tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
+            }
+        }); //write it back
+        console.log(chalk.blue("Tag " + "\"" + tagName + "\"" + " created!"));
+        channel.send("Tag " + "\"" + tagName + "\"" + " created!");
+    }
 
   } else if (command === 'deletetag' && validTag) {
     let tags = tagsJSON.tags;
     for (let i = 0; i < tags.length; i++) {
       if (tags[i].guild === guild.id) {
         if (tagName.toString().toLowerCase() === tags[i].tagName) {
-          resultAuthorAvatar = tags[i].authorAvatar;
-          resultAuthorName = tags[i].authorName;
           resultName = tags[i].tagName;
-          resultTag = tags[i].tagLink;
-          resultTimestamp = tags[i].timestamp;
-          tags.splice(i - 1, 1);
+          tags.splice(i, 1);
           tagsJSON.tags = tags;
           let json = JSON.stringify(tagsJSON); //convert it back to json
           fs.writeFile('tags.json', json, 'utf8', function (err) {
