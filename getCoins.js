@@ -12,7 +12,7 @@ let update2 = async function () {
     let extras = [];
     let filters = ["POST", "U", "AND", "IN", "POLL", "AM", "GOT", "GOOD", "TODAY"];
 
-    let cmcJSON = await clientcmc.getTickers({limit: 2200}).then().catch(console.error);
+    let cmcJSON = await clientcmc.getTickers({limit: 2500}).then().catch(console.error);
     cmcArray = cmcJSON['data'];
     cmcArrayDict = {};
     cmcArray.forEach(function (v) {
