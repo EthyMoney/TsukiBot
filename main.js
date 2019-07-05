@@ -122,11 +122,6 @@ const chalk             = require('chalk');
 graviex.accessKey       = keys['graviexAccessKey'];    
 graviex.secretKey       = keys['graviexSecretKey'];
 
-// R script calls for KLI
-const R                 = require("r-script");
-let kliArray            = {};
-let kliArrayDict        = {};
-
 // CMC Cache
 let cmcArray            = {};
 let cmcArrayDict        = {};
@@ -144,10 +139,6 @@ let getEmCoach          = false;
 // Spellcheck
 const didyoumean        = require("didyoumean");
 
-// Language detection
-const LanguageDetect    = require('languagedetect');
-const lngDetector       = new LanguageDetect();
-
 // Google translate
 const translateSimple   = require('translate-google');
 const {Translate}       = require('@google-cloud/translate');
@@ -159,9 +150,6 @@ global.fetch            = require('node-fetch');
 // JS DOM Selections
 const jsdom             = require("jsdom");
 const { JSDOM }         = jsdom;
-
-// Include stuff
-const PythonShell       = require('python-shell');
 
 // Declare channels and message counter
 let channelName         = 'general';
@@ -181,22 +169,6 @@ const emojiConfigs      = [
   "📧",
   "✅"
 ];
-
-// Array of IDs for block removal
-let blockIDs            = [];
-
-// BlockIDs remove function
-function removeID(id){
-  // index of the passed message.id
-  let index = blockIDs.indexOf(id);
-
-  // .indexOf returns -1 if not in array, so this checks if message is infact in blockIDs.
-  if (index > -1){
-    // removes id from array
-    blockIDs.splice(index, 1);
-    blockIDs = blockIDs.splice(0,4);
-  }
-}
 
 // Shortcut config
 let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
@@ -223,10 +195,8 @@ const reloaderCG          = require('./getCoinsCG');
 // Scheduled Actions
  //let deleter      = schedule.scheduleJob('*/5 * * * *', checkSubStatus);
  //let mentionLog   = schedule.scheduleJob('*/5 * * * *', checkMentions);
-// let klindex      = schedule.scheduleJob('*/1 * * * *', getKLIndex);
 let cmcfetch      = schedule.scheduleJob('*/5 * * * *', getCMCData);
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);
-let csvsend       = schedule.scheduleJob('*/10 * * * *', sendCSV);
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
 
@@ -296,6 +266,7 @@ async function getPriceCoinbase(chn, coin1, coin2){
 // Function for grabbing prices from Graviex
 
 async function getPriceGraviex(chn, coin1, coin2){
+    console.log("Graviex Called!");
     let graviexJSON;
     let price = 0;
     let change = 0;
@@ -964,13 +935,7 @@ async function getFearGreedIndex(chn, usr) {
 //------------------------------------------
 
 // Function for grabbing Bitmex swap contract funding data
-async function getMexFunding(chn){
-  //timestamp
-  let d = new Date();
-  let date = new Date().toLocaleDateString();
-  let hour = d.getHours();
-  let minute = d.getMinutes();
-  let ts = date + " at " + hour + ":" + minute + " UTC";
+async function getMexFunding(chn, message){
   let messageNumber = 0;
   //create websocket listener
   const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
@@ -1000,12 +965,13 @@ async function getMexFunding(chn){
                    'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate*100).toFixed(4) + '%`';
            
         let embed = new Discord.RichEmbed()
-          .setAuthor("BitMEX Perpetual Swap Contract Funding Data")
+          .setAuthor("BitMEX Perpetual Swap Contract Funding Stats")
           .addField("XBT/USD:", text)
           .addField("ETH/USD:", text2)
           .setThumbnail('https://firebounty.com/image/751-bitmex')
           .setColor('#1b51be')
-          .setFooter("BitMEX    " + ts, 'https://firebounty.com/image/751-bitmex');
+          .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex')
+          .setTimestamp(message.timestamp);
 
         chn.send({embed}).catch(function(rej){
           chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
@@ -1131,8 +1097,11 @@ async function getMexLongsShorts(channel) {
         }
 
         convResult = (s2 / s1) * numCoin2;
-        var ansi = numCoin2 + ' ' + coin2_backup.toUpperCase() + ' is equal to **' + convResult.toFixed(6) + ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' + (s1 / s2).toFixed(6) + ' ' + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**'
-
+        let ansi = numberWithCommas(numCoin2) + ' ' + coin2_backup.toUpperCase() + ' is equal to **' +
+            numberWithCommas(convResult.toFixed(2)) +
+            ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' +
+            numberWithCommas((s1 / s2).toFixed(2)) + ' '
+            + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**';
 
         chn.send(ansi);
     }
@@ -1302,98 +1271,6 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 //------------------------------------------
 //------------------------------------------
 
-
-// This method runs the python script that
-// reads from the api's until it is killed
-// from outside bot.js. It runs
-// on its own.
-
-// Create a logger for a certain set of coins
-function createLogger(coins){
-  PythonShell.run('./tsukiserverlog.py', {args:coins}, function(err){if(err) console.log(chalk.red.bold(err + "****Check createLogger Method*****"));});
-}
-
-
-//------------------------------------------
-//------------------------------------------
-
-// This function runs python scripts once
-// and gets their stdout output. It calls
-// tsukiserver, which will call either the
-// s command or the p command.
-
-function executeCommand(c, opts, chn){
-  console.log(chalk.cyan('Script outputs: ' + opts));
-
-  let coin = opts.coin;
-  let arg1 = opts.arg1 || -1;
-  let arg2 = opts.arg2 || 'p';
-
-  let pyshell = new PythonShell('./tsukiserver.py', {args:[coin,arg1,arg2]});
-
-  pyshell.send(c + '\r\n').end(function(err){
-    if(err) {
-    console.log(chalk.red.bold(err + "-----pyshell.send error"));
-    }
-    });
-
-  pyshell.stdout.on('data', function (data){
-    console.log(chalk.cyan('Script data: ' + data));
-    chn.send(data).then(message => {
-      message.react("\u274E");
-      blockIDs.push(message.id);
-
-      setTimeout(function(){ removeID(message.id); }, 120000);
-    })
-      .catch(console.log);
-  });
-}
-
-
-//------------------------------------------
-//------------------------------------------
-
-// KLI functions
-
-function compareCoins(coin1, coin2, chn){
-  if(kliArray !== {}){
-    let msg = '__KL Comparison__\n';
-
-    if(kliArrayDict[coin1.toUpperCase()] && kliArrayDict[coin2.toUpperCase()]){
-      let c1 = kliArrayDict[coin1.toUpperCase()];
-      let c2 = kliArrayDict[coin2.toUpperCase()];
-
-      msg += "`Tickers:` `" + c1['h.ticker'] + " " + c2['h.ticker'] + "`\n";
-      msg += "`⇒ MCap rel. sizes:` `" + Math.exp(parseFloat(c1.x)-parseFloat(c2.x)).toFixed(4) + " ⬄ " + Math.exp(parseFloat(c2.x)-parseFloat(c1.x)).toFixed(4) + "`\n";
-      msg += "`⇒ Vol. rel. sizes:` `" + Math.exp(parseFloat(c1.y)-parseFloat(c2.y)).toFixed(4) + " ⬄ " + Math.exp(parseFloat(c2.y)-parseFloat(c1.y)).toFixed(4) + "`\n";
-    }
-
-    chn.send(msg);
-  } else {
-    chn.send("Invalid crypto supplied.");
-  }
-}
-
-
-function getKLI(coins, chn){
-  if(kliArray !== {}){
-    let msg = '__KL Index Values__\n';
-
-    coins.forEach(function(v){
-      if(kliArrayDict[v.toUpperCase()]){
-        let c = kliArrayDict[v.toUpperCase()];
-        msg += '`' + c['h.ticker'] + '` - `' + c.kli + '`\n';
-      }
-    });
-
-    chn.send(msg);
-  }
-}
-
-
-//------------------------------------------
-//------------------------------------------
-
 // From the etherscan api, get the balance
 // for a given address. The balance is returned
 // in weis.
@@ -1453,6 +1330,7 @@ function getMarketCap(message){
 // Function for getting market cap data of a specific coin
 
 function getMarketCapSpecific(message){
+  let cursor = 1;
   //collect the data
   let cur = '';
   if(message.content.includes('.tb')){
@@ -1500,47 +1378,47 @@ function getMarketCapSpecific(message){
       console.log(chalk.green("24hr Change: ") + chalk.cyan(percent));
       console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
       }
-      
-      let logo = '';
+
+      let logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
+          'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
       for (let j = 0, len = metadata.data.length; j < len; j++) {
-        if(metadata.data[j].coin === symbol){
-            logo = metadata.data[j].logo;
-            break;
-        }
-        else{
-            // default to cmc logo
-            logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
-              'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
-        }
+          if(metadata.data[j].coin === symbol.toUpperCase()) {
+              if (metadata.data[j].logo) {
+                  logo = metadata.data[j].logo;
+              }
+          }
       }
     
-      let l1 = "Rank: `#" + rank + "`\n";
-      let l2 = "Market Cap: `" + numberWithCommas(marketcap) + " USD" + "`\n";
-      let l3 = "24hr Volume: `" + volume + " USD" + "`\n";
-      let l4 = "Circulating Supply: `" + supply + " " + symbol + "`\n";
-      let l5 = "Total Supply: `" + totalSupply + " " + symbol + "`\n";
+      let l1 = "MC Rank: #" + rank + "\n";
+      let l2 = "Market Cap: " + numberWithCommas(marketcap) + " USD" + "\n";
+      let l3 = "24hr Volume: " + volume + " USD" + "\n";
+      let l4 = "Circulating Supply: " + supply + " " + symbol + "\n";
+      let l5 = "Total Supply: " + totalSupply + " " + symbol + "\n";
       let l6 = '';
       if(maxSupply === 'n/a'){
-        l6 = "Maximum Supply: `" + maxSupply + "`\n\n";
+        l6 = "Maximum Supply: " + maxSupply + "\n";
       } else{
-        l6 = "Maximum Supply: `" + maxSupply + " " + symbol + "`\n\n";
+        l6 = "Maximum Supply: " + maxSupply + " " + symbol + "\n";
       }
-      let l7 = "Current Price: `" + price + " USD" +  " | " + priceBTC + " BTC`\n";
-      let l8 = "Change: *1h:* `" + percent1h + "%` " + "*24h:* `" + percent + "%` *7d:* `" + percent7 + "%`";
-      let msgh = l1+l2+l3+l4+l5+l6+l7+l8;
+      let l7 = "USD: `" + price + "`\n" + "BTC: `" + priceBTC + "`\n" + "ETH: `" + convertToETHPrice(price).toFixed(6) + "`";
+      let l8 = "*1h:* `" + percent1h + "%` " + "\n" + "*24h:* `" + percent + "%`" + " \n" + "*7d:* `" + percent7 + "%`";
       
       let embed = new Discord.RichEmbed()
-        .addField("Market Data for " + name + " (" + symbol + ")", msgh)
+        .addField("Market Data for " + name + " (" + symbol + ")", l1+l2+l3+l4+l5+l6, false)
+        .addField("Current Prices:", l7, true)
+        .addField("Price Changes:", l8, true)
         .setColor('#1b51be')
         .setThumbnail(logo)
-        .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
+        .setFooter('Powered by CoinMarketCap API', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
               'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
+
       message.channel.send({embed}).catch(function(rej){
-          message.channel.send.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
+          message.channel.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
           console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
       });
       }
+      cursor++;
     }
   }) ();
 }
@@ -2010,7 +1888,6 @@ client.on('ready', () => {
 
   // First run of scheduled executions
   updateCoins();
-  //getKLIndex(); //Disabled until new script is ready.
   updateCmcKey();
   getCMCData();
   publishDblStats();
@@ -2031,14 +1908,11 @@ function postHelp(message, author, code) {
   let fail = false;
   const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
   if (code === 'ask' || helpjson[code] !== undefined) {
-    author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them:").catch(function (rej) {
+    author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them: \n" + link).catch(function (rej) {
       console.log(chalk.yellow("Failed to send help text to " + author.username + " via DM, sent link in server instead."));
       message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link).then(function () {
         fail = true;
       });
-    });
-    author.send(link).catch(function (rej) {
-      return;
     });
     // wait for promises to resolve
     setTimeout(function () {
@@ -2136,7 +2010,7 @@ client.on('message', message => {
 
 //  Publish bot statistics to Discord Bots List <discordbots.org>
 //  Updates every 5000 messages
-  if(messageCount % 5000 === 0){
+  if(messageCount % 85000 === 0){
         publishDblStats();
   }
 
@@ -2351,7 +2225,7 @@ function commands(message, botAdmin, config){
         
     // Bitmex funding data
     } else if(command === 'fund' || command === 'funding'){
-        getMexFunding(channel);
+        getMexFunding(channel, message);
         
     // Bitmex positions data
     } else if(command === 'ls' || command === 'longs' || command === 'shorts' || command === 'positions' || command === 'longs/shorts'){
@@ -2465,11 +2339,6 @@ function commands(message, botAdmin, config){
           let ext = command.slice(-1);
           params.splice(0,1);
           getPriceCC(params, channel, '-', ext);
-
-          // KLI call (skip the filter)
-        } else if(command === 'kli'){
-          code_in.splice(0,1);
-          getKLI(code_in, channel);
 
           // MC call (skip the filter)
         } else if(command.toString().trim() === 'mc'){
@@ -2628,23 +2497,6 @@ function commands(message, botAdmin, config){
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h'){
       postHelp(message, message.author, 'ask');
-      
-  
-//      // Call KL Index
-//    } else if (scommand === 'kli'){
-//      let title = 'KL Index Highs';
-//      let kl = '';
-//      kliArray.forEach(function(v){
-//        if(v['h.ticker'] !== 'USDT' && v.x > -10 && v.kli > 0.1)
-//          kl += '`' + v['h.ticker'] + '` - `' + v.kli + '`\n';
-//      });
-//
-//      let embed  = new Discord.RichEmbed()
-//        .addField(title, kl)
-//        .setColor('WHITE')
-//        .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
-//
-//      channel.send({embed});
       
       // Message Translation
     } else if (scommand === 't'){
@@ -2989,13 +2841,6 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   const guild           = messageReaction.message.guild.id;
   const reactions       = messageReaction.message.reactions;
 
-//  // Function 1
-//  if(removeID(messageReaction.message.id) !== -1 && messageReaction.emoji.identifier === "%E2%9D%8E" && messageReaction.count === 2){
-//    messageReaction.message.delete().catch(function(rej){
-//             console.log(chalk.red("Failed to delete message reaction from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
-//         });
-//  }
-
   // Function 2a.
   if(configIDs.indexOf(message.id) > -1 && reactions.size < emojiConfigs.length){
     message.react(emojiConfigs[emojiConfigs.indexOf(messageReaction.emoji.toString()) + 1]).catch(console.log);
@@ -3066,8 +2911,6 @@ async function getCMCData(){
   //console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
 }
 
-function sendCSV(){
-}
 
 /* ---------------------------------
 
@@ -3087,25 +2930,6 @@ function updateCoins(){
   console.log(chalk.green.bold('Reloaded known coins'));
 }
 
-/* ---------------------------------
-
-  getKLIndex()
-
-  Assign the top KL Index coins
-
- ---------------------------------- */
-                                                                        
-function getKLIndex(){
-  try { 
-    kliArray = R('kl_idx.R').callSync();
-
-    kliArray.forEach(function(v){
-      kliArrayDict[v['h.ticker']] = v;
-    });
-  } catch(e) {
-    console.log(chalk.red.bold(e + '-> failed R script execution at getKLIndex(), ' + chalk.cyan('(KL_idx.R file missing!)')));
-  }
-}
 
 /* ---------------------------------
 
