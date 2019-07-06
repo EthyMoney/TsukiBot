@@ -971,7 +971,6 @@ async function getMexFunding(chn, message){
           .setThumbnail('https://firebounty.com/image/751-bitmex')
           .setColor('#1b51be')
           .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex')
-          .setTimestamp(message.timestamp);
 
         chn.send({embed}).catch(function(rej){
           chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
@@ -1009,7 +1008,6 @@ async function getMexLongsShorts(channel) {
       .addField('Shorts:', shorts + " (" + shortsPercent + ")")
       .setThumbnail('https://firebounty.com/image/751-bitmex')
       .setColor('#1b51be')
-      .setTimestamp(new Date())
       .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
 
     channel.send({embed}).catch(function (rej) {
