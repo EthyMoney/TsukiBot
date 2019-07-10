@@ -883,8 +883,8 @@ async function getCoinDescription(coin1, chn, usr){
                 'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
         chn.send({embed}).catch(function(rej){
-            chn.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
-            console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
+          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
         });
     
     }
@@ -922,8 +922,8 @@ async function getFearGreedIndex(chn, usr) {
                 .setFooter("Next update: " + h + " hrs, " + m + " mins");
 
         chn.send({embed}).catch(function (rej) {
-            chn.send("Sorry, unable to process this response at this time.");
-            console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
+          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
         });
     });
 
@@ -971,10 +971,9 @@ async function getMexFunding(chn, message){
           .setThumbnail('https://firebounty.com/image/751-bitmex')
           .setColor('#1b51be')
           .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex')
-          .setTimestamp(message.timestamp);
 
         chn.send({embed}).catch(function(rej){
-          chn.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into.");
+          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(rej)));
         });
     }
@@ -1009,12 +1008,11 @@ async function getMexLongsShorts(channel) {
       .addField('Shorts:', shorts + " (" + shortsPercent + ")")
       .setThumbnail('https://firebounty.com/image/751-bitmex')
       .setColor('#1b51be')
-      .setTimestamp(new Date())
       .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
 
     channel.send({embed}).catch(function (rej) {
-      channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
-      console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+      channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+      console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
     });
   });
 }
@@ -1221,8 +1219,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
               .setFooter("To see a tag, use  .tb tag <tag name here>");
 
           channel.send({embed}).catch(function (rej) {
-              channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
-              console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+            channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+            console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
           });
       }
 
@@ -1255,8 +1253,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           .setFooter(resultAuthorName, resultAuthorAvatar);
 
       channel.send({embed}).catch(function (rej) {
-          channel.send("Sorry, unable to process this response at this time. This error has been recorded and will be looked into. This is a beta feature remember!");
-          console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
+        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
       });
 
   } else {
@@ -1414,8 +1412,8 @@ function getMarketCapSpecific(message){
 
 
       message.channel.send({embed}).catch(function(rej){
-          message.channel.send("Sorry, unable to process this response at this time. This is a known issue that is being worked on.");
-          console.log(chalk.red('info message too long! ' + chalk.cyan(rej)));
+        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        console.log(chalk.red('Error sending MC response embed: ' + chalk.cyan(rej)));
       });
       }
       cursor++;
