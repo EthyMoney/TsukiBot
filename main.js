@@ -1213,7 +1213,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
               msg += item + ", ";
           });
           let embed = new Discord.RichEmbed()
-              .setAuthor("Tsuki Tags Beta", 'https://pbs.twimg.com/profile_images/970894110528688128/nwvybUBn_400x400.jpg')
+              .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
               .addField("Available tags in this server: ", msg.substring(0, msg.length-2))
               .setColor('#1b51be')
               .setFooter("To see a tag, use  .tb tag <tag name here>");
@@ -1245,8 +1245,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
     let embed = new Discord.RichEmbed()
-          .setAuthor("Tsuki Tags Beta", 'https://coubsecure-s.akamaihd.net/get/b1/p/coub/simple/cw_timeline_pic/f4fdb022966/c22be10a216112058c3d8/big_1469634066_image.jpg')
-          .addField("Tag: \"" + resultName + "\"", resultTag)
+          .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')          .addField("Tag: \"" + resultName + "\"", resultTag)
           .setImage(resultTag)
           .setColor('#1b51be')
           .setTimestamp(resultTimestamp)
