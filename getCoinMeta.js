@@ -4,7 +4,7 @@ const chalk = require('chalk');
 let cmcMetaData = {};
 const keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
 const CoinMarketCap = require('coinmarketcap-api');
-let clientcmc = new CoinMarketCap(keys['coinmarketcap' + 'failover']);
+let clientcmc = new CoinMarketCap(keys['coinmarketcap' + 'failover2']);
 let meta = {}; // empty Object
 
 /* ---------------------------------

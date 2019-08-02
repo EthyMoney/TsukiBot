@@ -3,7 +3,7 @@ let fs = require("fs");
 let keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
 const CoinMarketCap = require('coinmarketcap-api');
 const chalk = require('chalk');
-clientcmc = new CoinMarketCap(keys['coinmarketcap' + '1']);
+clientcmc = new CoinMarketCap(keys['coinmarketcap' + 'failover']);
 
 let update2 = async function () {
 
