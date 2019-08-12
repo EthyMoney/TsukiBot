@@ -7,7 +7,7 @@
   "repository": "https://github.com/YoloSwagDogDiggity/TsukiBot",
   "license": "MIT",
   "dependencies": {
-    "@google-cloud/translate": "^4.1.2",
+    "@google-cloud/translate": "^4.1.3",
     "alpha_vantage_api_wrapper": "^0.1.1",
     "ccxt-js": "^1.15.38",
     "chalk": "^2.4.2",
@@ -23,13 +23,13 @@
     "languagedetect": "^1.2.0",
     "node-fetch": "^2.6.0",
     "node-schedule": "^1.3.2",
-    "pg": "^7.12.0",
+    "pg": "^7.12.1",
     "pg-promise": "^9.0.0",
     "request": "^2.88.0",
-    "stocks-exchange-client": "^2.2.1",
+    "stocks-exchange-client": "^2.2.2",
     "translate-google": "^1.3.5",
     "uws": "^100.0.1",
-    "web3": "^1.2.0",
+    "web3": "^1.2.1",
     "ws": "^7.1.1"
   }
 }
