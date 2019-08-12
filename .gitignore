@@ -1,0 +1,13 @@
+node_modules
+tags.json
+docs/.DS_Store
+common/admin.json
+common/bannedWords.json
+common/coins.json
+common/coins_filtered.json
+common/coinsCG.json
+common/help.json
+common/keys.api
+common/serverPerms.json
+common/shortcuts.json
+.DS_Store
