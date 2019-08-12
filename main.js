@@ -2011,8 +2011,8 @@ client.on('message', message => {
   }
 
 //  Publish bot statistics to Discord Bots List <discordbots.org>
-//  Updates every 5000 messages
-  if(messageCount % 85000 === 0){
+//  Updates every 250,000 messages
+  if(messageCount % 250000 === 0){
         publishDblStats();
   }
 
