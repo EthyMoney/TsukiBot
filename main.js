@@ -878,24 +878,47 @@ async function getCoinDescription(coin1, chn, usr){
             console.log(chalk.red("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
             return;
         }
-      } 
+      }
     }
+    // check against discord's embed feild size limit and split if necessary
+    if (text.length <= 1024) {
+
+      let embed = new Discord.RichEmbed()
+        .addField("About " + capitalizeFirstLetter(name) + ":", text)
+        .setColor('#1b51be')
+        .setThumbnail(logo)
+        .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
+          'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+
+      chn.send({ embed }).catch(function (rej) {
+        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
+      });
+    }
+    else {
+      let pages = text.match(/.{1,1024}/g); //array of the 1024 character chunks of text
+      let blockCursor = 1;
+
+      pages.forEach(function (element) {
         let embed = new Discord.RichEmbed()
-          .addField("About " + capitalizeFirstLetter(name) + ":", text)
+          .addField("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):", element)
           .setColor('#1b51be')
           .setThumbnail(logo)
-          .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' + 
-                'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+          .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
+            'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
-        chn.send({embed}).catch(function(rej){
+        chn.send({ embed }).catch(function (rej) {
           channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
         });
-    
+        blockCursor++;
+      });
     }
-    else{
-        chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
-    }   
+
+  }
+  else {
+    chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
+  }
 }
 
 
@@ -2255,7 +2278,8 @@ function commands(message, botAdmin, config){
     
     // Send an invite link for the bot
     } else if(command === 'invite') {
-        msg.channel.send("Add me to your server with this link: \n" + inviteLink);
+        msg.channel.send("Hi there! You can add me to your server with the following link. Please keep the requested permissions checked to ensure" + 
+        " that I'm able to work fully! \n" + inviteLink);
         
     } else{
         
@@ -2447,7 +2471,7 @@ function commands(message, botAdmin, config){
     // Shortcut section
     } else {
 
-    let scommand = code_in[0];
+    let scommand = code_in[0].toLowerCase();
 
       // Get personal array prices
       if( /pa[\+\-\*]?/.test(scommand)){
