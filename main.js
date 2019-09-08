@@ -896,7 +896,7 @@ async function getCoinDescription(coin1, chn, usr){
       });
     }
     else {
-      let pages = text.match(/.{1,1024}/g); //array of the 1024 character chunks of text
+      let pages = text.replace(/\s+/g,' ').trim().match(/.{1,1024}/g); //array of the 1024 character chunks of text
       let blockCursor = 1;
 
       pages.forEach(function (element) {
