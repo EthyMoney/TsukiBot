@@ -851,16 +851,27 @@ async function getStocksAlpha(coin1, chn, usr){
 
 // Grabs coin purpose and description data from CMC
 async function getCoinDescription(coin1, chn, usr){
-    //check if coin exists on cmc
-    if(cmcArrayDict[coin1.toUpperCase()]){
+
+    let ticker = cmcArrayDictParsed;
+    j = ticker.length;
+    let foundAnotherWay = false;
+
+    //check if coin exists on cmc by checking for name, ticker, and mc rank
+    for (let i = 0; i < j; i++) {
+      if (ticker[i]["symbol"] === coin1.toUpperCase() || ticker[i]["name"].toUpperCase() === coin1.toUpperCase() || ticker[i]["cmc_rank"]+'' === coin1) {
+        foundAnotherWay = true;
+        // reset coin1 to ticker from other means of lookup
+        coin1 = ticker[i]["symbol"];
+      }
+    }
+    
+    if(cmcArrayDict[coin1.toUpperCase()] || foundAnotherWay){
     console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1.toUpperCase())));
-    //grab coin name and build url
     let name = cmcArrayDict[coin1.toUpperCase()].slug;
     let logo = '';
-    let url = 'https://coinmarketcap.com/currencies/' + name + '/';
-    let html = '';
     let text = '';
     
+    // grab logo
     for (let j = 0, len = metadata.data.length; j < len; j++) {
       if(metadata.data[j].coin === coin1.toUpperCase()){
         if(metadata.data[j].logo){
