@@ -195,7 +195,7 @@ const reloaderCG          = require('./getCoinsCG');
 // Scheduled Actions
  //let deleter      = schedule.scheduleJob('*/5 * * * *', checkSubStatus);
  //let mentionLog   = schedule.scheduleJob('*/5 * * * *', checkMentions);
-let cmcfetch      = schedule.scheduleJob('*/5 * * * *', getCMCData);
+let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
@@ -2969,14 +2969,14 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
   getCMCData()
 
-  Update the array every 5 minutes
+  Update the array every 8 minutes
   (Endpoint update rate)
 
  ---------------------------------- */
 
 async function getCMCData(){
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({limit: 2200}).then().catch(console.error);
+  let cmcJSON = await clientcmc.getTickers({limit: 2800}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
