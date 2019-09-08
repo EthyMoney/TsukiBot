@@ -1224,33 +1224,77 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
   } else if (command === 'taglist') {
-      let tags = tagsJSON.tags;
-      let found = false;
-      for (let i = 0; i < tags.length; i++) {
-          if (tags && (tags[i].guild === guild.id)) {
-                  tagList.push(tags[i].tagName);
-                  found = true;
-          }
+    let tags = tagsJSON.tags;
+    let found = false;
+    for (let i = 0; i < tags.length; i++) {
+      if (tags && (tags[i].guild === guild.id)) {
+        tagList.push(tags[i].tagName);
+        found = true;
       }
-      if(!found){
-          channel.send("There are no tags in this server! Feel free to make one using `.tb createtag <tag name here> <tag link here>`");
+    }
+    if (!found) {
+      channel.send("There are no tags in this server! Feel free to make one using `.tb createtag <tag name here> <tag link here>`");
+    }
+    else {
+      let msg = '';
+      tagList.forEach(function (item) {
+        msg += item + ", ";
+      });
+
+
+      // check against discord's embed feild size limit and split if necessary
+      if (msg.length <= 1024) {
+
+        let embed = new Discord.RichEmbed()
+          .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+          .addField("Available tags in this server: ", msg.substring(0, msg.length - 2))
+          .setColor('#1b51be')
+          .setFooter("To see a tag, use  .tb tag <tag name here>");
+
+        channel.send({ embed }).catch(function (rej) {
+          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
+        });
       }
-      else{
-          let msg = '';
-          tagList.forEach(function(item, index, array) {
-              msg += item + ", ";
-          });
-          let embed = new Discord.RichEmbed()
+      else {
+        let pages = msg.match(/.{1,1024}/g); //array of the 1024 character chunks of text
+        let blockCursor = 1;
+        let blockMax = pages.length;
+
+        pages.forEach(function (element) {
+
+          // special case for the final page. This one will remove the trailing the commas in the list.
+          if (blockMax === blockCursor) {
+            let embed = new Discord.RichEmbed()
               .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
-              .addField("Available tags in this server: ", msg.substring(0, msg.length-2))
+              .addField("Available tags in this server (PAGE " + blockCursor + "): ", element.substring(0, element.length - 2))
               .setColor('#1b51be')
               .setFooter("To see a tag, use  .tb tag <tag name here>");
 
-          channel.send({embed}).catch(function (rej) {
-            channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-            console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
-          });
+            channel.send({ embed }).catch(function (rej) {
+              channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+              console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
+            });
+          }
+
+          else {
+            let embed = new Discord.RichEmbed()
+              .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+              .addField("Available tags in this server (PAGE " + blockCursor + "): ", element)
+              .setColor('#1b51be')
+              .setFooter("To see a tag, use  .tb tag <tag name here>");
+
+            channel.send({ embed }).catch(function (rej) {
+              channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+              console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
+            });
+            blockCursor++;
+          }
+        });
       }
+    }
+
+
 
   } else if (command === 'tag' && validTag) {
     let tags = tagsJSON.tags;
