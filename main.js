@@ -195,10 +195,11 @@ const reloaderCG          = require('./getCoinsCG');
 // Scheduled Actions
  //let deleter      = schedule.scheduleJob('*/5 * * * *', checkSubStatus);
  //let mentionLog   = schedule.scheduleJob('*/5 * * * *', checkMentions);
-let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);
-let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);
-let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);
-let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);
+let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
+let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
+let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
+let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // update cmc key the first minute after every hour
+let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
 const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
 const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
@@ -2088,12 +2089,6 @@ client.on('message', message => {
     }
   }
 
-//  Publish bot statistics to Discord Bots List <discordbots.org>
-//  Updates every 250,000 messages
-  if(messageCount % 250000 === 0){
-        publishDblStats();
-  }
-
   // Check for, and ignore DM channels
   if(message.channel.type !== 'text') return;
 
@@ -2844,7 +2839,7 @@ function resetSpamLimit() {
     yeetLimit = 0;
 }
 
-// Publish bot stats to discordbots.org
+// Publish bot statistics to Discord Bots List <discordbots.org>
 function publishDblStats(){
     dbl.postStats(client.guilds.size, client.id);
     console.log(chalk.green("Updated dbots.org stats!"));
