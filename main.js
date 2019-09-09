@@ -2766,7 +2766,7 @@ function postSessionStats(message){
     let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
         .setColor('BLUE')
-        .setThumbnail('https://i.imgur.com/H6YVUOX.png')
+        .setThumbnail('https://i.imgur.com/r6yCs2T.png')
         .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
     message.channel.send({embed});
 }
