@@ -315,10 +315,6 @@ async function getPriceGraviex(chn, coin1, coin2){
 
 async function getPriceSTEX(chn, coin1, coin2){
 
-  chn.send("The Stex command is temporarily disabled due to API issues.");
-  return;
-
-
   //default to usdt if none is provided
   if (typeof coin2 === 'undefined') {
       coin2 = 'BTC';
