@@ -2076,24 +2076,26 @@ client.on('message', message => {
   }
 
   // Check for unsafe files and delete them if author doesn't have File Perms role
-  message.guild.fetchMember(message.author).then(function (member) {
-    if (member && member.roles.some(r => ["File Perms", "File Perm", "File perm", "file perms"].includes(r.name))) {
-      // file perms found, skipping file extension check.
-    }
-    else {
-      // file perms missing, checking for files and verifying extensions.
-      for (let a of message.attachments) {
-        if (extensions.indexOf((ar => ar[ar.length - 1])(a[1].filename.split('.')).toLowerCase()) === -1) {
-          message.delete(10)
-            .then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author)))
-            .catch(function (rej) {
-              console.log(chalk.red("Failed to delete unsafe file from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
-            });
-          return;
+  if (message.guild) {
+    message.guild.fetchMember(message.author).then(function (member) {
+      if (member && member.roles.some(r => ["File Perms", "File Perm", "File perm", "file perms"].includes(r.name))) {
+        // file perms found, skipping file extension check.
+      }
+      else {
+        // file perms missing, checking for files and verifying extensions.
+        for (let a of message.attachments) {
+          if (extensions.indexOf((ar => ar[ar.length - 1])(a[1].filename.split('.')).toLowerCase()) === -1) {
+            message.delete(10)
+              .then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author)))
+              .catch(function (rej) {
+                console.log(chalk.red("Failed to delete unsafe file from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
+              });
+            return;
+          }
         }
       }
-    }
-  }).catch(e => (0)); // Ignore the API "unknown user" error that sometimes shows. This is a false error and the action still completes normally.
+    }).catch(e => (0)); // Ignore the API "unknown user" error that sometimes shows. This is a false error and the action still completes normally.
+  }
 
   // Check for, and ignore DM channels
   if(message.channel.type !== 'text') return;
