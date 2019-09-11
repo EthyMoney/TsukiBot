@@ -1428,6 +1428,7 @@ function getMarketCapSpecific(message){
     for (let i = 0; i < j; i++) {
       if (ticker[i]["symbol"] === cur || ticker[i]["name"].toUpperCase() === cur || ticker[i]["cmc_rank"]+'' === cur) {
       let name = ticker[i]["name"];
+      let slug = ticker[i]["slug"];
       let price = parseFloat(ticker[i]["quote"]["USD"]["price"]).toFixed(6);
       let priceBTC = convertToBTCPrice(price).toFixed(8);
       let percent = ticker[i]["quote"]["USD"]["percent_change_24h"];
@@ -1463,7 +1464,7 @@ function getMarketCapSpecific(message){
       let logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
           'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
       for (let j = 0, len = metadata.data.length; j < len; j++) {
-          if(metadata.data[j].coin === symbol.toUpperCase()) {
+          if(metadata.data[j].slug === slug) {
               if (metadata.data[j].logo) {
                   logo = metadata.data[j].logo;
               }
