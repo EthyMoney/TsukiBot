@@ -7,7 +7,9 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 Please make sure that TsukiBot has permission to send and read messages, manage roles, manage channels, and manage messages. These permissions are **REQUIRED** for the bot to work correctly!! If you need help, join the support server using the link at the bottom of this document.
 
-TsukiBot deletes files that are not photos or videos by default. Add the created role named "File Perms" to be allowed to send files. This a recommended protection measure for crypo users to prevent spread of malicious scripts or accidentally sharing key files.
+TsukiBot deletes files that are not photos or videos by default. The bot will create a role named "File Perms" when it joins. Add this role to yourself 
+and any users that you authorize to send files. If a user doesn't have this role and the bot has manage messages perms, their files will be deleted.
+This a recommended protection measure for crypo users to prevent spread of malicious scripts, phishing malware, or accidentally shared key files.
 
 #### All commands follow this general structure: `.tb <command> <parameters>`
 
@@ -18,7 +20,7 @@ TsukiBot deletes files that are not photos or videos by default. Add the created
 ##### Usage: `.tb <exchange> <coin> <comparison>` 
 `<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to BTC or USD (depending on exchange) if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
 
-+ `g`:   &nbsp; &nbsp; &nbsp; Coinbase
++ `cb`:   &nbsp; &nbsp; Coinbase
 + `k`:   &nbsp; &nbsp; &nbsp; Kraken
 + `p`:   &nbsp; &nbsp; &nbsp; Poloniex
 + `b`:   &nbsp; &nbsp; &nbsp;  Binance
@@ -27,6 +29,7 @@ TsukiBot deletes files that are not photos or videos by default. Add the created
 + `m`:   &nbsp; &nbsp; &nbsp;  BitMEX
 + `x`:   &nbsp; &nbsp; &nbsp; Bittrex
 + `st`:  &nbsp; &nbsp; STEX
++ `gr`:  &nbsp; &nbsp; Graviex
 
 The following have this usage: `.tb <exchange> <coins>` Where `<coins>` can be either a single coin, or a space-separated list of multiple coins. Note, CMC can be called using a custom shortcut to access easier. See further down for details.
 + `c`:  &nbsp; &nbsp; &nbsp; CryptoCompare in USD
@@ -38,11 +41,12 @@ The following have this usage: `.tb <exchange> <coins>` Where `<coins>` can be e
 
 ## Personal Array:
 These commands are for managing and checking your own personal list of coins. <br>
-The following 3 commands follow the exact usage shown, followed by a space and a space-separated list of mulptiple coins. An example of this would be `.tb pa eth btc xrp gnt`
+The following 3 commands follow the exact usage shown, followed by a space and a space-separated list of mulptiple coins. An example of this would be `.tb pa eth btc xrp gnt`. This example would
+create a new personal list for you that contains eth, btc, xrp, and gnt.
 
-+ `.tb pa`: &nbsp; &nbsp; &nbsp; Create or overwrite your personal array
-+ `.tb pa+`: &nbsp; &nbsp; Add coins to your current pa
-+ `.tb pa-`: &nbsp; &nbsp; Remove coins from your current pa
++ `.tb pa`: &nbsp; &nbsp; &nbsp; Create new or overwrite your existing personal array
++ `.tb pa+`: &nbsp; &nbsp; Add coins to your existing personal array
++ `.tb pa-`: &nbsp; &nbsp; Remove coins from your current personal array
 
 These commands are used exactly as shown:
 + `.tbpa`: &nbsp; &nbsp; &nbsp; Call the array
@@ -50,19 +54,6 @@ These commands are used exactly as shown:
 + `.tbpa*`: &nbsp; &nbsp; Call the array in expanded format with BTC prices
 + `.tbpae`: &nbsp; &nbsp; Call the array with ETH prices
 + `.tbpa%`: &nbsp; &nbsp; Call the array ordered by % change (least to greatest)
-
-<br>
-
-## Server Management and Coin Subs
-These commands allow a server owner to create private crypto channels(subs) that only users with the matching role can see. Users can check available subs and can join subs that they wish to be in. TsukiBot fully automates creation of roles and channels for these subs while also handling the assignment of users to them.
-All of the following commands are used exactly as shown aside from replacing `<coin>` with a valid coin ticker/symbol.
-
-+ `.tb join <coin>` : &nbsp; Get assigned the sub role and gain access to the corresponding room
-+ `.tb leave` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Leave all rooms
-+ `.tb list` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the available rooms for the server
-
-This command is for the server owner **only**. There will not be any subs to join until the following command is used to make them:
-+ `.tb makeroom <coin>`: Create a private room and a sub role for a whitelisted coin
 
 <br>
 
@@ -108,19 +99,20 @@ The following can be used like the ones above to get ETH/USD prices **OR** they 
 <br>
 
 ## Some helpful examples of usage:
-+ `.tb k dash usd`    ⇒ Kraken price for DASHUSD
++ `.tb k dash usd`   &nbsp;&nbsp;&nbsp;&nbsp; ⇒ Kraken price for DASHUSD
 + `.tb c btc bch zec` ⇒ CryptoCompare price for BTCUSD, BCHUSD, ZECUSD
-+ `.tb p doge xmr`    ⇒ Poloniex price for DOGEXMR
-+ `.tb cg eth eur`    ⇒ CoinGecko price for ETHEUR
-+ `.tb m btc`         ⇒ BitMEX price for BTCUSD
-+ `mc`                ⇒ Total crypto market capitalization and BTC dominance
-+ `mc eth`            ⇒ Market cap and price history for ETH
-+ `.tb t <text>`      ⇒ Translate text to English (Example: `.tb t hola`)
-+ `.tbg`              ⇒ Shortcut Coinbase price for ETHUSD
-+ `.tbg eur`          ⇒ Shortcut Coinbase price for ETHEUR
-+ `.tbk`              ⇒ Shortcut Kraken price for ETHUSD
-+ `.tb stock amd`     ⇒ Stock price for $AMD
-+ `.tb info eth`      ⇒ Information about Ethereum (ETH)
++ `.tb p doge xmr`   &nbsp;&nbsp;&nbsp;&nbsp; ⇒ Poloniex price for DOGEXMR
++ `.tb cg eth eur`  &nbsp;&nbsp;&nbsp;&nbsp;  ⇒ CoinGecko price for ETHEUR
++ `.tb m btc`    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     ⇒ BitMEX price for BTCUSD
++ `mc`        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        ⇒ Total crypto market capitalization and BTC dominance
++ `mc eth`    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        ⇒ Market cap and price history for ETH
++ `.tb t <text>`  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;    ⇒ Translate text to English (Example: `.tb t hola`)
++ `.tbg`        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;      ⇒ Shortcut Coinbase price for ETHUSD
++ `.tbg eur`    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;      ⇒ Shortcut Coinbase price for ETHEUR
++ `.tbk`      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        ⇒ Shortcut Kraken price for ETHUSD
++ `.tb stock amd`  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   ⇒ Stock price for $AMD
++ `.tb info eth`  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;    ⇒ Information about Ethereum (ETH)
 
 <br>
 
