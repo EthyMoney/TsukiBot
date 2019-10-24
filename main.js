@@ -415,7 +415,12 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   if(!cmcArrayDict['BTC']) return;
   //console.log(cmcArrayDict['BTC']['quote']);
 
-  let msgh = '__CoinMarketCap__ Price for:\n';
+  if (action === 'p'){
+    var msgh = "__CoinMarketCap__ Price for Top 10 Coins:\n";
+  }
+  else{
+    var msgh = '__CoinMarketCap__ Price for:\n';
+  }
   let msg  = '';
   let flag = false;
 
@@ -2563,9 +2568,13 @@ function commands(message, botAdmin, config){
     } else if (scommand === 'f'){
       getPriceBitfinex('ETH', 'USD', channel);
 
-      // Get prices of popular currencies
+      // Get prices of popular currencies (the top 10 by market cap)
     } else if (scommand === 'pop'){
-      getPriceCC(['ETH','BTC','XRP','LTC','EOS','TRON','XMR'], channel);
+      getPriceCMC([cmcArrayDictParsed[0].symbol, cmcArrayDictParsed[1].symbol,
+        cmcArrayDictParsed[2].symbol, cmcArrayDictParsed[3].symbol,
+        cmcArrayDictParsed[4].symbol, cmcArrayDictParsed[5].symbol, 
+        cmcArrayDictParsed[6].symbol, cmcArrayDictParsed[7].symbol, 
+        cmcArrayDictParsed[8].symbol, cmcArrayDictParsed[9].symbol], channel, 'p');
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b'){
