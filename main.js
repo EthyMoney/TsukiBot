@@ -1035,13 +1035,13 @@ async function getMexLongsShorts(channel) {
     const dom = new JSDOM(body);
 
     //BTC data
-    let block = dom.window.document.getElementsByClassName('col-md-4');
-    // 0 is finex, 1 is mex, 2 is total in the block array
+    let block = dom.window.document.getElementsByClassName('col-md-3');
+    // index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together
     let title = block[1].querySelector('h3').textContent;
-    let longs = block[1].querySelector('div.single-margin-platform div.field-value span.value.long').textContent.trim().split(" ")[0].trim();
-    let longsPercent = block[1].querySelector('div.single-margin-platform div.field-value span.value.long small').textContent;
-    let shorts = block[1].querySelector('div.single-margin-platform div.field-value span.value.short').textContent.trim().split(" ")[0].trim();
-    let shortsPercent = block[1].querySelector('div.single-margin-platform div.field-value span.value.short small').textContent;
+    let longs = block[1].querySelector('div.single-margin-platform div.field-value div.value.long').textContent.trim().split(" ")[0].trim();
+    let longsPercent = block[1].querySelector('div.single-margin-platform div.field-value div.field.long small').textContent;
+    let shorts = block[1].querySelector('div.single-margin-platform div.field-value div.value.short').textContent.trim().split(" ")[0].trim();
+    let shortsPercent = block[1].querySelector('div.single-margin-platform div.field-value div.field.short small').textContent;
 
     let embed = new Discord.RichEmbed()
       .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
