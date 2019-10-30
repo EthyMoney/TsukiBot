@@ -2793,7 +2793,10 @@ function joinProcedure(guild){
   if(guild) {
     console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
     if(guild.systemChannel){
-      guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tbhelp`.").catch(function(rej){
+      guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tb help`.\n" + 
+      "Your default CMC shortcut is `t` and you can change it at any time." +
+      "\nIf you ever need help or have suggestions, please don't hesitate to join the support server and chat with us! " +
+      " Use `.tb stat` for the link.").catch(function(rej){
           console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
           failGC = true;
       });
@@ -2806,7 +2809,7 @@ function joinProcedure(guild){
       fail2GC = true;
   })
     .then(role => {
-      if(guild.systemChannel){
+      if(guild.systemChannel && !fail2GC){
          guild.systemChannel.send(`Created role ${role} for users who should be allowed to send files!`).catch(function(rej){
          console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
          fail3GC = true;
@@ -2820,10 +2823,12 @@ function joinProcedure(guild){
       }
       else{
          if(!failGC){console.log(chalk.green("Successfully sent introduction message!"));}
+         // Create default shortcut if the welcome message appeared
+         if(!failGC){toggleShortcut(guild.id, 't', guild.systemChannel, true);}
          if(!fail2GC){console.log(chalk.green("Successfully created file perms role!"));}
-         if(!fail3GC){console.log(chalk.green("Successfully sent file perms role creation message!"));} 
+         if(!fail3GC && !fail2GC){console.log(chalk.green("Successfully sent file perms role creation message!"));} 
       }
-  }, 1500);
+  }, 2000);
 }
 
 // Function to add commas to long numbers
@@ -3023,20 +3028,26 @@ function updateCoins(){
 
 /* ---------------------------------
 
-  toggleShortcut(guildid, string, channel)
+  toggleShortcut(guildid, string, channel, join(bool))
 
  ---------------------------------- */
 
-function toggleShortcut(id, shortcut, chn){
-    console.log(chalk.green('shortcut creation started!'));
+function toggleShortcut(id, shortcut, chn, join){
   if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4){
     shortcutConfig[id] = shortcut;
+    let startMessage = "s";
 
     fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
       if(err) return console.log(chalk.red.bold(err + "----Shortcut JSON Error"));
 
-      chn.send('Set shortcut to `' + shortcut + '`.');
-      console.log(chalk.green("Shortcut config saved"));
+      // Dont show message when setting default shortcut during join procedure
+      if(!join){
+        chn.send('Successfully set shortcut to `' + shortcut + '`.');
+      }
+      if(join){
+        startMessage = "Default s";
+      }
+      console.log(chalk.green(startMessage + "hortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(chn.guild.name)));
     });
 
   } else {
