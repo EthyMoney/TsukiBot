@@ -66,16 +66,6 @@ let metadata            = JSON.parse(fs.readFileSync("./common/metadata.json","u
 // Banned words
 const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json","utf8"));
 
-// Coin request counter initialization
-let requestCounter      = {};
-pairs.forEach(p         => requestCounter[p] = 0);
-
-// Coin mention counter initialization
-let mentionCounter      = {};
-let msgAcc              = "";
-const MESSAGE_LIMIT     = 100000;
-pairs_filtered.forEach(p => mentionCounter[p] = 0);
-
 // Help string
 let title 		        = '__**TsukiBot**__ :full_moon: \n';
 const github		    = 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
@@ -193,8 +183,6 @@ const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
 // Scheduled Actions
- //let deleter      = schedule.scheduleJob('*/5 * * * *', checkSubStatus);
- //let mentionLog   = schedule.scheduleJob('*/5 * * * *', checkMentions);
 let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
@@ -1648,293 +1636,6 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
 }
 
 
-//------------------------------------------
-//------------------------------------------
-
-// Service to self-service roles via commands in chat.
-// This method currently handles the 4 following cases:
-// 1. Setting the roles themselves, and creating the roles
-//      as well as the channels
-// 2. Setting the self roles
-// 3. Getting the available roles
-// 4. Removing the roles from oneself
-
-function setSubscriptions(user, guild, coins){
-  const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  coins = coins.map(c => c.toUpperCase());
-
-  const id = '{' + user.id + '}';
-
-  let conn = new pg.Client(conString);
-  conn.connect();
-
-  let sqlq;
-
-  const change  = coins[0] === 'M'; // Change the currently officially supported roles by merge
-  const remove  = coins[0] === 'R'; // Unsub from everything
-  const getlst  = coins[0] === 'G'; // Get the current role list
-  const restore = coins[0] === 'S'; // Resub to the subbed role
-
-  // Case R
-  if(remove || getlst){
-    sqlq = "SELECT coins FROM tsukibot.allowedby WHERE guild = $3;";
-
-    // Case default
-  } else if(!change){
-    sqlq = "WITH arr AS " +
-      "(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM tsukibot.allowedby WHERE guild = $3)] ))) " +
-      "INSERT INTO tsukibot.coinsubs(id, coins) VALUES($1, (select * from arr)) " +
-      "ON CONFLICT ON CONSTRAINT coinsubs_pkey DO " +
-      "UPDATE SET coins=(SELECT ARRAY( SELECT * FROM UNNEST($2) WHERE UNNEST = ANY( ARRAY[(SELECT coins FROM tsukibot.allowedby WHERE guild = $3)] ))) RETURNING coins;";
-
-    // Case M
-  } else {
-    sqlq = "INSERT INTO tsukibot.allowedby VALUES($3, $2) ON CONFLICT (guild) " +
-      "DO UPDATE SET coins = ARRAY(SELECT UNNEST(coins) FROM (SELECT coins FROM tsukibot.allowedby WHERE guild = $3) AS C0 UNION SELECT * FROM UNNEST($2)) RETURNING coins;";
-    coins.splice(0,1);
-  }
-
-  // Format in a predictable way
-  let queryp = pgp.as.format(sqlq, [ id, coins, '{'+guild.id+'}' ]);
-
-    //console.log(queryp);
-  // Execute the query
-  let query = conn.query(queryp, (err, res) => {
-    if (err){console.log(chalk.red.bold(err + "----------Subscription query execute error"));
-    } else {
-      const roles = guild.roles;
-      let coinans = (res.rows[0] !== undefined) ? (getlst ? res.rows[0]['coins'] : res.rows[0]['coins'].map(c => c + "Sub")) : 'your server doesn\'t have subroles (monkaS)';
-
-      let added = new Array();
-
-      guild.fetchMember(user)
-        .then(function(gm){
-          roles.forEach(function(r){ if(coinans.indexOf(r.name) > -1){ added.push(r.name); (!change && !getlst) ? (!restore && remove ? gm.removeRole(r).catch(0)
-            : gm.addRole(r)).catch(0) : (0); } });
-    
-            let convertedArray = [];
-
-            for(let i = 0; i < coinans.length; ++i)
-            {
-             convertedArray.push(coinans[i]);
-            }
-            coinans = convertedArray;
-
-          user.send(getlst ? "Available roles are: `[" + coinans.join(' ') + "]`."
-            : (remove ? "Unsubbed."
-              : (!change ? ("Subscribed to `[" + added.join(' ') + "]`.")
-                : ("Added new roles. I cannot delete obsolete sub roles. Those need to be removed manually."))));
-
-          if(!change)
-            return;
-
-          // If the operation is to add a new role,
-          // this section cycles over the returned
-          // list and names it foosubs, assigns the
-          // role a random color, and makes it private.
-
-          for(let cr in coinans){
-
-            if(added.indexOf(coinans[cr]) === -1){
-              guild.createRole({
-                name: coinans[cr],
-                color: 'RANDOM',
-                mentionable: true
-              })
-                .then(function(r){
-                  guild.createChannel(r.name+'s', 'text', [{'id': r.id, 'type': 'role', 'allow': 1024},
-                    {'id': guild.roles.find(r => { return r.name === '@everyone'; } ).id, 'type': 'role', 'deny': 1024}] )
-                    //.then(console.log)
-                    .catch(console.log("subs error"));
-                })
-                .catch(console.log("subs error"));
-            }
-          }
-        })
-        .catch(console.log("subs error"));
-    }
-    conn.end();
-  });
-
-}
-
-// -------------------------------------------
-// -------------------------------------------
-//
-//             PERMISSION MGMT 
-//
-// -------------------------------------------
-// -------------------------------------------
-
-// Get a name for a role and save it into
-// the permissions database.
-//      
-//   Note: Currently inserting only type 3.
-//   Type 1: Admin
-//   Type 2: User
-//   Type 3: Temporary
-
-function setRoles(name, guild, chn){
-  const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  const code = name.toUpperCase().slice(0,20);
-
-  guild.createRole({
-    name: name,
-    color: 'RANDOM',
-    mentionable: true
-  })
-    .then(function(r){
-      let conn = new pg.Client(conString);
-      conn.connect();
-
-      let sqlq = "INSERT INTO tsukibot.roleperms VALUES($1, $2, $3, $4);";
-      let queryp = pgp.as.format(sqlq, [r.id, guild.id, 3, code]);
-
-      let query = conn.query(queryp, (err, res) => {
-        if (err){console.log(chalk.red.bold(err + "--------Set role query error"));}
-        else { chn.send("Created role `" + r.name + "`."); }
-
-        conn.end();
-      });
-    })
-    .catch(console.log("roles error"));
-}
-
-//------------------------------------------
-//------------------------------------------
-
-// Give a temporary role to a user
-// and save the timstamps to the
-// database.
-
-function temporarySub(id, code, guild, chn, term){
-  const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-  term = term || 1;
-  code = code.toUpperCase().slice(0,20);
-
-  let conn = new pg.Client(conString);
-  conn.connect();
-
-  let sqlq = "INSERT INTO tsukibot.temporaryrole VALUES(DEFAULT, $1, (SELECT roleid FROM tsukibot.roleperms WHERE guild = $2 AND function = 3 AND code = $3 LIMIT 1), current_timestamp, current_timestamp + (30 * interval '$4 day')) RETURNING roleid;";
-  let queryp = pgp.as.format(sqlq, [id, guild.id, code, term]);
-
-  let query = conn.query(queryp, (err, res) => {
-    if (err){ console.log(chalk.red.bold(err + "------Temporary sub query error")); if(err.column === 'roleid') chn.send('Role `' + code + '` not found.'); }
-    else { 
-      const role = guild.roles.get(res.rows[0].roleid);
-      guild.fetchMember(id)
-        .then(function(gm){
-          gm.addRole(role).catch(0);
-          chn.send("Added subscriber `" + gm.displayName + "` to role `" + role.name + "`.") ;
-        })
-        .catch(console.log("temp subs error"));
-    }
-
-    conn.end();
-  });
-
-}
-
-//------------------------------------------
-//------------------------------------------
-
-// Give a temporary role to a user
-// and save the timstamps to the
-// database.
-
-function checkSubStatus(){
-  const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-
-  let conn = new pg.Client(conString);
-  conn.connect();
-
-  let sqlq = "SELECT subid, guild, tsukibot.temporaryrole.roleid, userid FROM tsukibot.roleperms, tsukibot.temporaryrole WHERE tsukibot.temporaryrole.roleid = tsukibot.roleperms.roleid AND end_date < current_date;" ;
-  let queryp = pgp.as.format(sqlq);
-
-  let query = conn.query(queryp, (err, res) => {
-    if (err){ console.log(chalk.red.bold(err + "------Check sub status query error")); }
-    else { 
-      for(let expired in res.rows){
-        let line        = res.rows[expired];
-        let guild       = client.guilds.get(line.guild);
-        let entry       = line.subid;
-        let deleteids   = [];
-
-        if(guild !== null){
-          let role        = guild.roles.get(line.roleid);
-
-          guild.fetchMember(line.userid)
-            .then(function(gm){
-              gm.removeRole(role)
-                .then(function(gm){
-                  deleteids.push(entry);
-                })
-                .catch(e => deleteids.push(entry));
-            })
-            .catch(e => {if(e.code === 10013) deleteids.push(entry); });
-        } else {
-          deleteids.push(entry);
-        }
-
-        if(deleteids.length > 0){
-          let conn2 = new pg.Client(conString);
-          conn2.connect();
-
-          let sqlq = "DELETE FROM tsukibot.temporaryrole WHERE subid IN (" + deleteids.join(',') + ");"; 
-          let queryp = pgp.as.format(sqlq);
-
-          let query = conn2.query(queryp, (err, res) => {
-            console.log(chalk.cyan("Starting delete of sub"));
-            //console.log(sqlq);
-
-            if(err) { console.log(chalk.red.bold("error:", err + "-----------------checkSub delete query error")); }
-            else { console.log(chalk.green('Succesfully deleted sub entries')); }
-
-            conn2.end();
-          });
-        }
-      }
-    }
-    conn.end();
-  });
-
-}
-
-function checkMentions(msg, msgAcc, mentionCounter){
-  return new Promise(function(resolve, reject){
-    const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
-    let conn = new pg.Client(conString);
-
-    msgAcc = msgAcc + " " + msg;
-
-    if(msgAcc.length > MESSAGE_LIMIT){
-      let acc = msgAcc.split(" ");
-
-      for(let w in acc){
-        if(pairs_filtered.indexOf(acc[w].toUpperCase()) > -1) mentionCounter[acc[w].toUpperCase()]++;
-      }
-      conn.connect();
-
-      let queryline = "";
-      for(let c in mentionCounter){
-        let sqlq = "INSERT INTO tsukibot.mentiondata VALUES($1, $2, current_timestamp, DEFAULT);";
-        let queryp = pgp.as.format(sqlq, [c, mentionCounter[c]]);
-
-        queryline += queryp;
-      }
-
-      let query = conn.query(queryline, (err, res) => {
-        if (err){console.log(chalk.red.bold(err + "---------check mentions query error"));}
-        else { console.log(chalk.green("Mentions sql insertion complete")); }
-
-        conn.end();
-      });
-      resolve(mentionCounter);
-    }
-  });
-}
-
-
 
 // -------------------------------------------
 // -------------------------------------------
@@ -2443,24 +2144,11 @@ function commands(message, botAdmin, config){
           params.map(function(x){ return x.toUpperCase(); });
           getCoinArray(message.author.id, channel, message, params, action);
 
-          // Set coin roles (Enabled) 
-        } else if(command === 'join'){
-          params.splice(0,1);
-          setSubscriptions(message.author, message.guild, params);
-
           // Toggle shortcut
         } else if(command === 'shortcut'){
             console.log(chalk.cyan(chalk.green('shortcut called, perms status: ') + ((message.author.id, message.guild) || botAdmin)));
           if(hasPermissions(message.author.id, message.guild) || botAdmin){
             toggleShortcut(message.guild.id, code_in[1], channel);
-          }
-
-          // Set coin role perms (Enabled)
-        } else if(command === 'makeroom'){
-          if(hasPermissions(message.author.id, message.guild) || botAdmin){
-            params.splice(0,1);
-            params.unshift('m');
-            setSubscriptions(message.author, message.guild, params);
           }
 
           // Poloniex call (no filter)
@@ -2487,26 +2175,6 @@ function commands(message, botAdmin, config){
             getEtherBalance(params[1], channel, 'tx');
           } else {
             channel.send("Format: `.tb e [HEXADDRESS or TXHASH]` (with prefix 0x).");
-          }
-
-          // Give a user an expiring role (Enabled)
-        } else if(command === 'sub'){
-          if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(code_in[2]) === 'string' && message.mentions.users.size > 0){
-              message.mentions.users.forEach(function(u){ temporarySub(u.id, code_in[2], message.guild, message.channel); });
-            } else {
-              channel.send("Format: `.tb sub @user rolename`.");
-            }
-          }
-
-          // Create an expiring role (Disabled)
-        } else if(command === 'subrole'){
-          if(hasPermissions(message.author.id, message.guild)){
-            if(typeof(code_in[1]) === 'string'){
-              setRoles(code_in[1], message.guild, message.channel);
-            } else {
-              channel.send("Format: `.tb subrole Premium`. (The role title is trimmed to 20 characters.)");
-            }
           }
           
         } else if(command === 'translate' || command === 't' || command === 'trans'){
@@ -2759,15 +2427,15 @@ function postSessionStats(message){
     users             = numberWithCommas(users);
     const guilds      = numberWithCommas(client.guilds.size);
     const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
-    const topCrypto   = coinArrayMax(requestCounter);
-    const popCrypto   = coinArrayMax(mentionCounter);
+    //const topCrypto   = coinArrayMax(requestCounter);
+    //const popCrypto   = coinArrayMax(mentionCounter);
 
 
     const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
         + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
         + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
-        + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
-        + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
+       // + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
+       // + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
         + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
         + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02.`");
 
