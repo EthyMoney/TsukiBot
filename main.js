@@ -1,4 +1,4 @@
-/* --------------------------------------------------------------------
+/* ------------------------------------------------------------------------
 
                    _____          _    _ ____        _
                   |_   ____ _   _| | _(_| __ )  ___ | |_
@@ -12,20 +12,40 @@
  * Base:        Forked from "TsukiBot", written by Oscar "Cehhiro"
  * Program:     TsukiBot
 
- * Discord bot that offers a wide range of services
- * related to cryptocurrencies and server management.
+ * Discord bot that offers a wide range of services related to cryptocurrencies
 
  * No parameters on start, except -d for dev mode.
 
  * If you like this service, consider donating
  * ETH to my address: 0x169381506870283cbABC52034E4ECc123f3FAD02 
 
- * ------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------ */
 
 /* global parseFloat */  //Suppress console parseFloat errors
 
-// Example usage of connection string:  postgres://userName:password@serverName/ip:port/nameOfDatabase
-// Be sure to run the GetCoins.js script before starting the bot. This is necessary to populate the known coins index.
+// Example usage of SQL DB connection string:  postgres://userName:password@serverName/ip:port/nameOfDatabase
+
+
+// -------------------------------------------
+//       IMPORTANT STEPS FOR FIRST RUN
+// -------------------------------------------
+
+// 1. Make sure you have node.js and npm installed and ready to use. Node version 10.x or newer is required.
+// 2. Open temrinal in the project directory and run the command "npm install" to install all required dependencies.
+// 3. Run BOTH the getCoins.js and the getCoinsCG.js scripts before starting the bot for the first time.
+//    These scripts will prime the coins symbol index. You only need to do this for the first-time run as it's handled automatically after.
+// 4. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
+//    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
+// 5. Set up your PostgreSQL database according to the schema defined in the docs folder.
+// 6. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
+// 7. Make 4 blank json files named "bannedWords.json", "admin.json", "serverPerms.json" and "help.json" in the common folder.
+//    Don't worry about putting any actual data in these, you won't need them. Just enter this in each file to initialize them: {}
+// 8. Make a json file named "tags.json" in the root folder (where main.js is). This file will store all tags that get created in servers. Put this in the file: {"tags":[]}
+// 8. You are now ready to start the bot! Go ahead and run this file to start up.
+//    If you have any questions or issues, feel free to contact me in the support discord server and I'll try to help you out. Link: https://discordapp.com/invite/VWNUbR5
+
+// Alright the hard part is over. Carry on :)
+
 
 // -------------------------------------------
 // -------------------------------------------
@@ -53,7 +73,7 @@ let cmcKey              = 1;
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Allowed coins in commands
-let pairs		        = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
+let pairs		            = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
 let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
 let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
 
@@ -66,9 +86,9 @@ let metadata            = JSON.parse(fs.readFileSync("./common/metadata.json","u
 // Banned words
 const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json","utf8"));
 
-// Help string
-let title 		        = '__**TsukiBot**__ :full_moon: \n';
-const github		    = 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
+// Help strings
+let title 		          = '__**TsukiBot**__ :full_moon: \n';
+const github		        = 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
 const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
 
 // Discord Bots List
@@ -86,9 +106,9 @@ let keys                = JSON.parse(fs.readFileSync('./common/keys.api','utf8')
 const admin             = JSON.parse(fs.readFileSync('./common/admin.json','utf8'));
 
 // Include API things
-const Discord 		    = require('discord.js');
-const api 		        = require('etherscan-api').init(keys['etherscan']);
-const cc 		        = require('cryptocompare');
+const Discord 		      = require('discord.js');
+const api 		          = require('etherscan-api').init(keys['etherscan']);
+const cc 		            = require('cryptocompare');
 const CoinMarketCap     = require('coinmarketcap-api');
 const ccxt              = require('ccxt-js');
 const graviex           = require("graviex");
@@ -131,8 +151,6 @@ const didyoumean        = require("didyoumean");
 
 // Google translate
 const translateSimple   = require('translate-google');
-const {Translate}       = require('@google-cloud/translate');
-const translate         = new Translate();
 
 // CryptoCompare requires global fetch
 global.fetch            = require('node-fetch');
@@ -193,6 +211,8 @@ const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
 const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
+
+
 // -------------------------------------------
 // -------------------------------------------
 //
@@ -217,7 +237,7 @@ const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=5
 //------------------------------------------
 //------------------------------------------
 
-// Function that gets Coinbase Pro prices
+// Function for Coinbase Pro prices
 
 async function getPriceCoinbase(chn, coin1, coin2){
 
@@ -249,13 +269,14 @@ async function getPriceCoinbase(chn, coin1, coin2){
     chn.send(ans);
 }
 
+
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing prices from Graviex
+// Function for Graviex prices
 
 async function getPriceGraviex(chn, coin1, coin2){
-    console.log("Graviex Called!");
+
     let graviexJSON;
     let price = 0;
     let change = 0;
@@ -296,10 +317,11 @@ async function getPriceGraviex(chn, coin1, coin2){
     });
 }
 
+
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing prices from STEX
+// Function for STEX prices
 
 async function getPriceSTEX(chn, coin1, coin2){
 
@@ -350,12 +372,14 @@ async function getPriceSTEX(chn, coin1, coin2){
   });
 }
 
+
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing price from CoinGecko
+// Function for Coin Gecko prices
 
 async function getPriceCoinGecko(coin, coin2, chn) {
+
   coin = coin.toLowerCase() + "";
   //default to usd if no comparison is provided
   if(typeof coin2 === 'undefined'){
@@ -394,12 +418,14 @@ async function getPriceCoinGecko(coin, coin2, chn) {
   }
 };
 
+
 //------------------------------------------
 //------------------------------------------
 
-// Function that gets CMC prices
+// Function for Coin Market Cap prices
 
 function getPriceCMC(coins, chn, action = '-', ext = 'd'){
+
   if(!cmcArrayDict['BTC']) return;
   //console.log(cmcArrayDict['BTC']['quote']);
 
@@ -467,13 +493,14 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
     chn.send(msgh + msg);
 }
 
+
 //------------------------------------------
 //------------------------------------------
 
-// Function that gets CryptoCompare prices
+// Function for Crypto Compare prices
 
 function getPriceCC(coins, chn, action = '-', ext = 'd'){
-  
+
   let query = coins.concat(['BTC']);
 
   // Get the spot price of the pair and send it to general
@@ -553,7 +580,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
 //------------------------------------------
 //------------------------------------------
 
-// Function that gets Bitfinex prices
+// Function for Bitfinex prices
 
 async function getPriceBitfinex(coin1, coin2, chn){
 
@@ -596,11 +623,10 @@ async function getPriceBitfinex(coin1, coin2, chn){
 //------------------------------------------
 //------------------------------------------
 
-
-// Function that gets Kraken prices
+// Function for Kraken prices
 
 async function getPriceKraken(coin1, coin2, chn) {
-    
+
     let fail = false;
     let tickerJSON = '';
     if (typeof coin2 === 'undefined') {
@@ -631,12 +657,11 @@ async function getPriceKraken(coin1, coin2, chn) {
     chn.send(ans);
 }
 
-
 //------------------------------------------
 //------------------------------------------
 
 
-// Function that gets Bitmex prices
+// Function for Bitmex prices
 
 async function getPriceMex(coin1, err, chn){
   
@@ -706,8 +731,7 @@ async function getPriceMex(coin1, err, chn){
 //------------------------------------------
 //------------------------------------------
 
-
-// Function that gets Poloniex prices
+// Function for Poloniex prices
 
 async function getPricePolo(coin1, coin2, chn){
 
@@ -742,7 +766,7 @@ async function getPricePolo(coin1, coin2, chn){
 //------------------------------------------
 //------------------------------------------
 
-//Binance Function
+// Function for Binance prices
 
 async function getPriceBinance(coin1, coin2, chn){
 
@@ -777,7 +801,7 @@ async function getPriceBinance(coin1, coin2, chn){
 //------------------------------------------
 //------------------------------------------
 
-// Bittrex Function
+// Function for Bittrex prices
 
 async function getPriceBittrex(coin1, coin2, chn){
 
@@ -812,7 +836,8 @@ async function getPriceBittrex(coin1, coin2, chn){
 //------------------------------------------
 //------------------------------------------
 
-// This function grabs price data for traditional markets via Alpha Vantage
+// Function for grabbing prices of stocks using Alpha Vantage
+
 async function getStocksAlpha(coin1, chn, usr){
     let price = '';
     let vol = '';
@@ -839,7 +864,8 @@ async function getStocksAlpha(coin1, chn, usr){
 //------------------------------------------
 //------------------------------------------
 
-// Grabs coin purpose and description data from CMC
+// Function to grab coin purpose and description data from cached CMC metadata
+
 async function getCoinDescription(coin1, chn, usr){
 
     let ticker = cmcArrayDictParsed;
@@ -923,12 +949,13 @@ async function getCoinDescription(coin1, chn, usr){
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
-// Function that retrieves the current fear/greed index value
+// Function that retrieves current fear/greed index value
+
 async function getFearGreedIndex(chn, usr) {
+
     request('https://api.alternative.me/fng/?limit=1&format=json', function (error, response, body) {
         let color = '';
         //parse response data
@@ -959,12 +986,13 @@ async function getFearGreedIndex(chn, usr) {
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
 // Function for grabbing Bitmex swap contract funding data
+
 async function getMexFunding(chn, message){
+
   let messageNumber = 0;
   //create websocket listener
   const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
@@ -1010,11 +1038,11 @@ async function getMexFunding(chn, message){
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
 // Grabs the current data for Bitmex long and short positions
+
 async function getMexLongsShorts(channel) {
 
   //grab the html
@@ -1047,99 +1075,99 @@ async function getMexLongsShorts(channel) {
 }
 
 
-
-
 //------------------------------------------
 //------------------------------------------
 
-//Fuction that converts Binance currencies into other Binance currencies
+// Fuction that does conversions of coin values in terms of other coins using Binance prices
 
-    async function convertPriceBinance(chn, coin1, coin2, numCoin2){
+async function convertPriceBinance(chn, coin1, coin2, numCoin2) {
 
-        let fail = false;
-        let tickerJSON = '';
-        coin3 = 'BTC';
-        coin4 = 'BTC';
-        coin1_backup = coin1;
-        coin2_backup = coin2;
-        if (typeof coin2 === 'undefined') {
-            coin2 = 'BTC';
-        }
-        if (coin2.toLowerCase() === 'usd'){
-            coin4 = 'USDT';
-            coin2 = 'BTC';
-        }
-        if (coin1.toLowerCase() === 'usd'){
-            coin3 = 'USDT';
-            coin1 = 'BTC';
-        }
-        if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt'){
-            coin3 = 'BTC';
-            coin1 = 'ETH';
-        }
-        if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt'){
-            coin4 = 'BTC';
-            coin2 = 'ETH';
-        }
+  if (coin1 && coin2) {
+    console.log(chalk.green("Coin conversion command called for: " + chalk.cyan(coin1) + chalk.yellow(" -> ") + chalk.cyan(coin2)));
+    let fail = false;
+    let tickerJSON = '';
+    coin3 = 'BTC';
+    coin4 = 'BTC';
+    coin1_backup = coin1;
+    coin2_backup = coin2;
 
-
-        tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
-            console.log(chalk.red.bold('Binance error: Ticker '
-                + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-            chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
-            fail = true;
-        });
-
-        let s1 = parseFloat(tickerJSON['last']).toFixed(8);
-        console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s1)));
-
-        if (coin3.toLowerCase() === 'usdt') {
-            s1 = 1 / s1;
-        }
-        if (coin1_backup.toLowerCase() === 'btc') {
-            s1 = 1;
-        }
-
-        tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
-            console.log(chalk.red.bold('Binance error: Ticker '
-                + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-            chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
-            fail = true;
-        });
-
-        let s2 = parseFloat(tickerJSON['last']).toFixed(8);
-        console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s2)));
-
-        if (coin4.toLowerCase() === 'usdt') {
-            s2 = 1 / s2;
-        }
-        if (coin2_backup.toLowerCase() === 'btc') {
-            s2 = 1;
-        }
-
-
-        if (fail) {
-            //exit the function if ticker didn't exist, or api failed to respond
-            return;
-        }
-
-        convResult = (s2 / s1) * numCoin2;
-        let ansi = numberWithCommas(numCoin2) + ' ' + coin2_backup.toUpperCase() + ' is equal to **' +
-            numberWithCommas(convResult.toFixed(2)) +
-            ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' +
-            numberWithCommas((s1 / s2).toFixed(2)) + ' '
-            + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**';
-
-        chn.send(ansi);
+    if (typeof coin2 === 'undefined') {
+      coin2 = 'BTC';
+    }
+    if (coin2.toLowerCase() === 'usd') {
+      coin4 = 'USDT';
+      coin2 = 'BTC';
+    }
+    if (coin1.toLowerCase() === 'usd') {
+      coin3 = 'USDT';
+      coin1 = 'BTC';
+    }
+    if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt') {
+      coin3 = 'BTC';
+      coin1 = 'ETH';
+    }
+    if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt') {
+      coin4 = 'BTC';
+      coin2 = 'ETH';
     }
 
 
+    tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
+      console.log(chalk.red.bold('Binance error: Ticker '
+        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
+      fail = true;
+    });
+
+    let s1 = parseFloat(tickerJSON['last']).toFixed(8);
+
+    if (coin3.toLowerCase() === 'usdt') {
+      s1 = 1 / s1;
+    }
+    if (coin1_backup.toLowerCase() === 'btc') {
+      s1 = 1;
+    }
+
+
+    tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
+      console.log(chalk.red.bold('Binance error: Ticker '
+        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
+      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
+      fail = true;
+    });
+
+    let s2 = parseFloat(tickerJSON['last']).toFixed(8);
+
+    if (coin4.toLowerCase() === 'usdt') {
+      s2 = 1 / s2;
+    }
+    if (coin2_backup.toLowerCase() === 'btc') {
+      s2 = 1;
+    }
+
+
+    if (fail) {
+      //exit the function if ticker didn't exist, or api failed to respond
+      return;
+    }
+
+    convResult = (s2 / s1) * numCoin2;
+    let ansi = numberWithCommas(numCoin2) + ' ' + coin2_backup.toUpperCase() + ' is equal to **' +
+      numberWithCommas(convResult.toFixed(2)) +
+      ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' +
+      numberWithCommas((s1 / s2).toFixed(2)) + ' '
+      + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**';
+
+    chn.send(ansi);
+  }
+}
 
 
 //------------------------------------------
 //------------------------------------------
 
 // Tags handler function
+
 function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink) {
   
   let valid = false;
@@ -1296,7 +1324,6 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
 
-
   } else if (command === 'tag' && validTag) {
     let tags = tagsJSON.tags;
     for (let i = 0; i < tags.length; i++) {
@@ -1318,7 +1345,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
     let embed = new Discord.RichEmbed()
-          .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')          .addField("Tag: \"" + resultName + "\"", resultTag)
+          .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+          .addField("Tag: \"" + resultName + "\"", resultTag)
           .setImage(resultTag)
           .setColor('#1b51be')
           .setTimestamp(resultTimestamp)
@@ -1337,15 +1365,15 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 }
 
 
-
 //------------------------------------------
 //------------------------------------------
 
 // From the etherscan api, get the balance
-// for a given address. The balance is returned
+// for a given ethereum address. The balance is returned
 // in weis.
 
 function getEtherBalance(address, chn, action = 'b'){
+
   if(action === 'b'){
     let balance = api.account.balance(address);
     balance.then(function(res){
@@ -1378,9 +1406,10 @@ function getEtherBalance(address, chn, action = 'b'){
 //------------------------------------------
 //------------------------------------------
 
-// Function for getting total market cap data and BTC dominance
+// Function for getting total market cap data and BTC dominance from CMC
 
 function getMarketCap(message){
+
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
     //gathering info and setting variables
@@ -1397,9 +1426,10 @@ function getMarketCap(message){
 //------------------------------------------
 //------------------------------------------
 
-// Function for getting market cap data of a specific coin
+// Function for getting market cap data of a specific coin from CMC
 
 function getMarketCapSpecific(message){
+
   let cursor = 1;
   //collect the data
   let cur = '';
@@ -1498,12 +1528,12 @@ function getMarketCapSpecific(message){
 //------------------------------------------
 //------------------------------------------
 
-// This is a setup for users to create
-// their own arrays of coins. They can check
-// the price from their array by typing .tbpa
-// as a shortcut.
+// This function handles users personal coin 
+// lists. Setting, displaying, and editing 
+// of lists is handled here.
 
 function getCoinArray(id, chn, msg, coins = '', action = ''){
+
   const conString = "postgres://bigboi:" + keys['tsukibot'] + "@localhost:5432/tsukibot";
 
   if(action === '') 
@@ -1514,12 +1544,11 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
 
   let query;
   
-  //delete .tbpa command after 5 min
-  //msg.delete(300000);
+  // delete .tbpa command after 5 min (optional)
+  // msg.delete(300000);
 
-  // .tbpa call
+  // .tbpa call (display action)
   if(coins === ''){
-      //chn.send("tbpa temporarily disabled during database migration, check back later!");
     query = conn.query("SELECT * FROM tsukibot.profiles where id = $1;", [id], (err, res) => {
       if (err){chalk.red.bold((err + "------TBPA query select error"));}
       else {
@@ -1554,7 +1583,7 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
     });
         
         
-    // .tb pa call
+    // .tb pa call (create new list or overwrite existing)
   } else { 
     if(action === '') {
       query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [ id, coins.toLowerCase() ], (err, res) => {
@@ -1564,8 +1593,8 @@ function getCoinArray(id, chn, msg, coins = '', action = ''){
         conn.end();
       });
       
-      
-    } else {
+    // edit existing list
+    } else { 
       const command     = (action === '-') ? 'REMOVE' : 'ADD';
       query = conn.query("SELECT * FROM tsukibot.profiles where id = $1;", [id], (err, res) => {
       if (err){console.log(chalk.red.bold(err + "------TB PA query select error"));}
@@ -1650,9 +1679,11 @@ const client = new Discord.Client();
 
 // Wait for the client to be ready, then load up.
 client.on('ready', () => {
-    
-  // Create DBL client and insert bot client
-  dbl = new DBL(keys['dbots'], client);
+  
+  if(keys['dbl'] == "yes"){
+      // Create DBL client and insert bot client
+      dbl = new DBL(keys['dbots'], client);
+  }
 
   // Check for dev mode argument
   if(process.argv[2] === "-d"){
@@ -1676,7 +1707,7 @@ client.on('ready', () => {
   getCMCData();
   publishDblStats();
 
-//Notify dad when the bot is booted up (Disabled because it's annoying for now)
+// Notify bot operator when the bot starts up or restarts (Disabled because it's annoying when doing testing)
 //    client.fetchUser("210259922888163329")
 //    .then(u => {
 //      u.send("TsukiBot online.")
@@ -1688,6 +1719,7 @@ client.on('ready', () => {
 
 // DM's the command list to the caller
 function postHelp(message, author, code) {
+
   code = code || "none";
   let fail = false;
   const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
@@ -1730,7 +1762,18 @@ client.on('guildDelete', guild => {
   }
 });
 
-// Event goes off every time a message is read.
+
+
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+//                                                 //
+//             MESSAGE EVENT HANDLER               //
+//                                                 //
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+
+
+// This is triggered for every message that the bot sees
 client.on('message', message => {
    
   // Developer mode
@@ -1743,10 +1786,11 @@ client.on('message', message => {
   // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if(messageCount === 0) referenceTime = Date.now();
-//  if(messageCount % 100 === 0){
-//  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
+  //  if(messageCount % 100 === 0){
+  //  console.log(chalk.green("messages so far: " + chalk.cyan(messageCount)));}
 
-  //For Scooter
+
+  // Special features for Spacestation server. Don't worry about these, they are only for the official bot to use.
   if(message.guild && message.guild.id === '290891518829658112'){
     if(message.author.id === '210259922888163329' && message.content.includes("sneektime")){
         if(getEmCoach){getEmCoach = false;}
@@ -1778,7 +1822,7 @@ client.on('message', message => {
     }
   }
 
-  // Check for unsafe files and delete them if author doesn't have File Perms role
+  // Check for unsafe files and delete them if author doesn't have the File Perms role
   if (message.guild) {
     message.guild.fetchMember(message.author).then(function (member) {
       if (member && member.roles.some(r => ["File Perms", "File Perm", "File perm", "file perms"].includes(r.name))) {
@@ -1800,7 +1844,7 @@ client.on('message', message => {
     }).catch(e => (0)); // Ignore the API "unknown user" error that sometimes shows. This is a false error and the action still completes normally.
   }
 
-  // Check for, and ignore DM channels
+  // Check for, and ignore DM channels (this is a safety precaution)
   if(message.channel.type !== 'text') return;
 
 
@@ -1820,8 +1864,8 @@ client.on('message', message => {
     .catch(e => (0));
     
     
-  // Internal bot admin controls
-  if(message.author.id === '210259922888163329'){
+  // Internal bot admin controls (For official bot use only. You can ignore this.)
+  if(message.author.id === '210259922888163329' && keys['dbl'] == "yes"){
       if(message.content.includes(admin['1'])){
           if(auto){
               message.channel.send("Already set to auto.");
@@ -1856,15 +1900,23 @@ client.on('message', message => {
    and a boolean that states if the sender has a
    botAdmin role.
 
-   The first section checks for multi-parameter inputs,
-   such as k or c. Multi-parameter inputs have the
-   format [prefix] [command] [parameters].
-
-   The second section checks for simple parameter
+   The first section checks for simple parameter
    inputs. These are of the form [prefix][command].
 
+   The second section checks for multi-parameter inputs,
+   such cmc and cc. Multi-parameter inputs have the
+   format [prefix] [command] [parameters].
+
+   The third section checks for shortcut commands 
+   and other random commands.
+
    These cases default to posting the help text. The
-   reference text is found in common/help.txt.
+   reference text for all commands is found in 
+   common/commands.md. A link to this page will be 
+   posted if a command is not recognised or is used
+   incorrectly.
+
+   Simple enough right? Lets do this!
 
  ------------------------------------------------------- */
 
@@ -1940,7 +1992,7 @@ function commands(message, botAdmin, config){
   let code_in_pre = code_in[0];
   code_in[0] = code_in[0].replace(hasPfx,"");
   
-  // Check for *BTC CMC call 
+  // Check for *BTC CMC call (show prices in terms of btc)
   let cmcBTC = false;
   if(shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + '+' === code_in[0].toLowerCase()){
     code_in.shift();
@@ -1969,29 +2021,15 @@ function commands(message, botAdmin, config){
     //
     // Check commands that don't require paramers
     //
-    
-    // Remove the sub tags
-    if(command === 'leave'){
-        setSubscriptions(message.author, message.guild, ['r']);
         
     // Get DiscordID via DM
-    }else if(command === 'id'){
+    if(command === 'id'){
         message.author.send("Your ID is `" + message.author.id + "`.");
 
     // Load configuration message
     } else if(command === 'config'){
         if(hasPermissions(message.author.id, message.guild) || botAdmin)
             loadConfiguration(message);
-
-    // Restore the sub tags
-    } else if(command === 'resub'){
-        setSubscriptions(message.author, message.guild, ['S']);
-            
-    // Get available roles (Enabled)
-    } else if(command === 'list'){
-        code_in.splice(0,1);
-        code_in.unshift('g');
-        setSubscriptions(message.author, message.guild, code_in);
 
     // Converts cryptos at binance rates
     } else if(command === 'convert' || command === 'cv'){
@@ -2033,7 +2071,7 @@ function commands(message, botAdmin, config){
     } else if(command === 'deletetag'){
         tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
     
-    // Dev option to show the tags cache in console
+    // Dev option to show the tags cache in console (be careful with this, it will spam your console HARD)
     } else if(command === 'showjson') {
         console.log(tagsJSON);
     
@@ -2041,10 +2079,15 @@ function commands(message, botAdmin, config){
     } else if(command === 'invite') {
         msg.channel.send("Hi there! You can add me to your server with the following link. Please keep the requested permissions checked to ensure" + 
         " that I'm able to work fully! \n" + inviteLink);
+
+    // Send link to bot's source code repo on github
+    } else if(command === 'github') {
+      msg.channel.send("Hi there! Here's a direct link to stalk my repo on Github: \n" + "https://github.com/YoloSwagDogDiggity/TsukiBot");
         
     } else{
         
     
+
     //
     // Done checking for no-input commands, now checking rest of commands:
     //
@@ -2060,13 +2103,6 @@ function commands(message, botAdmin, config){
       ---------------------------------------------------------------------------------- */
 
       let params = code_in.slice(1,code_in.length).filter(function(value){
-
-        // --------- Request Counter ---------------------------------------------------
-        if(code_in[0]!== 'e' && code_in[0] !== 'sub' && code_in[0] !== 'subrole'){
-          requestCounter[value.toUpperCase()]++;
-        }
-        // -----------------------------------------------------------------------------
-        
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
       });
       
@@ -2194,9 +2230,9 @@ function commands(message, botAdmin, config){
 
 
 // --------------------------------------------------------------------------------------------------------
+//                                          Shortcut Commands
+// --------------------------------------------------------------------------------------------------------
 
-
-    // Shortcut section
     } else {
 
     let scommand = code_in[0].toLowerCase();
@@ -2265,9 +2301,8 @@ function commands(message, botAdmin, config){
         postSessionStats(message);
         
         
-
       //
-      // The following meme commands are set to only work in SpaceStation until a configuration option is added to disable them when not wanted
+      // The following meme commands are set to only work in the SpaceStation server until a configuration option is added to disable them when not wanted
       //
       
       // Meme
@@ -2345,6 +2380,7 @@ function commands(message, botAdmin, config){
 }
   
 
+
 // -------------------------------------------
 // -------------------------------------------
 //
@@ -2353,41 +2389,15 @@ function commands(message, botAdmin, config){
 // -------------------------------------------
 // -------------------------------------------
 
-function coinArrayMax(counter) {
-  let max = 0;
-  let sum = 1;
-  let maxCrypto = "";
-
-  for(let key in counter) {
-    sum += counter[key];
-    //if(counter[key] !== 0) console.log(counter[key] + " " + key);
-    if(counter[key] > max) {
-      max = counter[key];
-      maxCrypto = key;
-    }
-  }
-
-  //console.log(counter);
-  return [maxCrypto, Math.trunc((max / sum) * 100)];
-}
 
 // Capitalize names and titles
 function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-// Detect language with google translate (In Beta)
-async function detectLanguage(){
-  let [detections] = await translate.detect("I walked the cat to school");
-  detections = Array.isArray(detections) ? detections : [detections];
-  console.log('Detections:');
-  detections.forEach(detection => {
-  console.log(`${detection.input} => ${detection.language}`);
-  });
-}
-
 // Traslate message to english
 function translateEN(chn, msg, sneak){
+
   //remove the command string and potential mentions
   let message  = msg.content + "";
   message      = message.replace(/<.*>/, '');
@@ -2411,6 +2421,7 @@ function translateEN(chn, msg, sneak){
 
 // Check if string is a valid URL
 function validURL(str) {
+
   var pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
           '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
           '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
@@ -2422,6 +2433,7 @@ function validURL(str) {
 
 // Send the session stats of the bot
 function postSessionStats(message){
+
     console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
     let users         = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
     users             = numberWithCommas(users);
@@ -2455,6 +2467,7 @@ function convertToETHPrice(priceUSD){
 
 // Run through new server procedure
 function joinProcedure(guild){
+
   let failGC     = false;
   let fail2GC    = false;
   let fail3GC    = false;
@@ -2512,6 +2525,7 @@ function convertToBTCPrice(priceUSD){
 
 // Generate random-length yeet
 function makeYeet() {
+
   let text = "";
   const possible = ":regional_indicator_e:";
   const numberOfE = Math.random() * (85 - 1) + 1;
@@ -2528,13 +2542,19 @@ function resetSpamLimit() {
 
 // Publish bot statistics to Discord Bots List <discordbots.org>
 function publishDblStats(){
-    dbl.postStats(client.guilds.size, client.id);
-    console.log(chalk.green("Updated dbots.org stats!"));
+    if(keys['dbl'] == "yes"){
+      dbl.postStats(client.guilds.size, client.id);
+      console.log(chalk.green("Updated dbots.org stats!"));
+    }
+    else{
+      return;
+    }
 }
 
 // I do a lot of CMC calls and I'm trying to keep the bot free to use, 
 // so I alternate between keys to keep using free credits and still update frequently.
 function updateCmcKey(override) {
+
     //Get the time
     let d = new Date();
     let hour = d.getUTCHours();
@@ -2566,8 +2586,8 @@ function updateCmcKey(override) {
 }
 
 function loadConfiguration(msg){
-  let channel = msg.channel;
 
+  let channel = msg.channel;
   channel.send("__**Commands**__\n\n" +
     ":regional_indicator_k: = Kraken\n\n" +
     ":regional_indicator_g: = Coinbase\n\n" +
@@ -2647,6 +2667,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
   }
 });
 
+
 /* ---------------------------------
 
   getCMCData()
@@ -2657,6 +2678,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
  ---------------------------------- */
 
 async function getCMCData(){
+
   //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
   let cmcJSON = await clientcmc.getTickers({limit: 2800}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
@@ -2684,6 +2706,7 @@ async function getCMCData(){
  ---------------------------------- */
                                                                         
 function updateCoins(){
+
   reloader.update();
   reloaderCG.update();
   // Re-read the new set of coins
@@ -2701,6 +2724,7 @@ function updateCoins(){
  ---------------------------------- */
 
 function toggleShortcut(id, shortcut, chn, join){
+
   if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4){
     shortcutConfig[id] = shortcut;
     let startMessage = "s";
@@ -2722,6 +2746,7 @@ function toggleShortcut(id, shortcut, chn, join){
     chn.send('Shortcut format not allowed. (Max. 3 alphanumeric and `!$%._,<>=+*&`)');
   }
 }
+
 
 /* ---------------------------------
 
@@ -2753,6 +2778,9 @@ process.on('unhandledRejection', (reason, p) => {
 
 // Jack in, Megaman. Execute.
 client.login(keys['token']);
+
+
+// Wow, you made it to the bottom! Here's a big yeet for you.
 
 // -------------------------------------------
 // -------------------------------------------
