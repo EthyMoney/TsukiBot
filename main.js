@@ -2078,15 +2078,19 @@ function commands(message, botAdmin, config){
     // Send an invite link for the bot
     } else if(command === 'invite') {
         msg.channel.send("Hi there! You can add me to your server with the following link. Please keep the requested permissions checked to ensure" + 
-        " that I'm able to work fully! \n" + inviteLink);
+          " that I'm able to work fully! \n" + inviteLink);
 
-    // Send link to bot's source code repo on github
-    } else if(command === 'github') {
-      msg.channel.send("Hi there! Here's a direct link to stalk my repo on Github: \n" + "https://github.com/YoloSwagDogDiggity/TsukiBot");
-        
-    } else{
-        
-    
+      // Send link to bot's source code repo on github
+    } else if (command === 'github') {
+        msg.channel.send("Hi there! Here's a direct link to stalk my repo on Github: \n" + "https://github.com/YoloSwagDogDiggity/TsukiBot");
+
+      // Send link to the the user's avatar
+    } else if (command === 'avatar' || command === 'myavatar') {
+        msg.channel.send(msg.author.avatarURL);
+
+    } else {
+
+
 
     //
     // Done checking for no-input commands, now checking rest of commands:
@@ -2341,8 +2345,9 @@ function commands(message, botAdmin, config){
       channel.send(':last_quarter_moon_with_face: :candle: :first_quarter_moon_with_face:');}
   
       // Displays the caller's avatar 
-    else if (scommand === '.myavatar'){
-      channel.send(message.author.avatarURL);}
+    else if (scommand === '.myavatar' || scommand === '.avatar'){
+      channel.send(message.author.avatarURL);
+    }
   
      // Say hi to my pal George
     if(message.member.id === '221172361813032961' && guildID === '290891518829658112' && Math.random() < 0.05){
