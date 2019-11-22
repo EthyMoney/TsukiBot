@@ -1358,7 +1358,11 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       });
 
   } else {
-    channel.send("Incorrect use of tags command! Here's how to use tags: <coming soon>");
+    channel.send("__Incorrect use of tags command! Here's how to use Tsuki tags:__\n" + " " + "\n" +
+    ":small_blue_diamond: To make a new tag, use the createtag command: `.tb createtag <tag name here> <tag link(URL) here>`\n" + 
+    ":small_blue_diamond: To view a tag, use the tag command: `.tb tag <tag name here>`\n" + 
+    ":small_blue_diamond: To view all available tags in the server, use the taglist command: `.tb taglist\n`" +
+    ":small_blue_diamond: To delete a tag, use the deletetag command: `.tb deletetag <tag name here>`");
     return;
   }
 
