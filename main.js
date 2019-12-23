@@ -110,7 +110,7 @@ const Discord 		      = require('discord.js');
 const api 		          = require('etherscan-api').init(keys['etherscan']);
 const cc 		            = require('cryptocompare');
 const CoinMarketCap     = require('coinmarketcap-api');
-const ccxt              = require('ccxt-js');
+const ccxt              = require('ccxt');
 const graviex           = require("graviex");
 const CoinGecko         = require('coingecko-api');
 
@@ -193,7 +193,7 @@ const clientPoloniex      = new ccxt.poloniex();
 const clientBinance       = new ccxt.binance();
 const clientBittrex       = new ccxt.bittrex();
 const clientBitfinex      = new ccxt.bitfinex2();
-const clientCoinbase      = new ccxt.coinbase();
+const clientCoinbase      = new ccxt.coinbasepro();
 let clientcmc;            //Will be initialied upon bot bootup
 
 // Reload Coins
