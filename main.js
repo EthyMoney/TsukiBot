@@ -2265,11 +2265,11 @@ function commands(message, botAdmin, config){
       // Get Kraken ETHX
     } else if (scommand === 'k'){
       if(code_in[1] && code_in[1].toUpperCase() === 'EUR'){
-        getPriceKraken('ETH','EUR',-1, channel);
+        getPriceKraken('ETH','EUR', channel);
       } else if(code_in[1] && code_in[1].toUpperCase() === 'BTC'){
-        getPriceKraken('XBT', 'USD', -1, channel);
+        getPriceKraken('BTC', 'USD', channel);
       } else {
-        getPriceKraken('ETH','USD',-1, channel);
+        getPriceKraken('ETH','USD', channel);
       }
      
       // Get Poloniex ETHUSDT
