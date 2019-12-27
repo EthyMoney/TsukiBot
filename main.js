@@ -663,11 +663,11 @@ async function getPriceKraken(coin1, coin2, chn) {
 
 // Function for Bitmex prices
 
-async function getPriceMex(coin1, err, chn){
-  
+async function getPriceMex(coin1, coin2, chn) {
+
   let s = '';
   let c = '';
-  let coin2 = 'btc';
+  let pair = '';
   let tickerJSON = '';
   let today = new Date();
   let dd = String(today.getDate()).padStart(2, '0');
@@ -675,56 +675,65 @@ async function getPriceMex(coin1, err, chn){
   let yy = today.getFullYear() - 2000;
   let m = '';
   let done = false;
-  //console.log(mm + "::" + dd + ":::" + yy);
- 
+  let fail = false;
+
   // Figure out current contract code
-  if ((mm <= 12 && (mm >= 1 && mm <= 3)) && !done) {if((mm === 3 && dd >= 28)){m = 'M'; done=true;} else{m = 'H'; done=true;}}
-  if (mm >= 3 && mm <= 6 && !done) {if((mm === 6 && dd >= 28)){m = 'U'; done=true;} else{m = 'M'; done=true;}}
-  if (mm >= 6 && mm <= 9 && !done) {if((mm === 9 && dd >= 28)){m = 'Z'; done=true;} else{m = 'U'; done=true;}}
-  if (mm >= 9 && mm <= 12 && !done) {if((mm === 12 && dd >= 28)){m = 'H';} else{m = 'Z';}}
+  if ((mm <= 12 && (mm >= 1 && mm <= 3)) && !done) { if ((mm === 3 && dd >= 28)) { m = 'M'; done = true; } else { m = 'H'; done = true; } }
+  if (mm >= 3 && mm <= 6 && !done) { if ((mm === 6 && dd >= 28)) { m = 'U'; done = true; } else { m = 'M'; done = true; } }
+  if (mm >= 6 && mm <= 9 && !done) { if ((mm === 9 && dd >= 28)) { m = 'Z'; done = true; } else { m = 'U'; done = true; } }
+  if (mm >= 9 && mm <= 12 && !done) { if ((mm === 12 && dd >= 28)) { m = 'H'; } else { m = 'Z'; } }
   let contractCode = m + yy;
   //console.log(chalk.blue(contractCode));
-  
-  // This implementation changes as the BitMEX contract period code changes every 3 months
-  switch(coin1.toUpperCase()) {
-    case 'BTC':
-        tickerJSON = await bitmex.fetchTicker('BTC/USD');
-        coin2 = 'usd';
-        break;
-    case 'ETH':
-        tickerJSON = await bitmex.fetchTicker('ETH/USD');
-        coin2 = 'usd';
-        break;
-    case 'BCH':
-        tickerJSON = await bitmex.fetchTicker('BCH' + contractCode);
-        break;
-    case 'EOS':
-        tickerJSON = await bitmex.fetchTicker('EOS' + contractCode);
-        break;
-    case 'ADA':
-        tickerJSON = await bitmex.fetchTicker('ADA' + contractCode);
-        break;
-    case 'LTC':
-        tickerJSON = await bitmex.fetchTicker('LTC' + contractCode);
-        break;
-    case 'TRX':
-        tickerJSON = await bitmex.fetchTicker('TRX' + contractCode);
-        break
-    case 'XRP':
-        tickerJSON = await bitmex.fetchTicker('XRP' + contractCode);
-        break
-    default:
-        chn.send('BitMEX Error: `Ticker "' + err.toUpperCase() + '" not found.`');
-        return;
-    } 
-  
-    s = tickerJSON['last'];
-    console.log (chalk.green('BitMEX REST API ticker response: '+ chalk.cyan(s)));
-    c = tickerJSON['percentage'];
-    c = Math.round(c * 100) / 100;
 
-    let ans = '__BitMEX__ Price for **'  + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `'  + s + ' ' + coin2.toUpperCase() +  '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
-    chn.send(ans);
+  // This implementation changes as the BitMEX contract period code changes every 3 months
+  if (coin1) {
+    switch (coin1.toUpperCase()) {
+      case 'BTC':
+        pair = 'BTC/USD';
+        coin2 = 'usd';
+        break;
+      case 'ETH':
+        if (!coin2 || coin2 !== 'btc') {
+          pair = 'ETH/USD'
+          coin2 = 'usd';
+          break;
+        }
+        else {
+          pair = 'ETH' + contractCode;
+        }
+      default:
+        //always default the pair to btc value unless it was specified as usd
+        pair = coin1.toUpperCase() + contractCode;
+        if(!coin2 || coin2.toUpperCase() !== "USD"){
+          coin2 = 'btc';
+        }
+    }
+
+    tickerJSON = await bitmex.fetchTicker(pair).catch(function (rej) {
+      console.log(chalk.red.bold('BitMEX error: Ticker '
+        + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+      chn.send('API Error:  BitMEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+      fail = true;
+    });
+    if (fail) {
+      //exit the function if ticker didn't exist, or api failed to respond
+      return;
+    }
+  }
+  
+  //usd conversion just for reference in case someone calls a mex price in usd, cus why not
+  if (coin1.toUpperCase() !== "BTC" && coin1.toUpperCase() !== "ETH" && coin2 && coin2.toUpperCase() === "USD"){
+    s = (tickerJSON['last'] * parseFloat(cmcArrayDict['BTC']['quote']['USD']['price'])).toFixed(6);
+  }
+  else{
+  s = tickerJSON['last'];
+  }
+  console.log(chalk.green('BitMEX REST API ticker response: ' + chalk.cyan(s)));
+  c = tickerJSON['percentage'];
+  c = Math.round(c * 100) / 100;
+
+  let ans = '__BitMEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+  chn.send(ans);
 }
 
 
@@ -2133,15 +2142,7 @@ function commands(message, botAdmin, config){
           
           // Bitmex call
         } else if(command === 'bitmex' || command === 'm' || command === 'mex'){
-          let coin1 = params[1];
-          if(coin1.toUpperCase() === 'XRP' || coin1.toUpperCase() === 'TRX' || coin1.toUpperCase() === 'LTC' || coin1.toUpperCase() === 'ADA' ||
-             coin1.toUpperCase() === 'EOS' || coin1.toUpperCase() === 'BCH' || coin1.toUpperCase() === 'ETH' || coin1.toUpperCase() === 'BTC'){
-                getPriceMex(params[1], 'none', channel);
-        }
-          else{
-          console.log(chalk.red.bold('BitMEX Error: Ticker ' + chalk.cyan(coin1.toUpperCase()) + ' not found'));
-          getPriceMex('XXX', params[1], channel);
-        }
+          getPriceMex(code_in[1], code_in[2], channel);
           
           // CMC call
         } else if(command === 'cmc' || command === 'cmcs'){
@@ -2688,7 +2689,7 @@ client.on('messageReactionAdd', (messageReaction, user) => {
 
 async function getCMCData(){
 
-  //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account for each call. This is why I alternate keys!
+  //WARNING! This will pull ALL cmc coins and cost you up to 14 credits (limit/200) on your api account for each call. This is why I alternate keys!
   let cmcJSON = await clientcmc.getTickers({limit: 2800}).then().catch(console.error);
   cmcArray = cmcJSON['data'];
   cmcArrayDictParsed = cmcArray;
