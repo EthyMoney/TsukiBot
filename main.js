@@ -261,6 +261,7 @@ async function getPriceCoinbase(chn, coin1, coin2){
     }
     //console.log(tickerJSON);
     let s = parseFloat(tickerJSON['last']).toFixed(8);
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Coinbase API ticker response: ' + chalk.cyan(s)));
     let c = tickerJSON['info'].priceChangePercent;
     c = Math.round(c * 100) / 100;
@@ -299,7 +300,7 @@ async function getPriceGraviex(chn, coin1, coin2){
             console.log((chalk.red("Graviex error : graviex failed to respond.")));
             return;
         }
-        price = graviexJSON.ticker.last;
+        price = trimDecimalPlaces(graviexJSON.ticker.last);
         console.log(chalk.green("Graviex API ticker response: " + chalk.cyan(price)));
         change = graviexJSON.ticker.change;
         change = parseFloat(change * 100).toFixed(2);
@@ -366,6 +367,8 @@ async function getPriceSTEX(chn, coin1, coin2){
     let c = (last-yesterday);
     c = c / yesterday * 100;
     c = Math.round(c * 100) / 100;
+    s = trimDecimalPlaces(s);
+
     let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
     chn.send(ans);
   });
@@ -409,6 +412,7 @@ async function getPriceCoinGecko(coin, coin2, chn) {
     
   let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
   let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+  s = trimDecimalPlaces(s);
   
   chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
   console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
@@ -447,9 +451,9 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
       else
         coins[i] = g;
     }
-    let ep = parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8) + ' ETH`';
-    let bp = parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8) + ' BTC`';
-    let up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6) + ' USD` (`' +
+    let ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8)) + ' ETH`';
+    let bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])).toFixed(8)) + ' BTC`';
+    let up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6)) + ' USD` (`' +
       Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['percent_change_24h'])*100)/100 + '%`)';
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
@@ -515,15 +519,15 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
         let bp, up;
         
         try{
-          bp = prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8) + ' BTC` (`' +
+          bp = trimDecimalPlaces(prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8)) + ' BTC` (`' +
             Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
-          up = parseFloat(prices[coins[i].toUpperCase()]['USD']['PRICE']).toFixed(6) + ' USD` (`' +
+          up = trimDecimalPlaces(parseFloat(prices[coins[i].toUpperCase()]['USD']['PRICE']).toFixed(6)) + ' USD` (`' +
             Math.round((prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR'])*100)/100 + '%`)';
         } catch(e) {
           if(cmcArrayDict[coins[i].toUpperCase()]){
-            bp = convertToBTCPrice(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price'])) + ' BTC` (`' +
+            bp = trimDecimalPlaces(convertToBTCPrice(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']))) + ' BTC` (`' +
               Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"] - bpchg)*100)/100 + '%`)';
-            up = parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6) + ' USD` (`' +
+            up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()]['quote']['USD']['price']).toFixed(6)) + ' USD` (`' +
               Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"])*100)/100 + '%`)';
           } else {
             bp = 'unvavilable`';
@@ -607,6 +611,7 @@ async function getPriceBitfinex(coin1, coin2, chn){
     if (coin2.toUpperCase() === 'BTC'){
         s = parseFloat(tickerJSON['last']).toFixed(8);
     }
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
     let c = tickerJSON['percentage'] * 100;
     c = Math.round(c * 100) / 100;
@@ -646,6 +651,7 @@ async function getPriceKraken(coin1, coin2, chn) {
         return;
     }
     let s = tickerJSON['last'];
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Kraken API ticker response: ' + chalk.cyan(s)));
     // Calculate % change from daily opening
     let c = tickerJSON['info'].o - s;
@@ -728,6 +734,7 @@ async function getPriceMex(coin1, coin2, chn) {
   else{
   s = tickerJSON['last'];
   }
+  s = trimDecimalPlaces(s);
   console.log(chalk.green('BitMEX REST API ticker response: ' + chalk.cyan(s)));
   c = tickerJSON['percentage'];
   c = Math.round(c * 100) / 100;
@@ -763,6 +770,7 @@ async function getPricePolo(coin1, coin2, chn){
         return;
     }
     let s = parseFloat(tickerJSON['last']).toFixed(8);
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Poloniex API ticker response: ' + chalk.cyan(s)));
     let c = tickerJSON['info'].percentChange * 100;
     c = Math.round(c * 100) / 100;
@@ -798,6 +806,7 @@ async function getPriceBinance(coin1, coin2, chn){
         return;
     }
     let s = parseFloat(tickerJSON['last']).toFixed(8);
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Binance API ticker response: ' + chalk.cyan(s)));
     let c = tickerJSON['info'].priceChangePercent;
     c = Math.round(c * 100) / 100;
@@ -833,6 +842,7 @@ async function getPriceBittrex(coin1, coin2, chn){
         return;
     }
     let s = parseFloat(tickerJSON['last']).toFixed(8);
+    s = trimDecimalPlaces(s);
     console.log(chalk.green('Bittrex API ticker response: ' + chalk.cyan(s)));
     let c = tickerJSON['percentage'];
     c = Math.round(c * 100) / 100;
@@ -866,7 +876,7 @@ async function getStocksAlpha(coin1, chn, usr){
     
     console.log(chalk.green('Alpha Vantage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
     
-    chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + price + "` (`" + parseFloat(change).toFixed(2) + "%`).");
+    chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + trimDecimalPlaces(price) + "` (`" + parseFloat(change).toFixed(2) + "%`).");
 }
 
 
@@ -1370,7 +1380,7 @@ function getEtherBalance(address, chn, action = 'b'){
   if(action === 'b'){
     let balance = api.account.balance(address);
     balance.then(function(res){
-      chn.send('The total ether registered for `' + address + '` is: `' + res['result'] / 1000000000000000000 + ' ETH`.');
+      chn.send('The total ether registered for `' + address + '` is: `' + trimDecimalPlaces(res['result'] / 1000000000000000000) + ' ETH`.');
     });
   } else {
     let block = api.proxy.eth_blockNumber();
@@ -2439,12 +2449,12 @@ function postSessionStats(message){
 
 
     const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n"
-        + "⇒ Current uptime is: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
-        + "⇒ Current messages per minute is `" + msgpersec + "`.\n"
+        + "⇒ Current uptime: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n"
+        + "⇒ Average messages per minute: `" + msgpersec + "`.\n"
        // + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
        // + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
         + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
-        + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02.`");
+        + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02`");
 
     let embed         = new Discord.RichEmbed()
         .addField("TsukiBot Stats", msgh)
@@ -2509,12 +2519,21 @@ function joinProcedure(guild){
 
 // Function to add commas to long numbers
 function numberWithCommas(x) {
-  if(x > 10){
-    x = parseFloat(x).toFixed(2);
-  }
+  x = trimDecimalPlaces(x);
   var parts = x.toString().split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");
+}
+
+// Function to trim decimal place accuracy for large numbers
+function trimDecimalPlaces(x){
+  x = parseFloat(x); //conversion to number
+  //check if number is partial and is bigger than 10
+  console.log(x.toString().indexOf('.') !== -1)
+  if (x > 10 && x.toString().indexOf('.') !== -1) {
+    return x.toFixed(2); //shorted then decimal places
+  }
+  return x;
 }
 
 // Convert a passed-in USD value to BTC value and return it
@@ -2525,7 +2544,6 @@ function convertToBTCPrice(priceUSD){
 
 // Generate random-length yeet
 function makeYeet() {
-
   let text = "";
   const possible = ":regional_indicator_e:";
   const numberOfE = Math.random() * (85 - 1) + 1;
