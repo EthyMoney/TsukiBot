@@ -123,7 +123,7 @@ const stex              = require('stocks-exchange-client'),
                           api_key:keys['stex'],
                           api_secret:keys['stexSecret']
                         },
-stexClient              = new stex.client(option);
+stexClient              = new stex.client(option, 'https://app.stex.com/api2', 2);
 
 // Include fancy console outputs
 const chalk             = require('chalk');
@@ -349,7 +349,13 @@ async function getPriceSTEX(chn, coin1, coin2){
     chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
     return;
     }
-    s = tickerJSON.result[0].price;
+    if(tickerJSON.result[0]){
+      s = tickerJSON.result[0].price;
+    }
+    else{
+      chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__. Try a different pair.');
+        return;
+    }
   
   //grab 24hr data
   stexClient.ticker(function (res) {
