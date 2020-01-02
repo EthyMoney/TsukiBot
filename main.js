@@ -1087,88 +1087,68 @@ async function getMexLongsShorts(channel) {
 //------------------------------------------
 //------------------------------------------
 
-// Fuction that does conversions of coin values in terms of other coins using Binance prices
+// Fuction that converts value of one coin into value in terms of another coin using CG prices
 
-async function convertPriceBinance(chn, coin1, coin2, numCoin2) {
+async function priceConversionTool(coin1, coin2, amount, chn) {
 
-  if (coin1 && coin2) {
-    console.log(chalk.green("Coin conversion command called for: " + chalk.cyan(coin1) + chalk.yellow(" -> ") + chalk.cyan(coin2)));
-    let fail = false;
-    let tickerJSON = '';
-    coin3 = 'BTC';
-    coin4 = 'BTC';
-    coin1_backup = coin1;
-    coin2_backup = coin2;
-
-    if (typeof coin2 === 'undefined') {
-      coin2 = 'BTC';
-    }
-    if (coin2.toLowerCase() === 'usd') {
-      coin4 = 'USDT';
-      coin2 = 'BTC';
-    }
-    if (coin1.toLowerCase() === 'usd') {
-      coin3 = 'USDT';
-      coin1 = 'BTC';
-    }
-    if (coin1.toLowerCase() === 'btc' && coin3.toLowerCase() != 'usdt') {
-      coin3 = 'BTC';
-      coin1 = 'ETH';
-    }
-    if (coin2.toLowerCase() === 'btc' && coin4.toLowerCase() != 'usdt') {
-      coin4 = 'BTC';
-      coin2 = 'ETH';
-    }
-
-
-    tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin3).catch(function (rej) {
-      console.log(chalk.red.bold('Binance error: Ticker '
-        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin3.toUpperCase() + '__');
-      fail = true;
-    });
-
-    let s1 = parseFloat(tickerJSON['last']).toFixed(8);
-
-    if (coin3.toLowerCase() === 'usdt') {
-      s1 = 1 / s1;
-    }
-    if (coin1_backup.toLowerCase() === 'btc') {
-      s1 = 1;
-    }
-
-
-    tickerJSON = await clientBinance.fetchTicker(coin2.toUpperCase() + '/' + coin4).catch(function (rej) {
-      console.log(chalk.red.bold('Binance error: Ticker '
-        + chalk.cyan(coin1.toUpperCase()) + ' not found!'));
-      chn.send('API Error:  Binance does not have market symbol __' + coin1.toUpperCase() + '/' + coin4.toUpperCase() + '__');
-      fail = true;
-    });
-
-    let s2 = parseFloat(tickerJSON['last']).toFixed(8);
-
-    if (coin4.toLowerCase() === 'usdt') {
-      s2 = 1 / s2;
-    }
-    if (coin2_backup.toLowerCase() === 'btc') {
-      s2 = 1;
-    }
-
-
-    if (fail) {
-      //exit the function if ticker didn't exist, or api failed to respond
-      return;
-    }
-
-    convResult = (s2 / s1) * numCoin2;
-    let ansi = numberWithCommas(numCoin2) + ' ' + coin2_backup.toUpperCase() + ' is equal to **' +
-      numberWithCommas(convResult.toFixed(2)) +
-      ' ' + coin1_backup.toUpperCase() + '** at the current Binance rate of **' +
-      numberWithCommas((s1 / s2).toFixed(2)) + ' '
-      + coin2_backup.toUpperCase() + ' per ' + coin1_backup.toUpperCase() + '.**';
-
-    chn.send(ansi);
+  if(!coin1 || !coin2 || !amount){
+  //show help message and then exit if wrong input is provided
+  chn.send("**Here's how to use the coin conversion command:**\n " +
+  ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " + 
+  ":small_blue_diamond: Example: `.tb cv 20 eth btc`\n");
+  return;
   }
+  coin1 = coin1.toLowerCase() + "";
+  coin2 = coin2.toLowerCase() + "";
+
+  //lookup ID for coins requested
+  let found1 = false;
+  let found2 = false;
+  let coinID1 = "";
+  let coinID2 = "";
+  for (let i = 0, len = pairs_CG.length; i < len; i++) {
+    if(pairs_CG[i].symbol === coin1){
+        coinID1 = pairs_CG[i].id;
+        found1 = true;
+        break;
+    }
+  }
+  for (let i = 0, len = pairs_CG.length; i < len; i++) {
+    if(pairs_CG[i].symbol === coin2){
+        coinID2 = pairs_CG[i].id;
+        found2 = true;
+        break;
+    }
+  }
+
+  //if both IDs were found, grab data from API
+  if(found1 && found2){
+  let data1 = await CoinGeckoClient.simple.price( {
+    ids: [coinID1],
+    vs_currencies: ['usd'],
+    include_24hr_vol : [false],
+    include_24hr_change : [false]
+  });
+  let data2 = await CoinGeckoClient.simple.price( {
+    ids: [coinID2],
+    vs_currencies: ['usd'],
+    include_24hr_vol : [false],
+    include_24hr_change : [false]
+  }); 
+    
+  //select the prices from the API response and then calculate the converted amount
+  let price1 = parseFloat(data1["data"][coinID1]["usd"]).toFixed(8);
+  let price2 = parseFloat(data2["data"][coinID2]["usd"]).toFixed(8);
+  let amount2 = (amount * price1) / (price2);
+  
+  chn.send("`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "`");
+  console.log(chalk.green("Currency conversion requested for " + chalk.cyan(coin1) + " to " + chalk.cyan(coin2)));
+  }
+
+  else{
+      chn.send("One or both of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
+  }
+
 }
 
 
@@ -1367,7 +1347,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       });
 
   } else {
-    channel.send("__Incorrect use of tags command! Here's how to use Tsuki tags:__\n" + " " + "\n" +
+    channel.send("**Here's how to use Tsuki tags:**\n " + 
     ":small_blue_diamond: To make a new tag, use the createtag command: `.tb createtag <tag name here> <tag link(URL) here>`\n" + 
     ":small_blue_diamond: To view a tag, use the tag command: `.tb tag <tag name here>`\n" + 
     ":small_blue_diamond: To view all available tags in the server, use the taglist command: `.tb taglist\n`" +
@@ -2046,7 +2026,12 @@ function commands(message, botAdmin, config){
 
     // Converts cryptos at binance rates
     } else if(command === 'convert' || command === 'cv'){
-        convertPriceBinance(channel, code_in[4], code_in[2], code_in[1]);
+      if(code_in[4]){
+        priceConversionTool(code_in[2], code_in[4], code_in[1], channel);
+      }
+      else{
+        priceConversionTool(code_in[2], code_in[3], code_in[1], channel);
+      }
 
     // Statistics
     } else if (command === 'stat'){
@@ -2523,9 +2508,14 @@ function joinProcedure(guild){
 }
 
 // Function to add commas to long numbers
-const numberWithCommas = (x) => {
-    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-};
+function numberWithCommas(x) {
+  if(x > 10){
+    x = parseFloat(x).toFixed(2);
+  }
+  var parts = x.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+}
 
 // Convert a passed-in USD value to BTC value and return it
 function convertToBTCPrice(priceUSD){
