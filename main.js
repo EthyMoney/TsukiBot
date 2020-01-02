@@ -2527,9 +2527,11 @@ function numberWithCommas(x) {
 
 // Function to trim decimal place accuracy for large numbers
 function trimDecimalPlaces(x){
-  x = parseFloat(x); //conversion to number
+  //count number of zeros and only parse if less than 5 zeros in order to prevent exponential notation output
+  if((x.toString().match(/(\.0*)/)[0].length - 1) < 5){
+    x = parseFloat(x);
+  }
   //check if number is partial and is bigger than 10
-  console.log(x.toString().indexOf('.') !== -1)
   if (x > 10 && x.toString().indexOf('.') !== -1) {
     return x.toFixed(2); //shorted then decimal places
   }
