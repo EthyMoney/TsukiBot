@@ -387,44 +387,127 @@ async function getPriceSTEX(chn, coin1, coin2){
 
 // Function for Coin Gecko prices
 
-async function getPriceCoinGecko(coin, coin2, chn) {
+async function getPriceCoinGecko(coin, coin2, chn, action) {
 
-  coin = coin.toLowerCase() + "";
-  //default to usd if no comparison is provided
-  if(typeof coin2 === 'undefined'){
-      coin2 = 'usd';
-  }
-  coin2 = coin2.toLowerCase() + "";
-  if (!coin2.includes('usd') && !coin2.includes('btc') && !coin2.includes('eur')){
-      coin2 = 'usd';
-  }
-  //find out the ID for coin requested
-  let found = false;
-  let coinID = "";
-  for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if(pairs_CG[i].symbol === coin){
-        coinID = pairs_CG[i].id;
-        found = true;
-        break;
-    }
-  }
-  if(found){
-  let data = await CoinGeckoClient.simple.price( {
-    ids: [coinID],
-    vs_currencies: ['usd', 'btc', 'eur'],
-    include_24hr_vol : [true],
-    include_24hr_change : [true]
-    }); 
-    
-  let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
-  let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
-  s = trimDecimalPlaces(s);
-  
-  chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" + s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
-  console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
+  //determine whether or not the call was from the conversion command to determine if we need to return the values
+  if (action && action == "convert") {
+    var noSend = true;
   }
   else{
+    nosend = false;
+  }
+  coin = coin.toLowerCase() + "";
+  //default to usd if no comparison is provided
+  if (typeof coin2 === 'undefined') {
+    coin2 = 'usd';
+  }
+  coin2 = coin2.toLowerCase() + "";
+  if (!coin2.includes('usd') && !coin2.includes('btc') && !coin2.includes('eur')) {
+    coin2 = 'usd';
+  }
+  //find out the ID for coin requested and also get IDs for any possible duplicate tickers
+  let foundCount = 0;
+  let coinID, coinID1, coinID2, coinID3 = "";
+  for (let i = 0, len = pairs_CG.length; i < len; i++) {
+    if (pairs_CG[i].symbol === coin) {
+      if (foundCount == 0)
+        coinID = pairs_CG[i].id;
+      if (foundCount == 1)
+        coinID1 = pairs_CG[i].id;
+      if (foundCount == 2)
+        coinID2 = pairs_CG[i].id;
+      if (foundCount == 3) {
+        coinID3 = pairs_CG[i].id;
+      }
+      foundCount++;
+    }
+  }
+
+  //process for if multiple coins are found with the same ticker
+  if (foundCount > 1) {
+    if (foundCount == 2)
+      var data = await CoinGeckoClient.simple.price({
+        ids: [coinID, coinID1],
+        vs_currencies: ['usd', 'btc', 'eur'],
+        include_24hr_vol: [true],
+        include_24hr_change: [true]
+      });
+    if (foundCount == 3)
+      var data = await CoinGeckoClient.simple.price({
+        ids: [coinID, coinID1, coinID2],
+        vs_currencies: ['usd', 'btc', 'eur'],
+        include_24hr_vol: [true],
+        include_24hr_change: [true]
+      });
+    if (foundCount == 4)
+      var data = await CoinGeckoClient.simple.price({
+        ids: [coinID, coinID1, coinID2, coinID3],
+        vs_currencies: ['usd', 'btc', 'eur'],
+        include_24hr_vol: [true],
+        include_24hr_change: [true]
+      });
+    //build the reply message that shows all coins found with the given ticker, and label them by full name
+    let builtMessage = "";
+    let cursor = 0;
+    let arr = Object.entries(data.data);
+    let conversionArray1 = [];
+    let conversionArray2 = [];
+    let conversionArray3 = [];
+    arr.forEach(element => {
+      cursor++;
+      let name = element[0];
+      let s = parseFloat(element[1][coin2]).toFixed(8);
+      let c = Math.round(element[1][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      s = trimDecimalPlaces(s);
+      if (!noSend) {
+        if (cursor == 1) {
+          builtMessage += "__CoinGecko Price for:__\n**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s
+            + " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+        }
+        else {
+          builtMessage += "**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s
+            + " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+        }
+        console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
+      }
+      else {
+        conversionArray1.push(s);
+        conversionArray2.push(c);
+        conversionArray3.push(name);
+      }
+    })
+    if (!noSend)
+      chn.send(builtMessage);
+    else
+      return [conversionArray1, conversionArray2, conversionArray3];
+
+  }
+  //process for when only one coin is found for a ticker
+  else {
+    if (foundCount > 0) {
+      let data = await CoinGeckoClient.simple.price({
+        ids: [coinID],
+        vs_currencies: ['usd', 'btc', 'eur'],
+        include_24hr_vol: [true],
+        include_24hr_change: [true]
+      });
+
+      let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
+      let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      s = trimDecimalPlaces(s);
+
+      if (!noSend) {
+        chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" +
+          s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
+        console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
+      }
+      else {
+        return [[s], [c], [null]];
+      }
+    }
+    else {
       chn.send("Ticker **" + coin + "** not found!");
+    }
   }
 };
 
@@ -1107,12 +1190,12 @@ async function getMexLongsShorts(channel) {
 
 async function priceConversionTool(coin1, coin2, amount, chn) {
 
-  if(!coin1 || !coin2 || !amount){
-  //show help message and then exit if wrong input is provided
-  chn.send("**Here's how to use the coin conversion command:**\n " +
-  ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " + 
-  ":small_blue_diamond: Example: `.tb cv 20 eth btc`\n");
-  return;
+  if (!coin1 || !coin2 || !amount) {
+    //show help message and then exit if wrong input is provided
+    chn.send("**Here's how to use the coin conversion command:**\n " +
+      ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " +
+      ":small_blue_diamond: Example: `.tb cv 20 eth btc`\n");
+    return;
   }
   coin1 = coin1.toLowerCase() + "";
   coin2 = coin2.toLowerCase() + "";
@@ -1123,48 +1206,44 @@ async function priceConversionTool(coin1, coin2, amount, chn) {
   let coinID1 = "";
   let coinID2 = "";
   for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if(pairs_CG[i].symbol === coin1){
-        coinID1 = pairs_CG[i].id;
-        found1 = true;
-        break;
+    if (pairs_CG[i].symbol === coin1) {
+      coinID1 = pairs_CG[i].id;
+      found1 = true;
+      break;
     }
   }
   for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if(pairs_CG[i].symbol === coin2){
-        coinID2 = pairs_CG[i].id;
-        found2 = true;
-        break;
+    if (pairs_CG[i].symbol === coin2) {
+      coinID2 = pairs_CG[i].id;
+      found2 = true;
+      break;
     }
   }
 
-  //if both IDs were found, grab data from API
-  if(found1 && found2){
-  let data1 = await CoinGeckoClient.simple.price( {
-    ids: [coinID1],
-    vs_currencies: ['usd'],
-    include_24hr_vol : [false],
-    include_24hr_change : [false]
-  });
-  let data2 = await CoinGeckoClient.simple.price( {
-    ids: [coinID2],
-    vs_currencies: ['usd'],
-    include_24hr_vol : [false],
-    include_24hr_change : [false]
-  }); 
-    
-  //select the prices from the API response and then calculate the converted amount
-  let price1 = parseFloat(data1["data"][coinID1]["usd"]).toFixed(8);
-  let price2 = parseFloat(data2["data"][coinID2]["usd"]).toFixed(8);
-  let amount2 = (amount * price1) / (price2);
-  
-  chn.send("`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "`");
-  console.log(chalk.green("Currency conversion requested for " + chalk.cyan(coin1) + " to " + chalk.cyan(coin2)));
+  //if both IDs were found, grab price, %change, and name data from API
+  if (found1 && found2) {
+    let cgData = await getPriceCoinGecko(coin1, "usd", chn, "convert");
+    let cgData2 = await getPriceCoinGecko(coin2, "usd", chn, "convert");
+    let builtMessage = "";
+    for (let i = 0; i < cgData2[0].length; i++) {
+      //select the prices from the API response and then calculate the converted amount
+      let price1 = parseFloat(cgData[0][0]).toFixed(8);
+      let price2 = parseFloat(cgData2[0][i]).toFixed(8);
+      let name = cgData2[2][i];
+      let amount2 = (amount * price1) / (price2);
+      if (cgData2[0].length > 1)
+        builtMessage += "`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "` (" + name.toUpperCase() + ")\n";
+      else
+        builtMessage += "`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "`";
+    }
+
+    chn.send(builtMessage);
+    console.log(chalk.green("Currency conversion requested for " + chalk.cyan(coin1) + " to " + chalk.cyan(coin2)));
   }
 
-  else{
-      chn.send("One or both of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
+  else {
+    chn.send("One or more of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
   }
-
 }
 
 
@@ -2534,7 +2613,7 @@ function numberWithCommas(x) {
 // Function to trim decimal place accuracy for large numbers
 function trimDecimalPlaces(x){
   //count number of zeros and only parse if less than 5 zeros in order to prevent exponential notation output
-  if((x.toString().match(/(\.0*)/)[0].length - 1) < 5){
+  if(x.toString().match(/(\.0*)/) && ((x.toString().match(/(\.0*)/)[0].length - 1) < 5)){
     x = parseFloat(x);
   }
   //check if number is partial and is bigger than 10
