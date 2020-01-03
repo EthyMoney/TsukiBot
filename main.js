@@ -422,7 +422,6 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       foundCount++;
     }
   }
-
   //process for if multiple coins are found with the same ticker
   if (foundCount > 1) {
     if (foundCount == 2)
@@ -480,7 +479,6 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       chn.send(builtMessage);
     else
       return [conversionArray1, conversionArray2, conversionArray3];
-
   }
   //process for when only one coin is found for a ticker
   else {
@@ -491,11 +489,9 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
-
       let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
       let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
       s = trimDecimalPlaces(s);
-
       if (!noSend) {
         chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" +
           s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
@@ -2876,8 +2872,10 @@ client.on('error', (err) => {
           + "----General bot client Error. " + chalk.cyan("(Likely a connection interuption, check your internet connection!)")));  
 });
 
-process.on('unhandledRejection', (reason, p) => {
-  console.log(chalk.red.bold('Unhandled Rejection at: Promise', p , 'reason: ', chalk.cyan.bold(reason))); 
+process.on('unhandledRejection', err => {
+  console.log(chalk.redBright("----------------------------------UNHANDLED REJECTION DETECTED----------------------------------"));
+  console.error(err);
+  console.log(chalk.redBright("------------------------------------------------------------------------------------------------"));
 });
 
 
