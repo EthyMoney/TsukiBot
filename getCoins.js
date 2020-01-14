@@ -9,7 +9,7 @@ let update2 = async function () {
 
     //console.log("Coins list started");
 
-    let extras = [];
+    let extras = ["USD", "EUR", "GBP", "SGD", "XBT", "XLM", "MXN", "BCC", "STR", "QNT", "ELF", "DAI"];
     let filters = ["POST", "U", "AND", "IN", "POLL", "AM", "GOT", "GOOD", "TODAY"];
 
     let cmcJSON = await clientcmc.getTickers({limit: 2800}).then().catch(console.error);
