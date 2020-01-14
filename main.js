@@ -246,7 +246,8 @@ async function getPriceCoinbase(chn, coin1, coin2){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp'
+    && coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase("eth") && coin2.toLowerCase("usdc"))){
         coin2 = 'USD';
     }
     tickerJSON = await clientCoinbase.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -398,11 +399,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
   }
   coin = coin.toLowerCase() + "";
   //default to usd if no comparison is provided
-  if (typeof coin2 === 'undefined') {
-    coin2 = 'usd';
-  }
-  coin2 = coin2.toLowerCase() + "";
-  if (!coin2.includes('usd') && !coin2.includes('btc') && !coin2.includes('eur')) {
+  if (!coin2) {
     coin2 = 'usd';
   }
   //find out the ID for coin requested and also get IDs for any possible duplicate tickers
@@ -427,21 +424,21 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
     if (foundCount == 2)
       var data = await CoinGeckoClient.simple.price({
         ids: [coinID, coinID1],
-        vs_currencies: ['usd', 'btc', 'eur'],
+        vs_currencies: ['usd', coin2.toLowerCase()],
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
     if (foundCount == 3)
       var data = await CoinGeckoClient.simple.price({
         ids: [coinID, coinID1, coinID2],
-        vs_currencies: ['usd', 'btc', 'eur'],
+        vs_currencies: ['usd', coin2.toLowerCase()],
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
     if (foundCount == 4)
       var data = await CoinGeckoClient.simple.price({
         ids: [coinID, coinID1, coinID2, coinID3],
-        vs_currencies: ['usd', 'btc', 'eur'],
+        vs_currencies: ['usd', coin2.toLowerCase()],
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
@@ -485,13 +482,17 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
     if (foundCount > 0) {
       let data = await CoinGeckoClient.simple.price({
         ids: [coinID],
-        vs_currencies: ['usd', 'btc', 'eur'],
+        vs_currencies: ['usd', coin2.toLowerCase()],
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
       let s = parseFloat(data["data"][coinID][coin2]).toFixed(8);
       let c = Math.round(data["data"][coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
       s = trimDecimalPlaces(s);
+      if(!s){
+        chn.send("Coin was found, but the pairing currency **" + coin2.toUpperCase() + "** was not found. Try again with new pair!");
+        return;
+      }
       if (!noSend) {
         chn.send("__CoinGecko__ Price for **" + coin.toUpperCase() + "-" + coin2.toUpperCase() + "** is: `" +
           s + " " + coin2.toUpperCase() + "` (`" + c + "%`).");
@@ -502,7 +503,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       }
     }
     else {
-      chn.send("Ticker **" + coin + "** not found!");
+      chn.send("Ticker for coin **" + coin.toUpperCase() + "** not found!");
     }
   }
 };
@@ -678,7 +679,8 @@ async function getPriceBitfinex(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp'
+    && coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase() !== 'jpy' && coin2.toLowerCase() !== 'eos')){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -722,7 +724,8 @@ async function getPriceKraken(coin1, coin2, chn) {
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'cad'
+    && coin2.toLowerCase() !== 'eur')){
         coin2 = 'USD';
     }
     tickerJSON = await clientKraken.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -841,7 +844,8 @@ async function getPricePolo(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'eth'
+    && coin2.toLowerCase() !== 'usdc' && coin2.toLowerCase() !== 'trx' && coin2.toLowerCase() !== 'xrp')){
         coin2 = 'USDT';
     }
     tickerJSON = await clientPoloniex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -877,7 +881,8 @@ async function getPriceBinance(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'bnb'
+    && coin2.toLowerCase() !== 'eth' && coin2.toLowerCase() !== 'trx' && coin2.toLowerCase() !== 'xrp')){
         coin2 = 'USDT';
     }
     tickerJSON = await clientBinance.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
@@ -913,8 +918,8 @@ async function getPriceBittrex(coin1, coin2, chn){
     if (typeof coin2 === 'undefined') {
         coin2 = 'BTC';
     }
-    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc'){
-        coin2 = 'USDT';
+    if (coin2.toLowerCase() === 'usdt' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'eth')){
+        coin2 = 'USD';
     }
     tickerJSON = await clientBittrex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
         console.log(chalk.red.bold('Bittrex error: Ticker '
@@ -1195,6 +1200,13 @@ async function priceConversionTool(coin1, coin2, amount, chn) {
   }
   coin1 = coin1.toLowerCase() + "";
   coin2 = coin2.toLowerCase() + "";
+
+  if(coin2 == "usd"){
+    coin2 = "usdt";
+  }
+  if(coin2 == "eur"){
+    coin2 = "ebase";
+  }
 
   //lookup ID for coins requested
   let found1 = false;
@@ -2198,6 +2210,13 @@ function commands(message, botAdmin, config){
       let params = code_in.slice(1,code_in.length).filter(function(value){
         return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
       });
+
+      // Checking for XBT input and converting it to BTC so the APIs understand it
+      if(code_in[1] && code_in[1].toLowerCase() == "xbt"){
+        code_in[1] = "BTC";
+      } if(code_in[2] && code_in[2].toLowerCase() == "xbt"){
+        code_in[2] = "BTC";
+      }
       
       // Keeping the pad
       params.unshift('0');
@@ -2611,6 +2630,9 @@ function trimDecimalPlaces(x){
   //count number of zeros and only parse if less than 5 zeros in order to prevent exponential notation output
   if(x.toString().match(/(\.0*)/) && ((x.toString().match(/(\.0*)/)[0].length - 1) < 5)){
     x = parseFloat(x);
+  }
+  else{ // Strip trailing zeros and then parse (in case there are more than 5 trailing zeros)
+    x = parseFloat(x.toString());
   }
   //check if number is partial and is bigger than 10
   if (x > 10 && x.toString().indexOf('.') !== -1) {
