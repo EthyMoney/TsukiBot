@@ -64,14 +64,16 @@ function getCMCMetaData() {
             clientcmc.getMetadata({id: key.id}).then(function (metaJSON) {
                 //console.log(metaJSON);
                 let data = {
+                    id: key.id,
                     coin: key.symbol,
                     name: key.name,
                     slug: key.slug,
                     logo: metaJSON.data[key.id].logo,
-                    description: metaJSON.data[key.id].description
+                    description: metaJSON.data[key.id].description,
+                    links: metaJSON.data[key.id]["urls"]
                 };
                 meta['data'].push(data);
-                console.log(chalk.blue("COMPLETED " + i + " OF " + numberOfCoins));
+                console.log(chalk.blue("COMPLETED " + chalk.cyan(i) + " OF " + chalk.cyan(numberOfCoins)));
             }).catch(console.error);
 
             if (i === numberOfCoins) {
@@ -82,12 +84,12 @@ function getCMCMetaData() {
 }
 
 function soupTime() {
-    console.log(meta);
+    //console.log(meta);
     fs.writeFile("./common/metadata.json", JSON.stringify(meta), function (err) {
         if (err)
             return console.log(err);
     });
-    console.log(chalk.cyan("Operation completed successfully!"));
+    console.log(chalk.greenBright("Operation completed successfully!"));
 }
 
 // run the functions
