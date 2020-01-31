@@ -2286,9 +2286,11 @@ function commands(message, botAdmin, config){
 
           // Toggle shortcut
         } else if(command === 'shortcut'){
-            console.log(chalk.cyan(chalk.green('shortcut called, perms status: ') + ((message.author.id, message.guild) || botAdmin)));
           if(hasPermissions(message.author.id, message.guild) || botAdmin){
             toggleShortcut(message.guild.id, code_in[1], channel);
+          }
+          else{
+            channel.send("Error: Only the server owner has permission to change the CMC shortcut!");
           }
 
           // Poloniex call (no filter)
@@ -2606,6 +2608,8 @@ function joinProcedure(guild){
   setTimeout(function(){
       if(!failGC && !fail2GC && !fail3GC){
          console.log(chalk.green("Full introduction and join procedure executed successfully!!!"));
+         // Create default shortcut if the welcome message appeared
+         toggleShortcut(guild.id, 't', guild.systemChannel, true);
       }
       else{
          if(!failGC){console.log(chalk.green("Successfully sent introduction message!"));}
