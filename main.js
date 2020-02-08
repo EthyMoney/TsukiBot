@@ -207,8 +207,8 @@ let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // upd
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // update cmc key the first minute after every hour
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
-const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02";
-const quote               = 'Enjoying TsukiBot? Consider supporting its creator:';
+const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02 (ETH)";
+const quote               = 'Enjoying TsukiBot? Tips are greatly appreciated and help support development:';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 
@@ -519,6 +519,8 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   if(!cmcArrayDict['BTC']) return;
   //console.log(cmcArrayDict['BTC']['quote']);
 
+  let ordered = {};
+
   if (action === 'p'){
     var msgh = "__CoinMarketCap__ Price for Top 10 Coins:\n";
   }
@@ -566,6 +568,12 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
           ep + "\n");
         break;
 
+      case '%':
+        if(cmcArrayDict[coins[i].toUpperCase()])
+          ordered[cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"]] = 
+          ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+
       default:
         msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
@@ -573,13 +581,14 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   }
   
   if(action === '%'){
-        flag = true;
-            //Use CC for ordered percent change
-            getPriceCC(coins, chn, action, ext);
-      }
+    let k = Object.keys(ordered).sort(function(a,b){ return parseFloat(b) - parseFloat(a); });
+    for(let k0 in k)
+      msg += ordered[k[k0]];
+  }
 
-  msg += (Math.random() > 0.9995) ? "\n`" + quote + " " + donationAdd + "`" : "";
-  if(msg !== '' && flag === false)
+
+  msg += (Math.random() > 0.95) ? "\n`" + quote + " " + donationAdd + "`" : "";
+  if(msg !== '')
     chn.send(msgh + msg);
 }
 
@@ -596,7 +605,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
   // Get the spot price of the pair and send it to general
   cc.priceFull(query.map(function(c){return c.toUpperCase();}),['USD', 'BTC'])
     .then(prices => {
-      let msg = '__CryptoCompare/CMC__ Price for:\n';
+      let msg = '__CryptoCompare__ Price for:\n';
       let ordered = {};
 
       let bpchg = parseFloat(cmcArrayDict['BTC']['percent_change_24h']);
@@ -604,6 +613,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
       for(let i = 0; i < coins.length; i++){
         let bp, up;
         
+        // Attempt to use CC first, then pull from CMC if there's a failure
         try{
           bp = trimDecimalPlaces(prices[coins[i].toUpperCase()]['BTC']['PRICE'].toFixed(8)) + ' BTC` (`' +
             Math.round(prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR']*100)/100 + '%`)';
@@ -622,44 +632,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd'){
         }
 
         coins[i] = (coins[i].length > 6) ? coins[i].substring(0,6) : coins[i];
-        switch(action){
-          case '-':
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-            break;
-
-          case '%':
-            try {
-              ordered[prices[coins[i].toUpperCase()]['BTC']['CHANGEPCT24HOUR'] + prices['BTC']['USD']['CHANGEPCT24HOUR']] = 
-                ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-            } catch(e) {
-              if(cmcArrayDict[coins[i].toUpperCase()])
-                ordered[cmcArrayDict[coins[i].toUpperCase()]["quote"]["USD"]["percent_change_24h"]] = 
-                  ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-            }
-            break;
-
-          case '+':
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' +
-              up + ' `⇒` `' + 
-              bp + "\n");
-            break;
-
-          case '*':
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒ 💵` `' +
-              up + '\n`|        ⇒` `' + 
-              bp + "\n");
-            break;
-
-          default:
-            msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-            break;
-        }
-      }
-
-      if(action === '%'){
-        let k = Object.keys(ordered).sort(function(a,b){ return parseFloat(b) - parseFloat(a); });
-        for(let k0 in k)
-          msg += ordered[k[k0]];
+        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6-coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
       }
       chn.send(msg);
     })
