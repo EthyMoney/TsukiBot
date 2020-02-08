@@ -207,7 +207,7 @@ let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // upd
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // update cmc key the first minute after every hour
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
-const donationAdd         = "0x169381506870283cbABC52034E4ECc123f3FAD02 (ETH)";
+const donationAdd         = "\n`0x169381506870283cbABC52034E4ECc123f3FAD02`(ETH)";
 const quote               = 'Enjoying TsukiBot? Tips are greatly appreciated and help support development:';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
@@ -587,7 +587,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   }
 
 
-  msg += (Math.random() > 0.95) ? "\n`" + quote + " " + donationAdd + "`" : "";
+  msg += (Math.random() > 0.95) ? "\n" + quote + " " + donationAdd : "";
   if(msg !== '')
     chn.send(msgh + msg);
 }
