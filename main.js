@@ -164,20 +164,6 @@ let channelName         = 'general';
 let messageCount        = 0;
 let referenceTime       = Date.now();
 
-// Permissions configurations
-let configIDs           = [];
-let serverConfigs       = {};
-const availableCommands = ['prices','mc','trans','delet','pa','join','done'];
-const emojiConfigs      = [
-  ":chart_with_upwards_trend: ",
-  "💰",
-  ":page_facing_up:",
-  ":octagonal_sign:",
-  ":signal_strength:",
-  "📧",
-  "✅"
-];
-
 // Shortcut config
 let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
@@ -1764,12 +1750,6 @@ client.on('ready', () => {
   // Display help command on bot's status
   client.user.setActivity('.tb help');
 
-  // Load in the server permissions configurations
-  fs.readFile("common/serverPerms.json", function(err, data){
-    if(err) return console.log(chalk.red.bold(err + "--------serverperms JSON read error"));
-    serverConfigs = JSON.parse(data);
-  });
-
   // First run of scheduled executions
   updateCoins();
   updateCmcKey();
@@ -1916,16 +1896,11 @@ client.on('message', message => {
   // Check for, and ignore DM channels (this is a safety precaution)
   if(message.channel.type !== 'text') return;
 
-
-  // Get the server permission configuration settings
-  const config = serverConfigs[message.guild.id] || [];
-  
-
   // Check for perms (temporary)
   message.guild.fetchMember(message.author)
     .then(function(gm) {
       try{
-        commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter';}), config);
+        commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter';}));
       } catch(e){
         console.log(chalk.red.bold(e + ' -----check tsukiboter role perms error'));
       }
@@ -1990,7 +1965,7 @@ client.on('message', message => {
  ------------------------------------------------------- */
 
 
-function commands(message, botAdmin, config){  
+function commands(message, botAdmin){  
 
   // Get the channel where the bot will answer.
   let channel = message.channel;
@@ -2095,11 +2070,6 @@ function commands(message, botAdmin, config){
     if(command === 'id'){
         message.author.send("Your ID is `" + message.author.id + "`.");
 
-    // Load configuration message
-    } else if(command === 'config'){
-        if(hasPermissions(message.author.id, message.guild) || botAdmin)
-            loadConfiguration(message);
-
     // Converts cryptos at binance rates
     } else if(command === 'convert' || command === 'cv'){
       if(code_in[4]){
@@ -2193,8 +2163,7 @@ function commands(message, botAdmin, config){
       
       // Keeping the pad
       params.unshift('0');
-      if(config.indexOf(command) === -1 && (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'subrole', 'sub', 'mc', 'stocks', 'stock', 'info'
-      , 'gr', 'graviex', 'grav'].indexOf(command) > -1)){
+      if(params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'mc', 'stocks', 'stock', 'info', 'gr', 'graviex', 'grav'].indexOf(command) > -1){
           
         // Coinbase call
         if(command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase'){
@@ -2685,88 +2654,6 @@ function updateCmcKey(override) {
         return selectedKey;
 }
 
-function loadConfiguration(msg){
-
-  let channel = msg.channel;
-  channel.send("__**Commands**__\n\n" +
-    ":regional_indicator_k: = Kraken\n\n" +
-    ":regional_indicator_g: = Coinbase\n\n" +
-    ":regional_indicator_c: = CryptoCompare\n\n" +
-    ":regional_indicator_p: = Poloniex\n\n" +
-    ":regional_indicator_e: = Etherscan\n\n" +
-    ":regional_indicator_b: = Bittrex\n\n" +
-    ":moneybag: = Volume\n\n" +
-    ":envelope: = Subscription Channels\n\n" +
-    "`React to the according symbols below to disable a service. Save settings with the checkmark.`")
-    .then(msg => {
-      configIDs.push(msg.id);
-      msg.react(emojiConfigs[0]).catch(console.log);
-    });
-
-}
-
-
-/* ----------------------------------------------------
-
- EventHandler for reactions added.
-
-   This event handles 2 functions.
-   1. Delete messages when the cross emoji is added.
-   2. Post the reactions to the server settings.
-    2a. First it will recursively add the emoji reacts
-    2b. Then it will react when the checkmark is pressed
-
- ----------------------------------------------------- */
-
-client.on('messageReactionAdd', (messageReaction, user) => {
-
-  const message         = messageReaction.message;
-  const guild           = messageReaction.message.guild.id;
-  const reactions       = messageReaction.message.reactions;
-
-  // Function 2a.
-  if(configIDs.indexOf(message.id) > -1 && reactions.size < emojiConfigs.length){
-    message.react(emojiConfigs[emojiConfigs.indexOf(messageReaction.emoji.toString()) + 1]).catch(console.log);
-  }
-
-  // Function 2b.
-  if(configIDs.indexOf(message.id) > -1 && reactions.size === emojiConfigs.length){             // Finished placing options
-    if(messageReaction.emoji.toString() === emojiConfigs[emojiConfigs.length - 1]){             // Reacted to checkmark
-      if(hasPermissions(user.id, message.guild)){                                               // User has permissions
-
-        // Get from the reactions those which have reactions from someone with permissions
-        let validPerms = reactions.filter(r => {
-          return r.users.some(function (e, i, a){
-            return hasPermissions(e.id, message.guild);
-          });
-        });
-
-        // Get an array form of the permissions
-        serverConfigs[guild] = validPerms.map(e => {
-          return availableCommands[emojiConfigs.indexOf(e.emoji.toString())];
-        });
-
-        // Write to a file for storage
-        fs.writeFile("common/serverPerms.json", JSON.stringify(serverConfigs), function(err){
-          if(err) return console.log(chalk.red.bold(err + "-----File Write Error"));
-          console.log(chalk.greenBright.bold("Server config saved"));
-        });
-
-        // Delete the message
-        message.delete()
-          .then(function() {
-            if(serverConfigs[guild].length > 1)
-              message.channel.send("**Settings updated**\nBlocked services: `" + serverConfigs[guild].slice(0,-1).join(" ") + "`.")
-                .catch(console.log);
-          })
-          .catch(function(rej){
-             console.log(chalk.red("Failed to delete configuration message from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
-         });
-      }
-    }
-  }
-});
-
 
 /* ---------------------------------
 
@@ -2839,7 +2726,7 @@ function toggleShortcut(id, shortcut, chn, join){
       if(join){
         startMessage = "Default s";
       }
-      console.log(chalk.green(startMessage + "hortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(chn.guild.name)));
+      console.log(chalk.green(startMessage + "Shortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(chn.guild.name)));
     });
 
   } else {
@@ -2847,23 +2734,6 @@ function toggleShortcut(id, shortcut, chn, join){
   }
 }
 
-
-/* ---------------------------------
-
-  hasPermissions(id, guild)
-
-  id) has to be the ID of the user,
-  regardless of the original type of
-  object.
-
-  guild) is the guild object where
-  the action is executed.
-
- ---------------------------------- */
-
-function hasPermissions(id, guild){
-  return guild.owner.id === id;
-}
 
 // Error event logging
 client.on('error', (err) => {
