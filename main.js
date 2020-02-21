@@ -659,7 +659,7 @@ async function getPriceBitfinex(coin1, coin2, chn){
     }
     s = trimDecimalPlaces(s);
     console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
-    let c = tickerJSON['percentage'] * 100;
+    let c = tickerJSON['percentage'];
     c = Math.round(c * 100) / 100;
 
     if(coin2.toUpperCase() === 'USDT'){
