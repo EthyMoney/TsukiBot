@@ -2228,8 +2228,8 @@ function commands(message, botAdmin){
 
           // Toggle shortcut
         } else if(command === 'shortcut'){
-          if(hasPermissions(message.author.id, message.guild) || botAdmin){
-            toggleShortcut(message.guild.id, code_in[1], channel);
+          if(message.member.hasPermission("ADMINISTRATOR")){
+            toggleShortcut(message.guild.id, code_in[1], channel, false, channel.guild.name);
           }
           else{
             channel.send("Error: Only the server owner has permission to change the CMC shortcut!");
@@ -2514,7 +2514,7 @@ function convertToETHPrice(priceUSD){
   return priceUSD / ETHPrice;
 }
 
-// Run through new server procedure
+// Run through new server procedure when the bot joins
 function joinProcedure(guild){
 
   let failGC     = false;
@@ -2531,6 +2531,10 @@ function joinProcedure(guild){
           failGC = true;
       });
     }
+    else{
+      console.log(chalk.red(chalk.cyan(guild.name) + " does not have a valid system channel." + chalk.yellow(" No intro will be sent!")));
+      failGC = true;
+    }
   guild.createRole({
     name: 'File Perms',
     color: 'BLUE'
@@ -2544,6 +2548,9 @@ function joinProcedure(guild){
          console.log(chalk.red("Failed to send file perms creation message, missing message send permissions"));
          fail3GC = true;
       });}
+      else{
+        fail3GC = true;
+      }
     });
     }
   // Wait for all promises to resolve, then check status
@@ -2551,12 +2558,12 @@ function joinProcedure(guild){
       if(!failGC && !fail2GC && !fail3GC){
          console.log(chalk.green("Full introduction and join procedure executed successfully!!!"));
          // Create default shortcut if the welcome message appeared
-         toggleShortcut(guild.id, 't', guild.systemChannel, true);
+         toggleShortcut(guild.id, 't', guild.systemChannel, true, guild.name);
       }
       else{
          if(!failGC){console.log(chalk.green("Successfully sent introduction message!"));}
-         // Create default shortcut if the welcome message appeared
-         if(!failGC){toggleShortcut(guild.id, 't', guild.systemChannel, true);}
+         // Create default shortcut regardless of perms status
+         toggleShortcut(guild.id, 't', guild.systemChannel, true, guild.name);
          if(!fail2GC){console.log(chalk.green("Successfully created file perms role!"));}
          if(!fail3GC && !fail2GC){console.log(chalk.green("Successfully sent file perms role creation message!"));} 
       }
@@ -2706,15 +2713,17 @@ function updateCoins(){
 
 /* ---------------------------------
 
-  toggleShortcut(guildid, string, channel, join(bool))
+  toggleShortcut(guildid, shortcut string, channel, new server join (bool), server name)
+
+  Sets CMC price command shortcut
 
  ---------------------------------- */
 
-function toggleShortcut(id, shortcut, chn, join){
+function toggleShortcut(id, shortcut, chn, join, name){
 
   if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4){
     shortcutConfig[id] = shortcut;
-    let startMessage = "s";
+    let startMessage = "S";
 
     fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
       if(err) return console.log(chalk.red.bold(err + "----Shortcut JSON Error"));
@@ -2726,7 +2735,7 @@ function toggleShortcut(id, shortcut, chn, join){
       if(join){
         startMessage = "Default s";
       }
-      console.log(chalk.green(startMessage + "Shortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(chn.guild.name)));
+      console.log(chalk.green(startMessage + "hortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(name)));
     });
 
   } else {
@@ -2737,8 +2746,7 @@ function toggleShortcut(id, shortcut, chn, join){
 
 // Error event logging
 client.on('error', (err) => {
-  console.log(chalk.red.bold(err
-          + "----General bot client Error. " + chalk.cyan("(Likely a connection interuption, check your internet connection!)")));  
+  console.log(chalk.red.bold("General bot client Error. " + chalk.cyan("(Likely a connection interuption, check network connection)")));  
 });
 
 process.on('unhandledRejection', err => {
