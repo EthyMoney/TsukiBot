@@ -978,7 +978,7 @@ async function getCoinDescription(coin1, chn, usr){
     // check against discord's embed feild size limit and split if necessary
     if (text.length <= 1024) {
 
-      let embed = new Discord.RichEmbed()
+      let embed = new Discord.MessageEmbed()
         .addField("About " + capitalizeFirstLetter(name) + ":", text)
         .setColor('#1b51be')
         .setThumbnail(logo)
@@ -995,7 +995,7 @@ async function getCoinDescription(coin1, chn, usr){
       let blockCursor = 1;
 
       pages.forEach(function (element) {
-        let embed = new Discord.RichEmbed()
+        let embed = new Discord.MessageEmbed()
           .addField("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):", element)
           .setColor('#1b51be')
           .setThumbnail(logo)
@@ -1039,7 +1039,7 @@ async function getFearGreedIndex(chn, usr) {
         let h = Math.floor(d / 3600);
         let m = Math.floor(d % 3600 / 60);
         //create embed and insert data 
-        let embed = new Discord.RichEmbed()
+        let embed = new Discord.MessageEmbed()
                 .setAuthor("Fear/Greed Index", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
                 .addField("Current Value:", resJSON.data[0].value + " (" + resJSON.data[0].value_classification + ")")
                 .setColor(color)
@@ -1089,7 +1089,7 @@ async function getMexFunding(chn, message){
         let text2 = 'Current Rate: `' + parseFloat(eth.fundingRate*100).toFixed(4) + "%` \n" +
                    'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate*100).toFixed(4) + '%`';
            
-        let embed = new Discord.RichEmbed()
+        let embed = new Discord.MessageEmbed()
           .setAuthor("BitMEX Perpetual Swap Contract Funding Stats")
           .addField("XBT/USD:", text)
           .addField("ETH/USD:", text2)
@@ -1127,7 +1127,7 @@ async function getMexLongsShorts(channel) {
     let shorts = block[1].querySelector('div.single-margin-platform div.field-value div.value.short').textContent.trim().split(" ")[0].trim();
     let shortsPercent = block[1].querySelector('div.single-margin-platform div.field-value div.field.short small').textContent;
 
-    let embed = new Discord.RichEmbed()
+    let embed = new Discord.MessageEmbed()
       .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
       .addField('Longs:', longs + " (" + longsPercent + ")")
       .addField('Shorts:', shorts + " (" + shortsPercent + ")")
@@ -1263,7 +1263,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         obj.tags.push({
             guild: guild.id,
             authorName: author.username,
-            authorAvatar: author.avatarURL,
+            authorAvatar: author.avatarURL(),
             timestamp: timestamp,
             tagName: name,
             tagLink: tag
@@ -1325,7 +1325,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       // check against discord's embed feild size limit and split if necessary
       if (msg.length <= 1024) {
 
-        let embed = new Discord.RichEmbed()
+        let embed = new Discord.MessageEmbed()
           .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
           .addField("Available tags in this server: ", msg.substring(0, msg.length - 2))
           .setColor('#1b51be')
@@ -1345,7 +1345,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 
           // special case for the final page. This one will remove the trailing the commas in the list.
           if (blockMax === blockCursor) {
-            let embed = new Discord.RichEmbed()
+            let embed = new Discord.MessageEmbed()
               .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element.substring(0, element.length - 2))
               .setColor('#1b51be')
@@ -1358,7 +1358,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           }
 
           else {
-            let embed = new Discord.RichEmbed()
+            let embed = new Discord.MessageEmbed()
               .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element)
               .setColor('#1b51be')
@@ -1395,7 +1395,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       return;
     }
 
-    let embed = new Discord.RichEmbed()
+    let embed = new Discord.MessageEmbed()
           .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
           .addField("Tag: \"" + resultName + "\"", resultTag)
           .setImage(resultTag)
@@ -1559,7 +1559,7 @@ function getMarketCapSpecific(message){
       let l7 = "USD: `" + price + "`\n" + "BTC: `" + priceBTC + "`\n" + "ETH: `" + convertToETHPrice(price).toFixed(6) + "`";
       let l8 = "*1h:* `" + percent1h + "%` " + "\n" + "*24h:* `" + percent + "%`" + " \n" + "*7d:* `" + percent7 + "%`";
       
-      let embed = new Discord.RichEmbed()
+      let embed = new Discord.MessageEmbed()
         .addField("Market Data for " + name + " (" + symbol + ")", l1+l2+l3+l4+l5+l6, false)
         .addField("Current Prices:", l7, true)
         .addField("Price Changes:", l8, true)
@@ -1873,7 +1873,7 @@ client.on('message', message => {
 
   // Check for unsafe files and delete them if author doesn't have the File Perms role
   if (message.guild) {
-    message.guild.fetchMember(message.author).then(function (member) {
+    message.guild.members.fetch(message.author).then(function (member) {
       if (member && member.roles.some(r => ["File Perms", "File Perm", "File perm", "file perms"].includes(r.name))) {
         // file perms found, skipping file extension check.
       }
@@ -1896,17 +1896,8 @@ client.on('message', message => {
   // Check for, and ignore DM channels (this is a safety precaution)
   if(message.channel.type !== 'text') return;
 
-  // Check for perms (temporary)
-  message.guild.fetchMember(message.author)
-    .then(function(gm) {
-      try{
-        commands(message, gm.roles.some(r => { return r.name === 'TsukiBoter';}));
-      } catch(e){
-        console.log(chalk.red.bold(e + ' -----check tsukiboter role perms error'));
-      }
-    })
-    .catch(e => (0));
-    
+  // Forward message to the commands processor
+  commands(message, false);
     
   // Internal bot admin controls (For official bot use only. You can ignore this.)
   if(message.author.id === '210259922888163329' && keys['dbl'] == "yes"){
@@ -2130,7 +2121,7 @@ function commands(message, botAdmin){
 
       // Send link to the the user's avatar
     } else if (command === 'avatar' || command === 'myavatar') {
-        msg.channel.send(msg.author.avatarURL);
+        msg.channel.send(msg.author.avatarURL());
 
     } else {
 
@@ -2390,7 +2381,7 @@ function commands(message, botAdmin){
   
       // Displays the caller's avatar 
     else if (scommand === '.myavatar' || scommand === '.avatar'){
-      channel.send(message.author.avatarURL);
+      channel.send(message.author.avatarURL());
     }
   
      // Say hi to my pal George
@@ -2500,7 +2491,7 @@ function postSessionStats(message){
         + "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n"
         + "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02`");
 
-    let embed         = new Discord.RichEmbed()
+    let embed         = new Discord.MessageEmbed()
         .addField("TsukiBot Stats", msgh)
         .setColor('BLUE')
         .setThumbnail('https://i.imgur.com/r6yCs2T.png')
@@ -2535,7 +2526,7 @@ function joinProcedure(guild){
       console.log(chalk.red(chalk.cyan(guild.name) + " does not have a valid system channel." + chalk.yellow(" No intro will be sent!")));
       failGC = true;
     }
-  guild.createRole({
+  guild.roles.create({
     name: 'File Perms',
     color: 'BLUE'
   }).catch(function(rej){
