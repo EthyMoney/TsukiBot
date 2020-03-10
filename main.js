@@ -1858,14 +1858,14 @@ client.on('message', message => {
     }
     
     if(found){
-         message.delete().catch(function(rej){
+         message.delete({ timeout: 0, reason: 'Naughty words' }).catch(function(rej){
              console.log(chalk.red("Failed to delete banned word from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
          });
          console.log(chalk.cyan("deleted banned word from " + chalk.yellow(message.author.username)));
     }
     
     if(message.channel.name === 'rules-and-information' && message.author.id === '205190545914462208'){
-      message.delete(5000).catch(function(err){
+      message.delete({ timeout: 5000, reason: 'Cleanup' }).catch(function(err){
         console.log(chalk.red('Failed to delete frostwalker user mention in new users channel of SS due to the following: ' + err));
       });
     }
@@ -1881,7 +1881,7 @@ client.on('message', message => {
         // file perms missing, checking for files and verifying extensions.
         for (let a of message.attachments) {
           if (extensions.indexOf((ar => ar[ar.length - 1])(a[1].filename.split('.')).toLowerCase()) === -1) {
-            message.delete(10)
+            message.delete({ timeout: 10, reason: 'Detected potential dangerous file' })
               .then(msg => console.log(chalk.yellow(`Deleted file message from ${msg.author.username}` + ' : ' + msg.author)))
               .catch(function (rej) {
                 console.log(chalk.red("Failed to delete unsafe file from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
@@ -2050,8 +2050,9 @@ function commands(message, botAdmin){
     code_in.splice(0,1);
 
     // Get the command
-    let command = code_in[0].toLowerCase();
-    
+    if(code_in[0]){
+      var command = code_in[0].toLowerCase();
+    }
     
     //
     // Check commands that don't require paramers
@@ -2059,7 +2060,7 @@ function commands(message, botAdmin){
         
     // Get DiscordID via DM
     if(command === 'id'){
-        message.author.send("Your ID is `" + message.author.id + "`.");
+      message.author.send("Your ID is `" + message.author.id + "`.");
 
     // Converts cryptos at binance rates
     } else if(command === 'convert' || command === 'cv'){
@@ -2399,7 +2400,7 @@ function commands(message, botAdmin){
         const author = message.author.username;
         // Delete the command message
         console.log(chalk.magenta("Yeet called, watch for deletion failure!"));
-        message.delete().then(console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
+        message.delete({ timeout: 0, reason: 'You know I had to do it to em' }).then(console.log(chalk.green(`Deleted yeet command message from ` + chalk.yellow(author)))).catch(function(rej) {
             // Report if delete permissions are missing
             console.log(chalk.yellow('Warning: ') + chalk.red.bold('Could not delete yeet command from ') + chalk.yellow(author) + chalk.red.bold(' due to failure: ' + 
                     chalk.cyan(rej.name) + ' with reason: ' + chalk.cyan(rej.message)));});
@@ -2475,9 +2476,9 @@ function validURL(str) {
 function postSessionStats(message){
 
     console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
-    let users         = (client.guilds.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
+    let users         = (client.guilds.cache.reduce(function(sum, guild){ return sum + guild.memberCount;}, 0));
     users             = numberWithCommas(users);
-    const guilds      = numberWithCommas(client.guilds.size);
+    const guilds      = numberWithCommas(client.guilds.cache.size);
     const msgpersec   = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
     //const topCrypto   = coinArrayMax(requestCounter);
     //const popCrypto   = coinArrayMax(mentionCounter);
@@ -2610,7 +2611,7 @@ function resetSpamLimit() {
 // Publish bot statistics to Discord Bots List <discordbots.org>
 function publishDblStats(){
     if(keys['dbl'] == "yes"){
-      dbl.postStats(client.guilds.size, client.id);
+      dbl.postStats(client.guilds.cache.size, client.id);
       console.log(chalk.green("Updated dbots.org stats!"));
     }
     else{
