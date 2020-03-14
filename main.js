@@ -1025,15 +1025,15 @@ async function getCoinDescription(coin1, chn, usr){
 async function getFearGreedIndex(chn, usr) {
 
     request('https://api.alternative.me/fng/?limit=1&format=json', function (error, response, body) {
-        let color = '';
+        let color = '#ea0215';
         //parse response data
         let resJSON = JSON.parse(body);
+        let tier = resJSON.data[0].value_classification;
         //calculate embed color based on value
         if(resJSON.data[0].value >= 40 && resJSON.data[0].value <= 60){color = '#f2f207';}
-        else{
-          if(resJSON.data[0].value > 60){color = '#0eed11';}
-            else{color = '#ea0215';}
-        }
+        else if(resJSON.data[0].value > 60){color = '#0eed11';}
+        else if(resJSON.data[0].value < 25){tier = "Despair"}
+        
         //calculate next update countdown
         let d = resJSON.data[0].time_until_update;
         let h = Math.floor(d / 3600);
@@ -1041,7 +1041,7 @@ async function getFearGreedIndex(chn, usr) {
         //create embed and insert data 
         let embed = new Discord.MessageEmbed()
                 .setAuthor("Fear/Greed Index", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
-                .addField("Current Value:", resJSON.data[0].value + " (" + resJSON.data[0].value_classification + ")")
+                .addField("Current Value:", resJSON.data[0].value + " (" + tier + ")")
                 .setColor(color)
                 .setFooter("Next update: " + h + " hrs, " + m + " mins");
 
