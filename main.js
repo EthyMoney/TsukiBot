@@ -194,7 +194,7 @@ let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // upd
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
 const donationAdd         = "\n`0x169381506870283cbABC52034E4ECc123f3FAD02`(ETH)";
-const quote               = 'Enjoying TsukiBot? Tips are greatly appreciated and help support development:';
+const quote               = 'Love TsukiBot? Consider a tip share the love  :)';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 
@@ -299,7 +299,7 @@ async function getPriceGraviex(chn, coin1, coin2){
         let ans = '__Graviex__ Price for **'  + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `'  + price + ' ' + coin2.toUpperCase() +  '` ' + '(' + '`' + change + '%' + '`' + ') ' + moon;
         
         if(coin2.toLowerCase() === 'btc'){
-            ans = ans + '\n//// **24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' ' + coin2.toUpperCase() + '` ' + '➪ `' + numberWithCommas(parseFloat(volumeCoin).toFixed(0)) + ' ' + coin1.toUpperCase() + '`';
+            ans = ans + '\n \/\/\/\/**24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' ' + coin2.toUpperCase() + '` ' + '➪ `' + numberWithCommas(parseFloat(volumeCoin).toFixed(0)) + ' ' + coin1.toUpperCase() + '`';
         }
         chn.send(ans);
     });
@@ -573,7 +573,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd'){
   }
 
 
-  msg += (Math.random() > 0.95) ? "\n" + quote + " " + donationAdd : "";
+  msg += (Math.random() > 0.97) ? "\n" + quote + " " + donationAdd : "";
   if(msg !== '')
     chn.send(msgh + msg);
 }
@@ -2570,20 +2570,15 @@ function numberWithCommas(x) {
   return parts.join(".");
 }
 
-// Function to trim decimal place accuracy for large numbers
+// Function to trim decimal place digits when number is bigger than 10 (for cleaner appearance)
 function trimDecimalPlaces(x){
-  //count number of zeros and only parse if less than 5 zeros in order to prevent exponential notation output
-  if(x.toString().match(/(\.0*)/) && ((x.toString().match(/(\.0*)/)[0].length - 1) < 5)){
-    x = parseFloat(x);
-  }
-  else{ // Strip trailing zeros and then parse (in case there are more than 5 trailing zeros)
-    x = parseFloat(x.toString());
-  }
-  //check if number is partial and is bigger than 10
   if (x > 10 && x.toString().indexOf('.') !== -1) {
-    return x.toFixed(2); //shorted then decimal places
+    x = parseFloat(x);
+    return x.toFixed(2); //shorten the decimal places
   }
-  return x;
+  else {
+    return x;
+  }
 }
 
 // Convert a passed-in USD value to BTC value and return it
