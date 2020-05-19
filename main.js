@@ -194,7 +194,7 @@ let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // upd
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
 const donationAdd         = "\n`0x169381506870283cbABC52034E4ECc123f3FAD02`(ETH)";
-const quote               = 'Love TsukiBot? Consider a tip share the love  :)';
+const quote               = 'Love TsukiBot? Consider a tip to share the love  :)';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 
@@ -312,6 +312,10 @@ async function getPriceGraviex(chn, coin1, coin2){
 // Function for STEX prices
 
 async function getPriceSTEX(chn, coin1, coin2){
+
+  chn.send("STEX temporarily disabled due to issues on their end. Try again later!")
+  return;
+
 
   //default to usdt if none is provided
   if (typeof coin2 === 'undefined') {
