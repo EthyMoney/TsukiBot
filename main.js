@@ -168,8 +168,7 @@ let referenceTime       = Date.now();
 let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
 // Alpha Vantage API
-let Alpha                 = require('alpha_vantage_api_wrapper').Alpha;
-let alpha                 = new Alpha(keys['alpha']);
+const alpha               = require('alphavantage')({ key: keys['alpha'] });
 
 // Initialize api things
 const clientKraken        = new ccxt.kraken();
@@ -911,25 +910,18 @@ async function getPriceBittrex(coin1, coin2, chn){
 // Function for grabbing prices of stocks using Alpha Vantage
 
 async function getStocksAlpha(coin1, chn, usr){
-    let price = '';
-    let vol = '';
-    let change = '';
-    
-    let alphaJSON = await alpha.stocks.quote(coin1);
-    
-    let quote = JSON.stringify(alphaJSON["Global Quote"]);
-    if(!quote || 2 === quote.length) {
-        chn.send("API Error: Ticker **" + coin1.toUpperCase() + "** not found.");
-        return;
-    }
-    //console.log(alphaJSON);
-    price = alphaJSON["Global Quote"]["05. price"];
-    vol = alphaJSON["Global Quote"]["06. volume"];
-    change = alphaJSON["Global Quote"]["10. change percent"];
-    
-    console.log(chalk.green('Alpha Vantage API ticker response: ' + chalk.cyan(price) + " by: ") + chalk.yellow(usr.username));
-    
-    chn.send("Market price for **$" + coin1.toUpperCase() + "** is: `" + trimDecimalPlaces(price) + "` (`" + parseFloat(change).toFixed(2) + "%`).");
+
+    alpha.data.quote(coin1.toLowerCase().trim()).then(alphaJSON => {
+      let price = alphaJSON["Global Quote"]["05. price"];
+      let vol = alphaJSON["Global Quote"]["06. volume"]; //potential future use
+      let change = alphaJSON["Global Quote"]["10. change percent"];
+      console.log(`${chalk.green('Alpha Vantage API ticker response:')} ${chalk.cyan(price)} ${chalk.green('by:')} ${chalk.yellow(usr.username)}`);
+      chn.send(`Market price for **$${coin1.toUpperCase()}** is: \`${trimDecimalPlaces(price)}\` (\`${parseFloat(change).toFixed(2)}%\`).`);
+    })
+    .catch(function(){
+      chn.send(`API Error: Ticker **${coin1.toUpperCase()}** not found.`);
+      console.log(`${chalk.red('Alpha Vantage API call error for ticker:')} ${chalk.cyan(coin1.toUpperCase())}`);
+    });
 }
 
 
@@ -1070,7 +1062,7 @@ async function getMexFunding(chn, message){
   const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
     perMessageDeflate: false
   });
- 
+
   ws.on('message', function incoming(data) {
     messageNumber++;
     if(messageNumber === 4){
