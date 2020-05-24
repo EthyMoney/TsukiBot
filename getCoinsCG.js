@@ -24,7 +24,7 @@ var update = async() => {
   //console.log(data);
   
   // Write the identification JSON to file
-  fs.writeFile("./common/coinsCG.json", JSON.stringify(data.data), function(err) { if(err) return console.log(err);});
+  fs.writeFileSync("./common/coinsCG.json", JSON.stringify(data.data));
   //console.log("CoinGecko coin list complete!");
 };
 

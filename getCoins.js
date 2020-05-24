@@ -41,66 +41,12 @@ let update2 = async function () {
     //console.log(coins);
     //console.log(coinsf);
 
-    fs.writeFile("./common/coins.json", '["' + coins.join('","') + '"]', function (err) {
-        if (err)
-            return console.log(err);
-    });
-    fs.writeFile("./common/coins_filtered.json", '["' + coins.join('","') + '"]', function (err) {
-        if (err)
-            return console.log(err);
-    });
+    fs.writeFileSync("./common/coins.json", '["' + coins.join('","') + '"]');
+    fs.writeFileSync("./common/coins_filtered.json", '["' + coins.join('","') + '"]');
 
     //console.log(coins);
     //console.log(coinsf);
     //console.log("Coins list complete!");
-    return "fuck";
-};
-
-
-var update = function () {
-    //console.log("Coins list started");
-    return new Promise(function (resolve, reject) {
-        let url = "https://min-api.cryptocompare.com/data/all/coinlist";
-        let extras = ["USD", "EUR", "GBP", "SGD", "XBT", "XLM", "MXN", "BCC", "STR", "QNT", "ELF", "MIOTA", "UPX"];
-        let filters = ["POST", "U", "AND", "IN", "POLL", "AM", "GOT", "GOOD", "TODAY"];
-
-        request({url: url, json: true}, function (err, res, body) {
-
-            if (err) {
-                console.error(err);
-            }
-            ;
-            let coins = Object.keys(body.Data).concat(extras);
-            let coinsf = Object.keys(body.Data).concat(extras);
-
-            //console.log(coins);
-
-            const coinsa = coins.slice();
-            coins = coins.join('","');
-            coins = '["' + coins + '"]';
-
-            filters.forEach(f => coinsf.splice(coinsf.indexOf(f), 1));
-
-            const coinsfa = coinsf.slice();
-            coinsf = coinsf.join('","');
-            coinsf = '["' + coinsf + '"]';
-
-            fs.writeFile("./common/coins.json", coins, function (err) {
-                if (err)
-                    return console.log(err);
-            });
-            fs.writeFile("./common/coins_filtered.json", coinsf, function (err) {
-                if (err)
-                    return console.log(err);
-            });
-
-            resolve([coinsa, coinsfa]);
-
-            //console.log("Coins list complete!");
-
-        });
-
-    });
 };
 
 update2();
