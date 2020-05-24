@@ -11,6 +11,7 @@
  * Author:      Logan "EthyMoney"
  * Base:        Forked from "TsukiBot", written by Oscar "Cehhiro"
  * Program:     TsukiBot
+ * GitHub:      https://github.com/YoloSwagDogDiggity/TsukiBot
 
  * Discord bot that offers a wide range of services related to cryptocurrencies
 
@@ -21,9 +22,7 @@
 
  * ------------------------------------------------------------------------ */
 
-/* global parseFloat */  //Suppress console parseFloat errors
-
-// Example usage of SQL DB connection string:  postgres://userName:password@serverName/ip:port/nameOfDatabase
+// Example usage of PGSQL DB connection string:  postgres://userName:password@serverName/ip:port/nameOfDatabase
 
 
 // -------------------------------------------
@@ -31,17 +30,12 @@
 // -------------------------------------------
 
 // 1. Make sure you have node.js and npm installed and ready to use. Node version 10.x or newer is required.
-// 2. Open temrinal in the project directory and run the command "npm install" to install all required dependencies.
-// 3. Run BOTH the getCoins.js and the getCoinsCG.js scripts before starting the bot for the first time.
-//    These scripts will prime the coins symbol index. You only need to do this for the first-time run as it's handled automatically after.
-// 4. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
+// 2. Open a temrinal in the project directory and run the command "npm install" to install all required dependencies.
+// 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
-// 5. Set up your PostgreSQL database according to the schema defined in the docs folder.
-// 6. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
-// 7. Make 4 blank json files named "bannedWords.json", "admin.json", "serverPerms.json" and "help.json" in the common folder.
-//    Don't worry about putting any actual data in these, you won't need them. Just enter this in each file to initialize them: {}
-// 8. Make a json file named "tags.json" in the root folder (where main.js is). This file will store all tags that get created in servers. Put this in the file: {"tags":[]}
-// 8. You are now ready to start the bot! Go ahead and run this file to start up.
+// 4. Set up your PostgreSQL database according to the schema defined in the docs folder.
+// 5. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
+// 6. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
 //    If you have any questions or issues, feel free to contact me in the support discord server and I'll try to help you out. Link: https://discordapp.com/invite/VWNUbR5
 
 // Alright the hard part is over. Carry on :)
@@ -72,24 +66,12 @@ let cmcKey              = 1;
 // Files allowed
 const extensions        = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
-// Allowed coins in commands
-let pairs		            = JSON.parse(fs.readFileSync("./common/coins.json","utf8"));
-let pairs_filtered      = JSON.parse(fs.readFileSync("./common/coins_filtered.json","utf8"));
-let pairs_CG            = JSON.parse(fs.readFileSync("./common/coinsCG.json","utf8"));
+// Include fancy console outputs
+const chalk             = require('chalk');
 
-// Tags
-let tagsJSON            = JSON.parse(fs.readFileSync("tags.json", "utf8"));
-
-// Metadata for all coins
-let metadata            = JSON.parse(fs.readFileSync("./common/metadata.json","utf8"));
-
-// Banned words
-const restricted        = JSON.parse(fs.readFileSync("./common/bannedWords.json","utf8"));
-
-// Help strings
-let title 		          = '__**TsukiBot**__ :full_moon: \n';
-const github		        = 'Check the GitHub repo for more detailed information. <https://github.com/YoloSwagDogDiggity/TsukiBot>';
-const helpjson          = JSON.parse(fs.readFileSync('./common/help.json','utf8'));
+// Read in and initialize all files
+let keys, pairs, pairs_filtered, pairs_CG, metadata, admin, shortcutConfig, restricted, tagsJSON;
+initializeFiles();
 
 // Discord Bots List
 const DBL               = require("dblapi.js");
@@ -98,12 +80,6 @@ let dbl;                //will be initialized upon startup
 // HTTP and websocket request
 const request           = require("request");
 const WebSocket         = require('ws');
-
-// Get the api keys
-let keys                = JSON.parse(fs.readFileSync('./common/keys.api','utf8'));
-
-// Get the admin commands
-const admin             = JSON.parse(fs.readFileSync('./common/admin.json','utf8'));
 
 // Include API things
 const Discord 		      = require('discord.js');
@@ -124,9 +100,6 @@ const stex              = require('stocks-exchange-client'),
                           api_secret:keys['stexSecret']
                         },
 stexClient              = new stex.client(option, 'https://app.stex.com/api2', 2);
-
-// Include fancy console outputs
-const chalk             = require('chalk');
 
 // Graviex key insertion
 graviex.accessKey       = keys['graviexAccessKey'];    
@@ -163,9 +136,6 @@ const { JSDOM }         = jsdom;
 let channelName         = 'general';
 let messageCount        = 0;
 let referenceTime       = Date.now();
-
-// Shortcut config
-let shortcutConfig        = JSON.parse(fs.readFileSync("./common/shortcuts.json","utf8"));
 
 // Alpha Vantage API
 const alpha               = require('alphavantage')({ key: keys['alpha'] });
@@ -311,10 +281,6 @@ async function getPriceGraviex(chn, coin1, coin2){
 // Function for STEX prices
 
 async function getPriceSTEX(chn, coin1, coin2){
-
-  chn.send("STEX temporarily disabled due to issues on their end. Try again later!")
-  return;
-
 
   //default to usdt if none is provided
   if (typeof coin2 === 'undefined') {
@@ -1412,7 +1378,6 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     ":small_blue_diamond: To delete a tag, use the deletetag command: `.tb deletetag <tag name here>`");
     return;
   }
-
 }
 
 
@@ -1768,7 +1733,7 @@ function postHelp(message, author, code) {
   code = code || "none";
   let fail = false;
   const link = "https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md";
-  if (code === 'ask' || helpjson[code] !== undefined) {
+  if (code === 'ask') {
     author.send("Hi there! Here's a link to the fancy help document that lists every command and how to use them: \n" + link).catch(function (rej) {
       console.log(chalk.yellow("Failed to send help text to " + author.username + " via DM, sent link in server instead."));
       message.reply("I tried to DM you the commands but you don't allow DMs. Hey, it's cool, I'll just leave the link for you here instead: \n" + link).then(function () {
@@ -2702,27 +2667,137 @@ function updateCoins(){
 
  ---------------------------------- */
 
-function toggleShortcut(id, shortcut, chn, join, name){
+function toggleShortcut(id, shortcut, chn, join, name) {
 
-  if(/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4){
+  if (/(\w|[!$%._,<>=+*&]){1,3}/.test(shortcut) && shortcut.length < 4) {
     shortcutConfig[id] = shortcut;
     let startMessage = "S";
 
-    fs.writeFile("common/shortcuts.json", JSON.stringify(shortcutConfig), function(err){
-      if(err) return console.log(chalk.red.bold(err + "----Shortcut JSON Error"));
-
-      // Dont show message when setting default shortcut during join procedure
-      if(!join){
-        chn.send('Successfully set shortcut to `' + shortcut + '`.');
-      }
-      if(join){
-        startMessage = "Default s";
-      }
-      console.log(chalk.green(startMessage + "hortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(name)));
-    });
+    fs.writeFileSync("common/shortcuts.json", JSON.stringify(shortcutConfig));
+    // Dont show message when setting default shortcut during join procedure
+    if (!join) {
+      chn.send('Successfully set shortcut to `' + shortcut + '`.');
+    }
+    if (join) {
+      startMessage = "Default s";
+    }
+    console.log(chalk.green(startMessage + "hortcut config " + chalk.blue("\"" + shortcut + "\" ") + "saved for: " + chalk.yellow(name)));
 
   } else {
     chn.send('Shortcut format not allowed. (Max. 3 alphanumeric and `!$%._,<>=+*&`)');
+  }
+}
+
+
+/* ---------------------------------
+
+  initializeFiles()
+
+  Reads and checks all files needed for operation
+
+ ---------------------------------- */
+
+function initializeFiles() {
+
+  //allowed coin pairs
+  try {
+    pairs = JSON.parse(fs.readFileSync("./common/coins.json", "utf8"));
+  } catch (err) {
+    fs.appendFileSync('./common/coins.json', '[]');
+    console.log(chalk.green('Automatically created new coins.json file.'));
+    pairs = JSON.parse(fs.readFileSync("./common/coins.json", "utf8"));
+  }
+
+  //filtered version of allowed pairs
+  try {
+    pairs_filtered = JSON.parse(fs.readFileSync("./common/coins_filtered.json", "utf8"));
+  } catch (err) {
+    fs.appendFileSync('./common/coins_filtered.json', '[]');
+    console.log(chalk.green('Automatically created new coins_filtered.json file.'));
+    pairs_filtered = JSON.parse(fs.readFileSync("./common/coins_filtered.json", "utf8"));
+  }
+
+  //allowed coin pairs from coin gecko
+  try {
+    pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json", "utf8"));
+  } catch (err) {
+    fs.appendFileSync('./common/coinsCG.json', '[]');
+    console.log(chalk.green('Automatically created new coinsCG.json file.'));
+    pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json", "utf8"));
+  }
+
+  //server tags
+  if (fs.existsSync('tags.json')) {
+    try {
+      tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8"));
+    } catch (err) {
+      console.log(chalk.red('Error reading tags.json during initialization. Check the file for problems!'));
+    }
+  }
+  else {
+    fs.appendFileSync('tags.json', '{"tags":[]}');
+    console.log(chalk.green('Automatically created new tags.json file.'));
+    tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8"));
+  }
+
+  //coin metadata
+  if (fs.existsSync('./common/metadata.json')) {
+    try {
+      metadata = JSON.parse(fs.readFileSync("./common/metadata.json", "utf8"));
+    } catch (err) {
+      console.log(chalk.red('Error reading metadata.json during initialization. Check the file for problems or regenerate it using getCoinMeta.js'));
+    }
+  }
+  else {
+    fs.appendFileSync('./common/metadata.json', '{}');
+    console.log(chalk.green('Automatically created new metadata.json file.'));
+    metadata = JSON.parse(fs.readFileSync("./common/metadata.json", "utf8"));
+  }
+
+  //banned words
+  if (fs.existsSync('./common/bannedWords.json')) {
+    restricted = JSON.parse(fs.readFileSync("./common/bannedWords.json", "utf8"));
+  }
+  else {
+    fs.appendFileSync('./common/bannedWords.json', '[]')
+    console.log(chalk.green('Automatically created new bannedWords.json file.'));
+    restricted = JSON.parse(fs.readFileSync("./common/bannedWords.json", "utf8"));
+  }
+
+  //admin commands
+  if (fs.existsSync('./common/admin.json')) {
+    admin = JSON.parse(fs.readFileSync('./common/admin.json', 'utf8'));
+  }
+  else {
+    fs.appendFileSync('./common/admin.json', '{}');
+    console.log(chalk.green('Automatically created new admin.json file.'));
+    admin = JSON.parse(fs.readFileSync('./common/admin.json', 'utf8'));
+  }
+
+  //shortcuts
+  try {
+    shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json", "utf8"));
+  } catch (err) {
+    fs.appendFileSync('./common/shortcuts.json', '{}');
+    console.log(chalk.green('Automatically created new shortcuts.json file.'));
+    shortcutConfig = JSON.parse(fs.readFileSync("./common/shortcuts.json", "utf8"));
+  }
+
+  //api keys
+  if (fs.existsSync('./common/keys.api')) {
+    try {
+      keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
+    } catch (err) {
+      console.log(chalk.red('Error reading keys.api during initialization. Check the file for problems and verifiy its structure.'));
+      console.log(chalk.blue('See step 3 in the first run steps at the top of main.js for how to setup this file with the needed keys'));
+      process.exit();
+    }
+  }
+  else {
+    fs.appendFileSync('./common/keys.api', '{}');
+    console.log(chalk.yellowBright('Automatically created new keys.api file. YOU NEED TO POPULATE IT WITH YOUR API KEYS!!'));
+    console.log(chalk.blue('See step 3 in the first run steps at the top of main.js for how to setup this file with the needed keys'));
+    process.exit();
   }
 }
 
@@ -2743,7 +2818,7 @@ process.on('unhandledRejection', err => {
 client.login(keys['token']);
 
 
-// Wow, you made it to the bottom! Here's a big yeet for you.
+// Wow, you made it to the bottom! Here's a big yeet.
 
 // -------------------------------------------
 // -------------------------------------------
