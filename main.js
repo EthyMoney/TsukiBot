@@ -345,7 +345,7 @@ async function getPriceSTEX(chn, coin1, coin2) {
 async function getPriceCoinGecko(coin, coin2, chn, action) {
 
   //determine whether or not the call was from the conversion command to determine if we need to return the values
-  let nosend = false;
+  let noSend = false;
   if (action && action == "convert") {
     noSend = true;
   }
