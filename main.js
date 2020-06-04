@@ -355,6 +355,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
   if (!coin2) {
     coin2 = 'usd';
   }
+  coin2 = coin2.toLowerCase();
   //find out the ID for coin requested and also get IDs for any possible duplicate tickers
   let foundCount = 0;
   let coinID, coinID1, coinID2, coinID3 = "";
@@ -398,6 +399,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       });
     //build the reply message that shows all coins found with the given ticker, and label them by full name
     let builtMessage = "";
+    let errMsg = "";
     let cursor = 0;
     let arr = Object.entries(data.data);
     let conversionArray1 = [];
@@ -410,15 +412,20 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       let c = Math.round(element[1][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
       s = trimDecimalPlaces(s);
       if (!noSend) {
-        if (cursor == 1) {
-          builtMessage += "__CoinGecko Price for:__\n**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s +
-            " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+        if (!isNaN(s)) { //looking for NaN, making sure price is valid
+          if (cursor == 1) {
+            builtMessage += "__CoinGecko Price for:__\n**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s +
+              " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+          }
+          else {
+            builtMessage += "**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s +
+              " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+          }
+          console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
         }
-        else {
-          builtMessage += "**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s +
-            " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
+        else{
+          errMsg = "Pricing not available in terms of **" + coin2.toUpperCase() + "**. Try another pairing!";
         }
-        console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
       }
       else {
         conversionArray1.push(s);
@@ -427,7 +434,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
       }
     });
     if (!noSend)
-      chn.send(builtMessage);
+      chn.send(builtMessage + errMsg);
     else
       return [conversionArray1, conversionArray2, conversionArray3];
   }
@@ -440,11 +447,11 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
         include_24hr_vol: [true],
         include_24hr_change: [true]
       });
-      let s = parseFloat(data.data.coinID.coin2).toFixed(8);
-      let c = Math.round(data.data.coinID[coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      let s = parseFloat(data.data[coinID][coin2]).toFixed(8);
+      let c = Math.round(data.data[coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
       s = trimDecimalPlaces(s);
-      if (!s) {
-        chn.send("Coin was found, but the pairing currency **" + coin2.toUpperCase() + "** was not found. Try again with new pair!");
+      if (isNaN(s) || !s) { //looking for NaN, making sure price is valid
+        chn.send("**" + coin.toUpperCase() + "** was found, but the pairing currency **" + coin2.toUpperCase() + "** was not found. Try another pairing!");
         return;
       }
       if (!noSend) {
