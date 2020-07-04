@@ -1451,8 +1451,9 @@ function getMarketCapSpecific(message) {
       if (ticker[i].symbol === cur || ticker[i].name.toUpperCase() === cur || ticker[i].cmc_rank + '' === cur) {
         let name = ticker[i].name;
         let slug = ticker[i].slug;
-        let price = parseFloat(ticker[i].quote.USD.price).toFixed(6);
-        let priceBTC = convertToBTCPrice(price).toFixed(8);
+        let price = trimDecimalPlaces(parseFloat(ticker[i].quote.USD.price).toFixed(6));
+        let priceBTC = trimDecimalPlaces(convertToBTCPrice(price).toFixed(8));
+        let priceETH = trimDecimalPlaces(convertToETHPrice(price).toFixed(6));
         let percent = ticker[i].quote.USD.percent_change_24h;
         let rank = ticker[i].cmc_rank;
         let percent7 = ticker[i].quote.USD.percent_change_7d;
@@ -1493,6 +1494,10 @@ function getMarketCapSpecific(message) {
           }
         }
 
+        //checking for price values matching the requested coin
+        if(symbol == "ETH"){priceETH = 1};
+        if(symbol == "BTC"){priceBTC = 1};
+
         let l1 = "MC Rank: #" + rank + "\n";
         let l2 = "Market Cap: " + numberWithCommas(marketcap) + " USD" + "\n";
         let l3 = "24hr Volume: " + volume + " USD" + "\n";
@@ -1504,7 +1509,7 @@ function getMarketCapSpecific(message) {
         } else {
           l6 = "Maximum Supply: " + maxSupply + " " + symbol + "\n";
         }
-        let l7 = "USD: `" + price + "`\n" + "BTC: `" + priceBTC + "`\n" + "ETH: `" + convertToETHPrice(price).toFixed(6) + "`";
+        let l7 = "USD: `" + price + "`\n" + "BTC: `" + priceBTC + "`\n" + "ETH: `" + priceETH + "`";
         let l8 = "*1h:* `" + percent1h + "%` " + "\n" + "*24h:* `" + percent + "%`" + " \n" + "*7d:* `" + percent7 + "%`";
 
         let embed = new Discord.MessageEmbed()
