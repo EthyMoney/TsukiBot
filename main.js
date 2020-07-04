@@ -1116,11 +1116,18 @@ async function priceConversionTool(coin1, coin2, amount, chn) {
   coin1 = coin1.toLowerCase() + "";
   coin2 = coin2.toLowerCase() + "";
 
+  // Convert imputs to matching CG values
   if (coin2 == "usd") {
     coin2 = "usdt";
   }
+  if (coin1 == "usd") {
+    coin1 = "usdt";
+  }
   if (coin2 == "eur") {
     coin2 = "ebase";
+  }
+  if (coin1 == "eur") {
+    coin1 = "ebase";
   }
 
   //lookup ID for coins requested
