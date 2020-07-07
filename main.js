@@ -490,6 +490,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
   }
   let msg = '';
   let flag = false;
+  let ep, bp, up; //pricing values
 
   let bpchg = parseFloat(cmcArrayDict.BTC.quote.USD.percent_change_24h);
   for (let i = 0; i < coins.length; i++) {
@@ -500,10 +501,21 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
       else
         coins[i] = g;
     }
-    let ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' ETH`';
-    let bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' BTC`';
-    let up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6)) + ' USD` (`' +
-      Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
+
+    // Special case for a specific badly formatted coin from the API
+    if (coins[i].toLowerCase() == "lyxe") {
+      coins[i] = "LYXe"
+      ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' ETH`';
+      bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' BTC`';
+      up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i]].quote.USD.price).toFixed(6)) + ' USD` (`' +
+        Math.round(parseFloat(cmcArrayDict[coins[i]].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
+    }
+    else {
+      ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' ETH`';
+      bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' BTC`';
+      up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6)) + ' USD` (`' +
+        Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
+    }
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
     switch (action) {
@@ -1443,6 +1455,11 @@ function getMarketCapSpecific(message) {
     cur = message.content.replace('-t ', '').split(" ")[1].toUpperCase();
   }
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
+
+  // Special handling for specific badly formatted coin from API
+  if (cur == 'LYXE') {
+    cur = 'LUKSO';
+  }
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
     let ticker = cmcArrayDictParsed;
