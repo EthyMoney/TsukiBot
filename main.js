@@ -2632,8 +2632,8 @@ function updateCmcKey(override) {
 
 async function getCMCData() {
 
-  //WARNING! This will pull ALL cmc coins and cost you up to 14 credits (limit/200) on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({ limit: 2800 }).then().catch(console.error);
+  //WARNING! This will pull ALL cmc coins and cost you up to 18 credits (limit/200) on your api account for each call. This is why I alternate keys!
+  let cmcJSON = await clientcmc.getTickers({ limit: 3600 }).then().catch(console.error);
   cmcArray = cmcJSON.data;
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
