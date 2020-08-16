@@ -1985,6 +1985,7 @@ function commands(message, botAdmin) {
     let ping = new Date().getTime() - message.createdTimestamp;
     if (Math.sign(ping) === -1) { ping = ping * -1; }
     channel.send('sup ' + "<@!" + message.author.id + ">" + ' (`' + ping + " ms`)");
+    return;
   }
 
   // Split the message by spaces.
@@ -2000,20 +2001,20 @@ function commands(message, botAdmin) {
   code_in[0] = code_in[0].replace(hasPfx, "");
 
   // Check for *BTC CMC call (show prices in terms of btc)
-  let cmcBTC = false;
   if (shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + '+' === code_in[0].toLowerCase()) {
     code_in.shift();
     console.log(chalk.green('CMC *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
     getPriceCMC(code_in, channel, '+');
-    cmcBTC = true;
+    return;
   }
 
   // Check for cmc shortcut then run CMC check
-  if (hasPfx === "" && cmcBTC === false) {
+  if (hasPfx === "") {
     if (shortcutConfig[message.guild.id] === code_in[0].toLowerCase()) {
       code_in.shift();
       console.log(chalk.green('CMC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
       getPriceCMC(code_in, channel, '-');
+      return;
     }
 
   } else if (prefix.indexOf(code_in_pre) > -1) {
