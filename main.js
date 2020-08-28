@@ -94,12 +94,12 @@ const CoinGecko           = require('coingecko-api');
 const Web3                = require('web3');
 
 // STEX API client setup
-const stex                = require('stocks-exchange-client'),
-                          option = {
-                            api_key:keys.stex,
-                            api_secret:keys.stexSecret
-                          },
-stexClient                = new stex.client(option, 'https://app.stex.com/api2', 2);
+// const stex                = require('stocks-exchange-client'),
+//                           option = {
+//                             api_key:keys.stex,
+//                             api_secret:keys.stexSecret
+//                           },
+// stexClient                = new stex.client(option, 'https://app.stex.com/api2', 2);
 
 // Graviex key insertion
 graviex.accessKey         = keys.graviexAccessKey;    
@@ -559,7 +559,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
       msg += ordered[k[k0]];
   }
 
-  msg += (Math.random() > 0.97) ? "\n" + quote + " " + donationAdd : "";
+  msg += (Math.random() > 0.99) ? "\n" + quote + " " + donationAdd : "";
   if (msg !== '')
     chn.send(msgh + msg);
 }
@@ -1572,7 +1572,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
   let query;
 
   // delete .tbpa command after 5 min (optional)
-  // msg.delete(300000);
+  // msg.delete({ timeout: 300000 });
 
   // .tbpa call (display action)
   if (coins === '') {
@@ -1602,7 +1602,10 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
           });
           getPriceCMC(coins, chn, action);
         } else {
-          chn.send('Set your array with `.tb pa [array]`. Example usage: `.tb pa btc eth xrp.....`');
+          console.log("Sent missing tbpa notice to " + chalk.blue(msg.member.user.tag));
+          chn.send('Looks like you don\'t currently have a saved array. You can set your array with `.tb pa [array]`. Example usage: `.tb pa btc eth xrp .....`');
+          chn.send('**Surprised by this message?** Read this: Any recently created or modified arrays were lost in a database corruption. Go ahead and set your array again to get it back.' +
+          ' Sorry for this inconvenience, I\'m working to make sure this doesn\'t happen again.');
         }
       }
       conn.end();
@@ -2253,7 +2256,13 @@ function commands(message, botAdmin) {
 
     // Get personal array prices
     if (/pa[\+\-\*]?/.test(scommand)) {
-
+      if (msg.channel.id == '746425894498730085') {
+        msg.reply("Admins have disabled the tbpa command in this channel. Use another channel please!").then(msg => {
+          msg.delete({ timeout: 5000 });
+        })
+          .catch(console.log(chalk.green("Sent notice for disabled tbpa command in channel.")));
+        return;
+      }
       if (message.author.id !== client.user.id) {
         getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
       }
@@ -2383,7 +2392,7 @@ function commands(message, botAdmin) {
       else {
         message.reply("Yeet spam protection active :upside_down:")
           .then(msg => {
-            msg.delete(3500);
+            msg.delete({ timeout: 3500 });
           })
           .catch(console.log(chalk.green("Yeet spam protection triggered")));
       }
