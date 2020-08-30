@@ -2238,8 +2238,8 @@ function commands(message, botAdmin) {
         msg.reply("Admins have disabled the tbpa command in this channel. Use another channel please!").then(msg => {
           msg.delete({ timeout: 5000 });
         })
-          .catch(console.log(chalk.green("Sent notice for disabled tbpa command in channel.")));
-        return;
+          .catch(console.log(chalk.green("Sent notice for disabled tbpa command in channel")));
+        message.delete({ timeout: 0 });
       }
       if (message.author.id !== client.user.id) {
         getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
