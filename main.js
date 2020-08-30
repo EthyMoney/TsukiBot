@@ -1427,12 +1427,9 @@ function getMarketCap(message) {
 
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
-    //gathering info and setting variables
     let global_market = await clientcmc.getGlobal();
-    //console.log(global_market['data']['quote']);
     let mcap = numberWithCommas(global_market.data.quote.USD.total_market_cap);
     let btcdom = global_market.data.btc_dominance;
-    //console.log(chalk.green("mcap: " + chalk.cyan(mcap)));
     message.channel.send("**[all]** `$" + mcap + "` BTC dominance: `" + (Math.round(btcdom * 100) / 100) + "%`");
   })();
 }
@@ -1446,8 +1443,8 @@ function getMarketCap(message) {
 function getMarketCapSpecific(message) {
 
   let cursor = 1;
-  //collect the data
   let cur = '';
+  //cut the command prefixes
   if (message.content.includes('.tb')) {
     cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
   }
@@ -1455,11 +1452,12 @@ function getMarketCapSpecific(message) {
     cur = message.content.replace('-t ', '').split(" ")[1].toUpperCase();
   }
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
-
-  // Special handling for specific badly formatted coin from API
+  //special handling for specific badly formatted coin from API
   if (cur == 'LYXE') {
     cur = 'LUKSO';
   }
+
+  //collect and process cached api data 
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
     let ticker = cmcArrayDictParsed;
@@ -1468,41 +1466,37 @@ function getMarketCapSpecific(message) {
       if (ticker[i].symbol === cur || ticker[i].name.toUpperCase() === cur || ticker[i].cmc_rank + '' === cur) {
         let name = ticker[i].name;
         let slug = ticker[i].slug;
-        let price = trimDecimalPlaces(parseFloat(ticker[i].quote.USD.price).toFixed(6));
-        let priceBTC = trimDecimalPlaces(convertToBTCPrice(price).toFixed(8));
-        let priceETH = trimDecimalPlaces(convertToETHPrice(price).toFixed(6));
+        let price = ticker[i].quote.USD.price;
         let percent = ticker[i].quote.USD.percent_change_24h;
         let rank = ticker[i].cmc_rank;
         let percent7 = ticker[i].quote.USD.percent_change_7d;
         let symbol = ticker[i].symbol;
         let volume = ticker[i].quote.USD.volume_24h;
-        let marketcap = parseInt(ticker[i].quote.USD.market_cap);
-        let supply = parseInt(ticker[i].circulating_supply);
+        let marketcap = ticker[i].quote.USD.market_cap;
+        let supply = ticker[i].circulating_supply;
         let totalSupply = ticker[i].total_supply;
         let maxSupply = ticker[i].max_supply;
         let percent1h = ticker[i].quote.USD.percent_change_1h;
+        if (symbol == "ETH") { priceETH = 1; }
+        if (symbol == "BTC") { priceBTC = 1; }
 
-        //check for missing data and process values
-        if (!supply) { supply = "n/a"; } else { supply = numberWithCommas(supply); }
-        if (!totalSupply) { totalSupply = "n/a"; } else { totalSupply = numberWithCommas(parseFloat(totalSupply).toFixed(0)); }
-        if (!maxSupply) { maxSupply = "n/a"; } else { maxSupply = numberWithCommas(parseFloat(maxSupply).toFixed(0)); }
-        if (!volume) { volume = "n/a"; } else { volume = numberWithCommas(parseFloat(volume).toFixed(2)); }
-        if (!percent1h) { percent = "n/a"; } else { percent1h = parseFloat(percent1h).toFixed(2); }
-        if (!percent) { percent = "n/a"; } else { percent = parseFloat(percent).toFixed(2); }
-        if (!percent7) { percent7 = "n/a"; } else { percent7 = parseFloat(percent7).toFixed(2); }
+        //checking for missing data and generating the text lines that will be used in the final response message
+        let l1,l2,l3,l4,l5,l6,l71,l72,l73,l81,l82,l83;
+        l1 = `MC Rank: #${rank}\n`;
+        l2 = (marketcap) ? `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n` : `Market Cap: n/a\n`;
+        l3 = (volume) ? `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n` : `24hr volume: n/a\n`;
+        l4 = (supply) ? `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n` : `In Circulation: n/a\n`;
+        l5 = (totalSupply) ? `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n` : `Total Supply: n/a\n`;
+        l6 = (maxSupply) ? `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n` : `Max Supply: n/a\n`;
+        l71 = (price) ? `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n` : `USD: n/a\n`;
+        l72 = (price) ? `BTC: \`${trimDecimalPlaces(convertToBTCPrice(price).toFixed(8))}\`\n` : `BTC: n/a\n`;
+        l73 = (price) ? `ETH: \`${trimDecimalPlaces(convertToETHPrice(price).toFixed(6))}\`` : `ETH: n/a`;
+        l81 = (percent1h) ? `1h: \`${parseFloat(percent1h).toFixed(2)}%\`\n` : `1h: n/a\n`;
+        l82 = (percent) ? `24h: \`${parseFloat(percent).toFixed(2)}%\`\n` : `24h: n/a\n`;
+        l83 = (percent7) ? `7d: \`${parseFloat(percent7).toFixed(2)}%\`` : `7d: n/a`;
 
-        //verbose logging toggle
-        const verbose = false;
-        if (verbose) {
-          console.log(chalk.green("Rank: ") + chalk.cyan(rank));
-          console.log(chalk.green("Name: " + chalk.cyan(name)));
-          console.log(chalk.green("Price: " + chalk.cyan(price)));
-          console.log(chalk.green("24hr Change: ") + chalk.cyan(percent));
-          console.log(chalk.green("7d Change: ") + chalk.cyan(percent7));
-        }
-
-        let logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
-          'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
+        //grabbing coin logo (defaults to cmc logo if coin logo doesn't exist)
+        let logo = 'https://lh3.googleusercontent.com/zdHuxTffm4hDJeIetin4lW8M2FStUvG0CIoUNSHSRIwxu9Q7xpbGBtbBXUf2WlOqXw';
         for (let j = 0, len = metadata.data.length; j < len; j++) {
           if (metadata.data[j].slug === slug) {
             if (metadata.data[j].logo) {
@@ -1511,33 +1505,17 @@ function getMarketCapSpecific(message) {
           }
         }
 
-        //checking for price values matching the requested coin
-        if(symbol == "ETH"){priceETH = 1};
-        if(symbol == "BTC"){priceBTC = 1};
-
-        let l1 = "MC Rank: #" + rank + "\n";
-        let l2 = "Market Cap: " + numberWithCommas(marketcap) + " USD" + "\n";
-        let l3 = "24hr Volume: " + volume + " USD" + "\n";
-        let l4 = "Circulating Supply: " + supply + " " + symbol + "\n";
-        let l5 = "Total Supply: " + totalSupply + " " + symbol + "\n";
-        let l6 = '';
-        if (maxSupply === 'n/a') {
-          l6 = "Maximum Supply: " + maxSupply + "\n";
-        } else {
-          l6 = "Maximum Supply: " + maxSupply + " " + symbol + "\n";
-        }
-        let l7 = "USD: `" + price + "`\n" + "BTC: `" + priceBTC + "`\n" + "ETH: `" + priceETH + "`";
-        let l8 = "*1h:* `" + percent1h + "%` " + "\n" + "*24h:* `" + percent + "%`" + " \n" + "*7d:* `" + percent7 + "%`";
-
+        //assemble the final message as message embed object
         let embed = new Discord.MessageEmbed()
-          .addField("Market Data for " + name + " (" + symbol + ")", l1 + l2 + l3 + l4 + l5 + l6, false)
-          .addField("Current Prices:", l7, true)
-          .addField("Price Changes:", l8, true)
+          .addField(name + " (" + symbol + ")", l1 + l2 + l3 + l4 + l5 + l6, false)
+          .addField("Current Prices:", l71 + l72 + l73, true)
+          .addField("Price Changes:", l81 + l82 + l83, true)
           .setColor('#1b51be')
           .setThumbnail(logo)
-          .setFooter('Powered by CoinMarketCap API', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
+          .setFooter('Powered by CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
             'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
+        //send it
         try {
           message.channel.send({ embed });
         }
@@ -2462,8 +2440,6 @@ function postSessionStats(message) {
   const msgpersec = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
   //const topCrypto   = coinArrayMax(requestCounter);
   //const popCrypto   = coinArrayMax(mentionCounter);
-
-
   const msgh = ("Serving `" + users + "` users from `" + guilds + "` servers.\n" +
     "⇒ Current uptime: `" + Math.trunc(client.uptime / (3600000)) + "hr`.\n" +
     "⇒ Average messages per minute: `" + msgpersec + "`.\n" +
@@ -2484,6 +2460,19 @@ function postSessionStats(message) {
 function convertToETHPrice(priceUSD) {
   let ETHPrice = cmcArrayDict['eth'.toUpperCase()].quote.USD.price;
   return priceUSD / ETHPrice;
+}
+
+// Abbreviate very large numbers
+function abbreviateNumber(num, fixed) {
+  if (num === null) { return null; } // terminate early
+  if (num === 0) { return '0'; } // terminate early
+  fixed = (!fixed || fixed < 0) ? 0 : fixed; // number of decimal places to show
+  var b = (num).toPrecision(2).split("e"), // get power
+    k = b.length === 1 ? 0 : Math.floor(Math.min(b[1].slice(1), 14) / 3), // floor at decimals, ceiling at trillions
+    c = k < 1 ? num.toFixed(0 + fixed) : (num / Math.pow(10, k * 3)).toFixed(1 + fixed), // divide by power
+    d = c < 0 ? c : Math.abs(c), // enforce -0 is 0
+    e = d + ['', 'k', 'm', 'b', 't'][k]; // append power
+  return e;
 }
 
 // Run through new server procedure when the bot joins
