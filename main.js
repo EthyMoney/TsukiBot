@@ -924,7 +924,7 @@ async function getCoinDescription(coin1, chn, usr) {
     console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1.toUpperCase())));
     let name = cmcArrayDict[coin1.toUpperCase()].slug;
     let logo = '';
-    let text = '';
+    let text = null;
 
     // grab logo
     for (let j = 0, len = metadata.data.length; j < len; j++) {
@@ -947,6 +947,12 @@ async function getCoinDescription(coin1, chn, usr) {
       }
     }
 
+    // check for missing description and exit if missing
+    if (!text) {
+      chn.send("No description is currently available for **" + coin1.toUpperCase() + "**.");
+      return;
+    }
+
     // check against discord's embed feild size limit and split if necessary
     if (text.length <= 1024) {
       let embed = new Discord.MessageEmbed()
@@ -957,7 +963,7 @@ async function getCoinDescription(coin1, chn, usr) {
           'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
 
       chn.send({ embed }).catch(function (rej) {
-        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
         console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
       });
     }
