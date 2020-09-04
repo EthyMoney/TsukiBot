@@ -79,6 +79,7 @@ let dbl;                  //will be initialized upon startup
 
 // HTTP and websocket request
 const request             = require("request");
+const rp                  = require('request-promise');
 const WebSocket           = require('ws');
 
 // Include API things
@@ -1421,6 +1422,53 @@ function getEtherBalance(address, chn, action = 'b') {
 //------------------------------------------
 //------------------------------------------
 
+// Collect Ethereum gas tracking stats
+// from Etherscan.
+
+function getEtherGas(chn) {
+  console.log(chalk.green("Etherscan gas command called in: ") + chalk.yellow(chn.guild.name));
+  rp('https://etherscan.io/gastracker')
+    .then(nice => {
+      //collect the data from fields on the webpage
+      const dom = new JSDOM(nice);
+      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 div.card.h-100 " +
+        "div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.h4.text-success.mb-1").textContent;
+      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.text-secondary")[0].textContent;
+      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h4.text-primary.mb-1").textContent;
+      let avg_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[1].textContent;
+      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h3.mb-0 font").textContent;
+      let fast_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[2].textContent;
+
+      //assemble the final message as message embed object
+      let embed = new Discord.MessageEmbed()
+        .setTitle(`Ethereum Gas Tracker`)
+        .addField("Slow:", `${slow_gwei}\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Average:", `${avg_gwei}\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Fast:", `${fast_gwei}\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .setColor('#1b51be')
+        .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
+        .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
+
+      //send it
+      try {
+        chn.send({ embed });
+      }
+      catch (rej) {
+        chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        console.log(chalk.red('Error sending eth gas response embed: ' + chalk.cyan(rej)));
+      }
+    });
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
 // Function for getting total market cap data and BTC dominance from CMC
 
 function getMarketCap(message) {
@@ -2066,6 +2114,10 @@ function commands(message, botAdmin) {
     } else if (command === 'showjson') {
       console.log(tagsJSON);
 
+      // Etherscan gas call
+    } else if (command === 'gas') {
+      getEtherGas(channel);
+
       // Send an invite link for the bot
     } else if (command === 'invite') {
       msg.channel.send("Hi there! You can add me to your server with the following link. Please keep the requested permissions checked to ensure" +
@@ -2240,6 +2292,7 @@ function commands(message, botAdmin) {
         })
           .catch(console.log(chalk.green("Sent notice for disabled tbpa command in channel")));
         message.delete({ timeout: 0 });
+        return;
       }
       if (message.author.id !== client.user.id) {
         getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
