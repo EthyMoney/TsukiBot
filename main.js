@@ -1437,17 +1437,17 @@ function getEtherGas(chn) {
     .then(nice => {
       //collect the data from fields on the webpage
       const dom = new JSDOM(nice);
-      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 div.card.h-100 " +
+      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 div.card.h-100 " +
         "div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.h4.text-success.mb-1").textContent;
-      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
         "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.text-secondary")[0].textContent;
-      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
         "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h4.text-primary.mb-1").textContent;
-      let avg_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+      let avg_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 "+
         "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[1].textContent;
-      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
         "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h3.mb-0 font").textContent;
-      let fast_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-md-6.mb-3.mb-sm-0 " +
+      let fast_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
         "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[2].textContent;
 
       //assemble the final message as message embed object
