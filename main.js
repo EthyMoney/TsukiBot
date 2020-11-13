@@ -94,6 +94,14 @@ const CoinGecko           = require('coingecko-api');
 // Import web3
 const Web3                = require('web3');
 
+// Express server for charts
+const express             = require('express');
+const app                 = express();
+chartServer();
+
+// Puppeteer for to interact with the headless server and manipulate charts
+const puppeteer           = require('puppeteer'); 
+
 // STEX API client setup
 // const stex                = require('stocks-exchange-client'),
 //                           option = {
@@ -2360,6 +2368,9 @@ function commands(message, botAdmin) {
     } else if (scommand === 'stat') {
       postSessionStats(message);
 
+      // Charts
+    } else if (scommand === 'c') {
+      getTradingViewChart(message);
 
       //
       // The following meme commands are set to only work in the SpaceStation server until a configuration option is added to disable them when not wanted
@@ -2513,6 +2524,56 @@ function postSessionStats(message) {
     .setThumbnail('https://i.imgur.com/r6yCs2T.png')
     .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
   message.channel.send({ embed });
+}
+
+// Request a TradingView widget chart from the express server
+async function getTradingViewChart(message) {
+  let args = message.content.split(' ');
+
+  try {
+    if (args.length < 2) {
+      message.reply('Insufficient amount of arguments provided');
+      return;
+    }
+
+    let query = args.slice(2);
+
+    let browser = await puppeteer.launch({ headless: true });
+    let page = await browser.newPage();
+    await page.goto(`http://localhost:8080/${args[1]}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
+    await page.click('#tradingview_bc0b0');
+
+    if (query.includes('log')) {
+      await page.keyboard.down('Alt');
+      await page.keyboard.press('KeyL');
+      await page.keyboard.up('Alt');
+    }
+
+    await page.keyboard.down('Alt');
+    await page.keyboard.press('KeyS');
+    await page.keyboard.up('Alt');
+
+    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
+    const frame = await elementHandle.contentFrame();
+    await frame.waitFor(2500);
+    await frame.waitForSelector('.textInput-3WRWEmm7');
+    const chartLinkInput = await frame.$(".textInput-3WRWEmm7");
+    message.channel.send(await frame.evaluate(x => x.value, chartLinkInput));
+
+    /* 
+    await page.setViewport({ width: 1920, height: 960 });
+    await page.screenshot({
+      path: "./screenshot.png",
+      type: "png",
+      fullPage: true
+    });
+    */
+    await page.close();
+    await browser.close();
+  } catch (err) {
+    console.log(err);
+    message.channel.send("```Something bad done happened :(```")
+  }
 }
 
 // Convert USD price to ETH value
@@ -2869,6 +2930,92 @@ function initializeFiles() {
   }
 }
 
+/* ---------------------------------
+
+  chartServer()
+
+  Starts a server to how TradingView chart widgets
+  at http://localhost:${port}
+
+  e.g. http://localhost:8080/ethbtc?query=sma,ema,macd,log,wide
+
+ ---------------------------------- */
+
+function chartServer() {
+  const port = 8080;
+  app.get('/:ticker', function(req, res) {
+    let query = req.query.query.split(",");
+
+    const intervalKeys = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w']
+    const intervalMap = { '1m':'1', '3m':'3', '5m':'5', '15m':'15', '30m':'30', '1h':'60', '2h':'120', '3h':'180', '4h':'240', '1d':'D', '1w':'W' }
+    
+    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr']
+    const studiesMap = {
+      'bb': "BB@tv-basicstudies",
+      'bbr': "BollingerBandsR@tv-basicstudies",
+      'bbw': "BollingerBandsWidth@tv-basicstudies",
+      'crsi': "CRSI@tv-basicstudies",
+      'ichi': "IchimokuCloud@tv-basicstudies",
+      'ichimoku': "IchimokuCloud@tv-basicstudies",
+      'macd': "MACD@tv-basicstudies",
+      'ma': "MASimple@tv-basicstudies",
+      'ema': "MAExp@tv-basicstudies",
+      'dema': "DoubleEMA@tv-basicstudies",
+      'tema': "TripleEMA@tv-basicstudies",
+      'moonphase': "MoonPhases@tv-basicstudies",
+      'pphl': "PivotPointsHighLow@tv-basicstudies",
+      'pivotshl': "PivotPointsHighLow@tv-basicstudies",
+      'rsi': "RSI@tv-basicstudies",
+      'stoch': "Stochastic@tv-basicstudies",
+      'stochrsi': "StochasticRSI@tv-basicstudies",
+      'williamr': "WilliamR@tv-basicstudies"
+    }
+
+    let intervalKey = '1h';
+    let selectedStudies = [];
+    query.forEach(i => {
+      if (intervalKeys.indexOf(i) >= 0) {
+        intervalKey = i;
+      }
+
+      if (studiesKeys.indexOf(i) >= 0) {
+        selectedStudies.push('"' + studiesMap[i] + '"');
+      }
+    });
+
+    res.write(`<!-- TradingView Widget BEGIN -->
+    <div class="tradingview-widget-container">
+      <div id="tradingview_bc0b0"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget(
+      {
+        "width": ${query.includes('wide') ? '1920' : '960'},
+        "height": 800,
+        "symbol": "${req.params.ticker}",
+        "interval": "${intervalMap[intervalKey]}",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#f1f3f6",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "studies": [
+          ${selectedStudies.join(',')}
+        ],
+        "container_id": "tradingview_bc0b0"
+      }
+      );
+      </script>
+    </div>
+    <!-- TradingView Widget END -->`);
+    res.end() 
+  });
+  app.listen(port, () => {
+    console.log(`Chart server listening at http://localhost:${port}`)
+  })
+}
 
 // Error event logging
 client.on('error', (err) => {
