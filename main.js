@@ -623,42 +623,49 @@ function getPriceCC(coins, chn, action = '-', ext = 'd') {
 
 // Function for Bitfinex prices
 
-async function getPriceBitfinex(coin1, coin2, chn) {
+async function getPriceBitfinex(coin1, coin2, chn, coin2Failover) {
 
-  let fail = false;
   let tickerJSON = '';
-  if (typeof coin2 === 'undefined') {
+  if (!coin2) {
     coin2 = 'BTC';
   }
-  if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp' &&
-    coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase() !== 'jpy' && coin2.toLowerCase() !== 'eos')) {
-    coin2 = 'USDT';
+  if(!coin2Failover){
+    if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp' && !coin2Failover &&
+      coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase() !== 'jpy' && coin2.toLowerCase() !== 'eos')) {
+      coin2 = 'USDT';
+    }
   }
   tickerJSON = await clientBitfinex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
-    console.log(chalk.red.bold('Bitfinex error: Ticker ' + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
-    chn.send('API Error:  Bitfinex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
-    fail = true;
-  });
-  if (fail) {
-    //exit the function if ticker didn't exist, or api failed to respond
+    //if re-attempted call failed, exit due to error
+    if (coin2Failover) {
+      console.log(chalk.red.bold('Bitfinex error: Ticker ' + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+      chn.send('API Error:  Bitfinex does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
+      return;
+    }
+    //attempt re-calling with usd coin2 correction if failure occurs
+    getPriceBitfinex(coin1, "USD", chn, true);
+    //Exit rest of loop for re-run
     return;
-  }
-  //console.log(tickerJSON);
-  let s = parseFloat(tickerJSON.last).toFixed(6);
-  if (coin2.toUpperCase() === 'BTC') {
-    s = parseFloat(tickerJSON.last).toFixed(8);
-  }
-  s = trimDecimalPlaces(s);
-  console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
-  let c = tickerJSON.percentage;
-  c = Math.round(c * 100) / 100;
+  });
 
-  if (coin2.toUpperCase() === 'USDT') {
-    coin2 = 'USD';
-  }
+  //continue only if response was received
+  if (tickerJSON) {
+    let s = parseFloat(tickerJSON.last).toFixed(6);
+    if (coin2.toUpperCase() === 'BTC') {
+      s = parseFloat(tickerJSON.last).toFixed(8);
+    }
+    s = trimDecimalPlaces(s);
+    console.log(chalk.green('Bitfinex API ticker response: ' + chalk.cyan(s)));
+    let c = tickerJSON.percentage;
+    c = Math.round(c * 100) / 100;
 
-  let ans = '__Bitfinex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
-  chn.send(ans);
+    if (coin2.toUpperCase() === 'USDT') {
+      coin2 = 'USD';
+    }
+
+    let ans = '__Bitfinex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+    chn.send(ans);
+  }
 }
 
 
@@ -2538,7 +2545,7 @@ async function getTradingViewChart(message) {
 
     let query = args.slice(2);
 
-    let browser = await puppeteer.launch({ headless: true });
+    let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox']});
     let page = await browser.newPage();
     await page.goto(`http://localhost:8080/${args[1]}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
     await page.click('#tradingview_bc0b0');
@@ -2555,7 +2562,7 @@ async function getTradingViewChart(message) {
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    await frame.waitFor(2500);
+    await frame.waitFor(3500);
     await frame.waitForSelector('.textInput-3WRWEmm7');
     const chartLinkInput = await frame.$(".textInput-3WRWEmm7");
     message.channel.send(await frame.evaluate(x => x.value, chartLinkInput));
