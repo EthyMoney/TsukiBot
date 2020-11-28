@@ -78,7 +78,8 @@ const DBL                 = require("dblapi.js");
 let dbl;                  //will be initialized upon startup
 
 // HTTP and websocket request
-const request             = require("request");
+const https               = require('https');
+const request             = require('request');
 const rp                  = require('request-promise');
 const WebSocket           = require('ws');
 
@@ -2379,6 +2380,10 @@ function commands(message, botAdmin) {
     } else if (scommand === 'c') {
       getTradingViewChart(message);
 
+      // Coin360 Heatmap
+    } else if (scommand === 'hmap') {
+      getCoin360Heatmap(message);
+
       //
       // The following meme commands are set to only work in the SpaceStation server until a configuration option is added to disable them when not wanted
       //
@@ -2581,6 +2586,54 @@ async function getTradingViewChart(message) {
     console.log(err);
     message.channel.send("```Something bad done happened :(```")
   }
+}
+
+// Request a Coin360 style heatmap
+function getCoin360Heatmap(message) {
+  const options = {
+    hostname: 'coin360.com',
+    path: '/api/share?width=1440&height=1200&path=/&search=getScreen%26zoom%3D%7B%22x%22%3A0%2C%22y%22%3A0%2C%22k%22%3A1%7D',
+    method: 'GET',
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  }
+
+  const req = https.request(options, res => {
+    const { statusCode } = res;
+    const contentType = res.headers['content-type'];
+
+    let error;
+    // Any 2xx status code signals a successful response but
+    // here we're only checking for 200.
+    if (statusCode !== 200) {
+      error = new Error('Request Failed.\n' + `Status Code: ${statusCode}`);
+    } else if (!/^application\/json/.test(contentType)) {
+      error = new Error('Invalid content-type.\n' + `Expected application/json but received ${contentType}`);
+    }
+    if (error) {
+      console.error(error.message);
+      // Consume response data to free up memory
+      res.resume();
+      return;
+    }
+
+    res.setEncoding('utf8');
+    let rawData = '';
+    res.on('data', (chunk) => { rawData += chunk; });
+    res.on('end', () => {
+      try {
+        const parsedData = JSON.parse(rawData);
+        message.channel.send(`https://coin360.com/shareimg/${parsedData.url}`);
+      } catch (e) {
+        console.error(e.message);
+      }
+    });
+  })
+
+  req.on('error', error => {
+    console.error(error, Object.keys(error))
+  })
+
+  req.end()
 }
 
 // Convert USD price to ETH value
