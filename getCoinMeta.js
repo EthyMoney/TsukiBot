@@ -23,7 +23,7 @@ let cmcArrayDict = '';
 
 async function getCMCData() {
     //WARNING! This will pull ALL cmc coins and cost you about 11 credits on your api account!
-    let cmcJSON = await clientcmc.getTickers({ limit: 3600 }).then().catch(console.error);
+    let cmcJSON = await clientcmc.getTickers({ limit: 4200 }).then().catch(console.error);
     cmcArray = cmcJSON['data'];
     cmcArrayDictParsed = cmcArray;
     cmcArrayDict = {};
