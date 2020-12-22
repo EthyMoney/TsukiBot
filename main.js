@@ -1515,13 +1515,11 @@ function getMarketCapSpecific(message) {
 
   let cursor = 1;
   let cur = '';
-  //cut the command prefixes
-  if (message.content.includes('.tb')) {
-    cur = message.content.replace('.tb ', '').split(" ")[1].toUpperCase();
-  }
-  else {
-    cur = message.content.replace('-t ', '').split(" ")[1].toUpperCase();
-  }
+  //cut the command prefixes and any leading/trailing spaces
+  cur = message.content.replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
+  cur = cur.toUpperCase();
+
+  console.log(cur)
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
   //special handling for specific badly formatted coin from API
   if (cur == 'LYXE') {
@@ -1531,6 +1529,7 @@ function getMarketCapSpecific(message) {
   //collect and process cached api data 
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
+    let success = false;
     let ticker = cmcArrayDictParsed;
     j = ticker.length;
     for (let i = 0; i < j; i++) {
@@ -1589,13 +1588,18 @@ function getMarketCapSpecific(message) {
         //send it
         try {
           message.channel.send({ embed });
+          success = true;
         }
         catch (rej) {
-          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          message.channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending MC response embed: ' + chalk.cyan(rej)));
         }
       }
       cursor++;
+    }
+    if (!success) {
+      message.channel.send("Failed to find a CMC coin associated with that input.\nTry again with either the full typed out name, or shortened ticker.");
+      console.log(chalk.red(`Failed to find matching coin for input to mc command of: ${chalk.cyan(cur)}`));
     }
   })();
 }
@@ -1910,7 +1914,6 @@ client.on('message', message => {
                 console.log(chalk.red("Failed to delete unsafe file from user: " + chalk.yellow(message.author.username) + " in server: " + chalk.cyan(message.guild.name) + " Due to rejection: " + chalk.cyan(rej)));
               });
             return;
-            /*jshint +W083 */
           }
         }
       }
@@ -1996,7 +1999,7 @@ function commands(message, botAdmin) {
     getMarketCap(message);
   }
   // Check if message requests a specific coin (market cap)
-  if (message.content.split(" ")[0].toUpperCase() === "MC" && message.content.split(" ").length === 2) {
+  if (message.content.split(" ")[0].toUpperCase() === "MC") {
     getMarketCapSpecific(message);
   }
   let string = "";
@@ -2057,6 +2060,14 @@ function commands(message, botAdmin) {
     code_in.shift();
     console.log(chalk.green('CMC *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
     getPriceCMC(code_in, channel, '+');
+    return;
+  }
+
+  // Check for *ETH CMC call (show prices in terms of btc via putting an e right before the shortcut, ex: <shortcut>e btc => eth price of btc)
+  if (shortcutConfig[message.guild.id] + 'e' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + 'eth' === code_in[0].toLowerCase()) {
+    code_in.shift();
+    console.log(chalk.green('CMC *ETH call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+    getPriceCMC(code_in, channel, 'e');
     return;
   }
 
