@@ -29,7 +29,7 @@
 //       IMPORTANT STEPS FOR FIRST RUN
 // -------------------------------------------
 
-// 1. Make sure you have node.js and npm installed and ready to use. Node version 10.x or newer is required.
+// 1. Make sure you have node.js and npm installed and ready to use. Node version 14.x or newer is required.
 // 2. Open a temrinal in the project directory and run the command "npm install" to install all required dependencies.
 // 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
@@ -147,8 +147,11 @@ let channelName           = 'general';
 let messageCount          = 0;
 let referenceTime         = Date.now();
 
-// Alpha Vantage API
-const alpha               = require('alphavantage')({ key: keys.alpha });
+// Finnhub API
+const finnhub             = require('finnhub');
+const api_key             = finnhub.ApiClient.instance.authentications.api_key;
+api_key.apiKey            = keys.finnhub;
+const finnhubClient       = new finnhub.DefaultApi();
 
 // Initialize api things
 const clientKraken        = new ccxt.kraken();
@@ -159,7 +162,7 @@ const clientBinance       = new ccxt.binance();
 const clientBittrex       = new ccxt.bittrex();
 const clientBitfinex      = new ccxt.bitfinex2();
 const clientCoinbase      = new ccxt.coinbasepro();
-let clientcmc;            //Will be initialied upon bot bootup
+let clientcmc;            //Will be initialized upon bot bootup
 
 // Reload Coins
 const reloader            = require('./getCoins');
@@ -514,7 +517,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
     // Special case for a specific badly formatted coin from the API
     if (coins[i].toLowerCase() == "lyxe") {
-      coins[i] = "LYXe"
+      coins[i] = "LYXe";
       ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' ETH`';
       bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' BTC`';
       up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i]].quote.USD.price).toFixed(6)) + ' USD` (`' +
@@ -898,21 +901,19 @@ async function getPriceBittrex(coin1, coin2, chn) {
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing prices of stocks using Alpha Vantage
+// Function for grabbing prices of stocks using Finnhub
 
-async function getStocksAlpha(coin1, chn, usr) {
+async function getStocks(coin1, chn, usr) {
 
-  alpha.data.quote(coin1.toLowerCase().trim()).then(alphaJSON => {
-    let price = alphaJSON["Global Quote"]["05. price"];
-    let vol = alphaJSON["Global Quote"]["06. volume"]; //potential future use
-    let change = alphaJSON["Global Quote"]["10. change percent"];
-    console.log(`${chalk.green('Alpha Vantage API ticker response:')} ${chalk.cyan(price)} ${chalk.green('by:')} ${chalk.yellow(usr.username)}`);
-    chn.send(`Market price for **$${coin1.toUpperCase()}** is: \`${trimDecimalPlaces(price)}\` (\`${parseFloat(change).toFixed(2)}%\`).`);
-  })
-    .catch(function () {
-      chn.send(`API Error: Ticker **${coin1.toUpperCase()}** not found.`);
-      console.log(`${chalk.red('Alpha Vantage API call error for ticker:')} ${chalk.cyan(coin1.toUpperCase())}`);
-    });
+  finnhubClient.quote(coin1.toUpperCase(), (error, data, response) => {
+    if(error || (data.o == 0 && data.c == 0)){
+      chn.send(`Error: Ticker **${coin1.toUpperCase()}** not found or API failed to respond.`);
+      console.log(`${chalk.red('Finnhub API call error for ticker:')} ${chalk.cyan(coin1.toUpperCase())}`);
+    } else{
+      console.log(`${chalk.green('Finnhub API ticker response:')} ${chalk.cyanBright(coin1)} : ${chalk.cyan(data.c)} ${chalk.green('by:')} ${chalk.yellow(usr.username)}`);
+      chn.send(`Market price for **$${coin1.toUpperCase()}** is: \`${trimDecimalPlaces(data.c)}\` (\`${(((data.c/data.o)*100)-100).toFixed(2)}%\`).`);
+    }
+  });
 }
 
 
@@ -2149,6 +2150,15 @@ function commands(message, botAdmin) {
     } else if (command === 'github') {
       msg.channel.send("Hi there! Here's a direct link to stalk my repo on Github: \n" + "https://github.com/YoloSwagDogDiggity/TsukiBot");
 
+      // Send donation ETH address
+    } else if (command === 'donate') {
+      msg.channel.send("ETH & ERC20: `0x169381506870283cbABC52034E4ECc123f3FAD02`\n" +
+        "BTC: `3NkBA4PFXZ1RgoBeJNAjeEpxDt9xfXiGg2`\n" +
+        "LTC: `MJVUeYbcsEptLvgvwyPrXT1ytCYyY9q9oi`\n" +
+        "ETC: `0xC4664CEB646494f0Fd6E2ddDCbF69e3Ee584219B`\n" +
+        "ZEC: `t1YwhAZYPHo2LSYg4329kQbSEooWQAJaDxT`\n\n" +
+        "Thank you so much for the support! :smile:");
+
       // Send link to the the user's avatar
     } else if (command === 'avatar' || command === 'myavatar') {
       msg.channel.send(msg.author.avatarURL());
@@ -2220,9 +2230,9 @@ function commands(message, botAdmin) {
           } else if (command === 'st' || command === 'stex') {
             getPriceSTEX(channel, code_in[1], code_in[2]);
 
-            // STEX call (skip the filter)
+            // Finnhub call (skip the filter)
           } else if (command === 'stocks' || command === 'stock') {
-            getStocksAlpha(code_in[1], channel, message.author);
+            getStocks(code_in[1], channel, message.author);
 
             // CryptoCompare call
           } else if (command === 'cryptocompare' || command === 'c' || command === 'cs' || command === 'cc') {
@@ -2550,7 +2560,7 @@ async function getTradingViewChart(message) {
 
     let query = args.slice(2);
 
-    let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox']});
+    let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
     let page = await browser.newPage();
     await page.goto(`http://localhost:8080/${args[1]}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
     await page.click('#tradingview_bc0b0');
@@ -2584,7 +2594,7 @@ async function getTradingViewChart(message) {
     await browser.close();
   } catch (err) {
     console.log(err);
-    message.channel.send("```Something bad done happened :(```")
+    message.channel.send("```An error occured, try again in a couple seconds :(```");
   }
 }
 
@@ -2595,7 +2605,7 @@ function getCoin360Heatmap(message) {
     path: '/api/share?width=1440&height=1200&path=/&search=getScreen%26zoom%3D%7B%22x%22%3A0%2C%22y%22%3A0%2C%22k%22%3A1%7D',
     method: 'GET',
     headers: { 'User-Agent': 'Mozilla/5.0' },
-  }
+  };
 
   const req = https.request(options, res => {
     const { statusCode } = res;
@@ -2627,13 +2637,13 @@ function getCoin360Heatmap(message) {
         console.error(e.message);
       }
     });
-  })
+  });
 
   req.on('error', error => {
-    console.error(error, Object.keys(error))
-  })
+    console.error(error, Object.keys(error));
+  });
 
-  req.end()
+  req.end();
 }
 
 // Convert USD price to ETH value
@@ -3006,10 +3016,10 @@ function chartServer() {
   app.get('/:ticker', function(req, res) {
     let query = req.query.query.split(",");
 
-    const intervalKeys = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w']
-    const intervalMap = { '1m':'1', '3m':'3', '5m':'5', '15m':'15', '30m':'30', '1h':'60', '2h':'120', '3h':'180', '4h':'240', '1d':'D', '1w':'W' }
+    const intervalKeys = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w'];
+    const intervalMap = { '1m':'1', '3m':'3', '5m':'5', '15m':'15', '30m':'30', '1h':'60', '2h':'120', '3h':'180', '4h':'240', '1d':'D', '1w':'W' };
     
-    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr']
+    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr'];
     const studiesMap = {
       'bb': "BB@tv-basicstudies",
       'bbr': "BollingerBandsR@tv-basicstudies",
@@ -3029,7 +3039,7 @@ function chartServer() {
       'stoch': "Stochastic@tv-basicstudies",
       'stochrsi': "StochasticRSI@tv-basicstudies",
       'williamr': "WilliamR@tv-basicstudies"
-    }
+    };
 
     let intervalKey = '1h';
     let selectedStudies = [];
@@ -3070,11 +3080,11 @@ function chartServer() {
       </script>
     </div>
     <!-- TradingView Widget END -->`);
-    res.end() 
+    res.end();
   });
   app.listen(port, () => {
-    console.log(`Chart server listening at http://localhost:${port}`)
-  })
+    console.log(`Chart server listening at http://localhost:${port}`);
+  });
 }
 
 // Error event logging
