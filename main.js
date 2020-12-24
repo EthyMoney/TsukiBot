@@ -1519,7 +1519,6 @@ function getMarketCapSpecific(message) {
   cur = message.content.replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
   cur = cur.toUpperCase();
 
-  console.log(cur)
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
   //special handling for specific badly formatted coin from API
   if (cur == 'LYXE') {
@@ -1997,10 +1996,12 @@ function commands(message, botAdmin) {
   // Integrated Market Cap functionality
   if (message.content.toUpperCase() === "MC") {
     getMarketCap(message);
+    return;
   }
   // Check if message requests a specific coin (market cap)
   if (message.content.split(" ")[0].toUpperCase() === "MC") {
     getMarketCapSpecific(message);
+    return;
   }
   let string = "";
   string = message.content.toUpperCase();
@@ -2381,9 +2382,13 @@ function commands(message, botAdmin) {
     } else if (scommand === 'b') {
       getPriceBittrex('ETH', 'USD', channel);
 
-      // Get BitMEX ETHUSDT
+      // Get BitMEX ETHUSD
     } else if (scommand === 'm') {
       getPriceMex('ETH', 'none', channel);
+
+      // Get Binance ETHUSD
+    } else if (scommand === 'n') {
+      getPriceBinance("ETH", "USD", channel);
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h') {
