@@ -1546,8 +1546,8 @@ function getMarketCapSpecific(message) {
         let totalSupply = ticker[i].total_supply;
         let maxSupply = ticker[i].max_supply;
         let percent1h = ticker[i].quote.USD.percent_change_1h;
-        if (symbol == "ETH") { priceETH = 1; }
-        if (symbol == "BTC") { priceBTC = 1; }
+        if (symbol == "ETH") { priceETH = 1; } else { priceETH = convertToETHPrice(price).toFixed(6); }
+        if (symbol == "BTC") { priceBTC = 1; } else { priceBTC = convertToBTCPrice(price).toFixed(8); }
 
         //checking for missing data and generating the text lines that will be used in the final response message
         let l1,l2,l3,l4,l5,l6,l71,l72,l73,l81,l82,l83;
@@ -1558,8 +1558,8 @@ function getMarketCapSpecific(message) {
         l5 = (totalSupply) ? `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n` : `Total Supply: n/a\n`;
         l6 = (maxSupply) ? `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n` : `Max Supply: n/a\n`;
         l71 = (price) ? `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n` : `USD: n/a\n`;
-        l72 = (price) ? `BTC: \`${trimDecimalPlaces(convertToBTCPrice(price).toFixed(8))}\`\n` : `BTC: n/a\n`;
-        l73 = (price) ? `ETH: \`${trimDecimalPlaces(convertToETHPrice(price).toFixed(6))}\`` : `ETH: n/a`;
+        l72 = (price) ? `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n` : `BTC: n/a\n`;
+        l73 = (price) ? `ETH: \`${trimDecimalPlaces(priceETH)}\`` : `ETH: n/a`;
         l81 = (percent1h) ? `1h: \`${parseFloat(percent1h).toFixed(2)}%\`\n` : `1h: n/a\n`;
         l82 = (percent) ? `24h: \`${parseFloat(percent).toFixed(2)}%\`\n` : `24h: n/a\n`;
         l83 = (percent7) ? `7d: \`${parseFloat(percent7).toFixed(2)}%\`` : `7d: n/a`;
@@ -1615,13 +1615,8 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 
   const conString = "postgres://bigboi:" + keys.tsukibot + "@localhost:5432/tsukibot";
 
-  if (action === '')
-    coins = '{' + coins + '}';
-
   let conn = new pg.Client(conString);
   conn.connect();
-
-  let query;
 
   // delete .tbpa command after 5 min (optional)
   // msg.delete({ timeout: 300000 });
@@ -1656,8 +1651,6 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
         } else {
           console.log("Sent missing tbpa notice to " + chalk.blue(msg.member.user.tag));
           chn.send('Looks like you don\'t currently have a saved array. You can set your array with `.tb pa [array]`. Example usage: `.tb pa btc eth xrp .....`');
-          chn.send('**Surprised by this message?** Read this: Any recently created or modified arrays were lost in a database corruption. Go ahead and set your array again to get it back.' +
-          ' Sorry for this inconvenience, I\'m working to make sure this doesn\'t happen again.');
         }
       }
       conn.end();
@@ -1666,14 +1659,37 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 
     // .tb pa call (create new list or overwrite existing)
   } else {
+
+    if (coins.length == 0) {
+      // help message for when no input is given to modification command
+      chn.send("**Here's how to set up or modify your tbpa:**\n" +
+        ":small_blue_diamond: To set a new tbpa or overwrite an existing one, use `.tb pa <coins>`." +
+        "\n          **Example:** `.tb pa eth btc gnt ...`\n" +
+        ":small_blue_diamond: To add or remove from an existing tbpa, simply put a + or - right after the \"pa\"." +
+        "\n          **Example:**  Add: `.tb pa+ dot xlm fil ...`  Remove: `.tb pa- dot eth ...`\n\n" +
+        ":notepad_spiral: You can always do one coin, or even multiple coins at a time (as seen above)." +
+        " For any further questions, use `.tb help` to see the more detailed commands guide");
+      return;
+    }
+    // filter out any invalid cmc coins and notify user of them accordingly
+    let cleanedCoins = coins.filter(function (value) {
+      return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+    });
+    let invalidCoins = coins.filter(e => !pairs.includes(e.toUpperCase()));
+    let invalidCoinsMessage = '';
+    if (invalidCoins.length > 0) {
+      invalidCoinsMessage = "\nNOTE: The following coins were not found on CMC and have been automatically excluded: `" + invalidCoins.toString() + "`";
+    }
+
     if (action === '') {
+      coins = `{${cleanedCoins}}`;
       query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, coins.toLowerCase()], (err, res) => {
         if (err) { chalk.red.bold((err + "------TB PA query insert error")); }
-        else { chn.send("Personal array set: `" + coins.toLowerCase() + "` for <@" + id + ">."); }
+        else { chn.send("Personal array set: `" + coins.toLowerCase() + "` for <@" + id + ">." + invalidCoinsMessage); }
         conn.end();
       });
 
-      // edit existing list
+      // edit existing tbpa list
     } else {
       const command = (action === '-') ? 'REMOVE' : 'ADD';
       query = conn.query("SELECT * FROM tsukibot.profiles where id = $1;", [id], (err, res) => {
@@ -1690,7 +1706,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
           }
           if (command === 'REMOVE') {
             if (typeof inStr === 'undefined') {
-              chn.send('There\'s nothing to remove, remove action aborted.');
+              chn.send('There\'s nothing to remove! Your request has been aborted.');
               console.log(chalk.red.bold('Remove action aborted on null tbpa. Request was sent by: ' + chalk.yellow(msg.author.username)));
             }
             else {
@@ -1712,12 +1728,13 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
               query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, '{' + inStr + '}'], (err, res) => {
                 if (err) { console.log(chalk.red.bold(err + "------TB PA remove insert query error")); }
-                else { chn.send("Personal array modified."); }
+                else { chn.send("Personal array modified."); } 
                 conn.end();
               });
             }
           }
           if (command === 'ADD') {
+            coins = cleanedCoins;
             //Check if user has an entry in the DB
             if (typeof inStr === 'undefined') {
               chn.send('There is no tbpa entry found for your profile, create one by using the command `.tb pa (coins here)` Example: `.tb pa btc eth xrp gnt .....`');
@@ -1732,7 +1749,8 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
               query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, '{' + inStr + '}'], (err, res) => {
                 if (err) { console.log(chalk.red.bold(err + "------TB PA add insert query error")); }
-                else { chn.send("Personal array modified."); }
+                else { if(coins.length > 0) {chn.send("Personal array modified. Added: `" + cleanedCoins.toString() + "`" + invalidCoinsMessage);} 
+                  else{chn.send("Your provided coin(s) were not found listed on CoinMarketCap. Your request has been aborted.\nMake sure your coins are valid CMC-listed coins!");}}
                 conn.end();
               });
             }
@@ -2184,8 +2202,8 @@ function commands(message, botAdmin) {
       //
 
 
-      // Check if there is content
-      if ((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1)) {
+      // Check if there is parameter content ("pa" and "mc" are exceptions to this rule since they can be called as standalone commands)
+      if ((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1) || (['pa'].indexOf(command) > -1)) {
 
         /* --------------------------------------------------------------------------------
           First we need to get the supplied coin list. Then we apply a filter function. 
@@ -2193,6 +2211,7 @@ function commands(message, botAdmin) {
           Coins not found are skipped for the commands that don't skip this filter.
         ---------------------------------------------------------------------------------- */
 
+        let paramsUnfiltered = code_in.slice(1, code_in.length);
         let params = code_in.slice(1, code_in.length).filter(function (value) {
           return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
         });
@@ -2206,7 +2225,8 @@ function commands(message, botAdmin) {
 
         // Keeping the pad
         params.unshift('0');
-        if (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'mc', 'stocks', 'stock', 'info', 'gr', 'graviex', 'grav'].indexOf(command) > -1) {
+        if (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'mc', 'stocks', 'stock', 'info',
+          'gr', 'graviex', 'grav', 'pa', 'pa+', 'pa-', 'cmc', 'e', 'etherscan', 'binance', 'n'].indexOf(command) > -1) {
 
           // Coinbase call
           if (command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase') {
@@ -2264,10 +2284,7 @@ function commands(message, botAdmin) {
             // Configure personal array
           } else if (/pa[\+\-]?/.test(command)) {
             let action = command[2] || '';
-            params.splice(0, 1);
-
-            params.map(function (x) { return x.toUpperCase(); });
-            getCoinArray(message.author.id, channel, message, params, action);
+            getCoinArray(message.author.id, channel, message, paramsUnfiltered, action);
 
             // Toggle shortcut
           } else if (command === 'shortcut') {
