@@ -2094,7 +2094,7 @@ function commands(message, botAdmin) {
   if (hasPfx === "") {
     if (shortcutConfig[message.guild.id] === code_in[0].toLowerCase()) {
       code_in.shift();
-      console.log(chalk.green('CMC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+      console.log(chalk.green('CMC shortcut call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
       getPriceCMC(code_in, channel, '-');
       return;
     }
@@ -2248,6 +2248,7 @@ function commands(message, botAdmin) {
           } else if (command === 'cmc' || command === 'cmcs') {
             let ext = command.slice(-1);
             code_in.splice(0, 1);
+            console.log(chalk.green('CMC long-hand call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
             getPriceCMC(code_in, channel, '-', ext);
 
             // Coin description call
@@ -2326,13 +2327,33 @@ function commands(message, botAdmin) {
 
             // Catch-all help
           } else {
-            postHelp(message, message.author, command);
+            // Before giving up, lest see if this is a command-less price call
+            let potentialCoins = code_in.filter(function (value) {
+              return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+            });
+            if (potentialCoins.length > 0) {
+              console.log(chalk.green('CMC base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+              getPriceCMC(potentialCoins, channel, '-');
+            }
+            else {
+              postHelp(message, message.author, command);
+            }
           }
         } else {
           postHelp(message, message.author, command);
         }
       } else {
-        postHelp(message, message.author, command);
+        // Before giving up, lest see if this is a command-less price call
+        let potentialCoins = code_in.filter(function (value) {
+          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+        });
+        if(potentialCoins.length > 0){
+          console.log(chalk.green('CMC base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+          getPriceCMC(potentialCoins, channel, '-');
+        }
+        else{
+          postHelp(message, message.author, command);
+        }
       }
     }
 
