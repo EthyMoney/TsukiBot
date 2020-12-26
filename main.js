@@ -1516,7 +1516,7 @@ function getMarketCapSpecific(message) {
   let cursor = 1;
   let cur = '';
   //cut the command prefixes and any leading/trailing spaces
-  cur = message.content.replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
+  cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
   cur = cur.toUpperCase();
 
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
