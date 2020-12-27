@@ -2602,20 +2602,36 @@ function postSessionStats(message) {
   message.channel.send({ embed });
 }
 
-// Request a TradingView widget chart from the express server
-async function getTradingViewChart(message) {
-  let args = message.content.split(' ');
-
+async function getChart(msg, args, browser, page, chartMsg, attempt) {
   try {
     if (args.length < 2) {
-      message.reply('Insufficient amount of arguments provided');
+      msg.reply('Insufficient amount of arguments provided');
       return;
     }
 
     let query = args.slice(2);
+    if (attempt == 1) {
+      msg.channel.send('Fetching ``' + msg.content + '``')
+      .then(sentMsg => {
+        chartMsg = sentMsg;
+      });
+    } else {
+      chartMsg.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + msg.content + '``');
+    }
 
-    let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-    let page = await browser.newPage();
+    let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken', 'kucoin', 'okcoin', 'okex', 'poloniex']
+    exchanges.forEach(exchange => {
+      if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
+        args[1] = exchange + ':' + args[1];
+      }
+    });
+    
+    browser = await puppeteer.launch({
+      headless: true,
+      // executablePath:'/usr/bin/chromium-browser',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    page = await browser.newPage();
     await page.goto(`http://localhost:8080/${args[1]}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
     await page.click('#tradingview_bc0b0');
 
@@ -2631,25 +2647,32 @@ async function getTradingViewChart(message) {
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    await frame.waitFor(3500);
-    await frame.waitForSelector('.textInput-3WRWEmm7');
-    const chartLinkInput = await frame.$(".textInput-3WRWEmm7");
-    message.channel.send(await frame.evaluate(x => x.value, chartLinkInput));
+    await frame.waitFor(2500);
+    // await frame.waitForSelector('.input-1Fp9QlzO');
+    const chartLinkInput = await frame.$(".input-1Fp9QlzO");
+    chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
 
-    /* 
-    await page.setViewport({ width: 1920, height: 960 });
-    await page.screenshot({
-      path: "./screenshot.png",
-      type: "png",
-      fullPage: true
-    });
-    */
     await page.close();
     await browser.close();
   } catch (err) {
     console.log(err);
-    message.channel.send("```An error occured, try again in a couple seconds :(```");
+    await page.close();
+    await browser.close();
+    if (attempt < 3) {
+      attempt = attempt + 1;
+      getChart(msg, args, browser, page, chartMsg, attempt);
+    }
+    else {
+      chartMsg.edit('```TradingView Widget threw error' + `, all re-attempts exhausted :(` + '```');
+    }
   }
+}
+
+// Request a TradingView widget chart from the express server
+async function getTradingViewChart(message) {
+  let args = message.content.split(' ');
+  let browser, page, chartMsg;
+  getChart(message, args, browser, page, chartMsg, 1);
 }
 
 // Request a Coin360 style heatmap
@@ -3070,10 +3093,10 @@ function chartServer() {
   app.get('/:ticker', function(req, res) {
     let query = req.query.query.split(",");
 
-    const intervalKeys = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w'];
-    const intervalMap = { '1m':'1', '3m':'3', '5m':'5', '15m':'15', '30m':'30', '1h':'60', '2h':'120', '3h':'180', '4h':'240', '1d':'D', '1w':'W' };
+    const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd', 'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly']
+    const intervalMap = { '1m':'1', '1':'1', '3m':'3', '3':'3', '5m':'5', '5':'5', '15m':'15', '15':'15', '30m':'30', '30':'30', '1h':'60', '60':'60', '2h':'120', '120':'120', '3h':'180', '180':'180', '4h':'240', '240':'240', '1d':'D', 'd':'D', 'day':'D', 'daily':'D', '1w':'W', 'w':'W', 'week':'W', 'weekly':'W', '1mo':'M', 'm':'M', 'mo':'M', 'month':'M', 'monthly':'M' }
     
-    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr'];
+    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr']
     const studiesMap = {
       'bb': "BB@tv-basicstudies",
       'bbr': "BollingerBandsR@tv-basicstudies",
