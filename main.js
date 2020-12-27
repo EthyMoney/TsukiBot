@@ -2647,7 +2647,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    await frame.waitFor(2500);
+    await frame.waitFor(3500);
     // await frame.waitForSelector('.input-1Fp9QlzO');
     const chartLinkInput = await frame.$(".input-1Fp9QlzO");
     chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
