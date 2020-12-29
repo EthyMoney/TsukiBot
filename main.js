@@ -2628,7 +2628,8 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     
     browser = await puppeteer.launch({
       headless: true,
-      // executablePath:'/usr/bin/chromium-browser',
+      // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
+      executablePath:'/usr/bin/chromium-browser',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     page = await browser.newPage();
