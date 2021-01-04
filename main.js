@@ -1940,12 +1940,10 @@ client.on('message', message => {
   // Check for, and ignore DM channels (this is a safety precaution)
   if (message.channel.type !== 'text') return;
 
-  // Forward message to the commands processor
-  commands(message, false);
-
   // Internal bot admin controls (For official bot use only. You can ignore this.)
   if (message.author.id === '210259922888163329' && keys.dbl == "yes") {
-    if (message.content.includes(admin['1'])) {
+    adminMessage = message.content.toLowerCase();
+    if (adminMessage.includes(admin['1'])) {
       if (auto) {
         message.channel.send("Already set to auto.");
       }
@@ -1953,25 +1951,40 @@ client.on('message', message => {
         auto = true;
         updateCmcKey();
         message.channel.send(admin['11'] + selectedKey);
+        getCMCData();
       }
     }
-    if (message.content.includes(admin['2'])) {
+    if (adminMessage.includes(admin['2'])) {
       auto = false;
       updateCmcKey(message.content.split(" ").slice(-1));
       message.channel.send(admin['22'] + selectedKey);
+      getCMCData();
     }
-    if (message.content.includes(admin['3'])) {
+    if (adminMessage.includes(admin['3'])) {
       message.channel.send(admin['33'] + selectedKey);
     }
-    if (message.content.includes(admin['4'])) {
+    if (adminMessage.includes(admin['4'])) {
       keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
       message.channel.send(admin['44']);
+      updateCmcKey();
+      getCMCData();
     }
-    if (message.content.includes(admin['5'])) {
-      message.channel.send(admin['55'] + cmcArrayDictParsed.length);
+    if (adminMessage.includes(admin['5'])) {
+      if(cmcArrayDictParsed.length){
+        message.channel.send(admin['55'] + cmcArrayDictParsed.length);
+      }
+      else{
+        message.channel.send("Error: Cache is empty. There is likely an issue with the current key!");
+      }
     }
   }
+
+  // Forward message to the commands processor
+  commands(message, false);
 });
+
+
+
 
 /* -------------------------------------------------------
 
@@ -2866,23 +2879,31 @@ function updateCmcKey(override) {
 
   if (auto) {
     //Key assignment by time
-    if (hour === 0 || hour === 1) { selectedKey = 1; }
-    if (hour === 2 || hour === 3) { selectedKey = 2; }
-    if (hour === 4 || hour === 5) { selectedKey = 3; }
-    if (hour === 6 || hour === 7) { selectedKey = 4; }
-    if (hour === 8 || hour === 9) { selectedKey = 5; }
-    if (hour === 10 || hour === 11) { selectedKey = 6; }
-    if (hour === 12 || hour === 13) { selectedKey = 7; }
-    if (hour === 14 || hour === 15) { selectedKey = 8; }
-    if (hour === 16 || hour === 17) { selectedKey = 9; }
-    if (hour === 18 || hour === 19) { selectedKey = 10; }
-    if (hour === 20 || hour === 21) { selectedKey = 11; }
-    if (hour === 22 || hour === 23) { selectedKey = 12; }
+    switch (hour) {
+      case 0: case 1: selectedKey = 1; break;
+      case 2: case 3: selectedKey = 2; break;
+      case 4: case 5: selectedKey = 3; break;
+      case 6: case 7: selectedKey = 4; break;
+      case 8: case 9: selectedKey = 5; break;
+      case 10: case 11: selectedKey = 6; break;
+      case 12: case 13: selectedKey = 7; break;
+      case 14: case 15: selectedKey = 8; break;
+      case 16: case 17: selectedKey = 9; break;
+      case 18: case 19: selectedKey = 10; break;
+      case 20: case 21: selectedKey = 11; break;
+      case 22: case 23: selectedKey = 12;
+    }
   }
   //Update client to operate with new key
-  clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
-  //        console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) + 
-  //            " and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
+  if (selectedKey.toString().length <= 2){
+    clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
+      //console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) +
+      //" and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
+  }
+  else{
+    clientcmc = new CoinMarketCap(keys[selectedKey]);
+  }
+
   return selectedKey;
 }
 
