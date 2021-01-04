@@ -2661,7 +2661,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    await frame.waitFor(3500);
+    await frame.waitForTimeout(3500);
     // await frame.waitForSelector('.input-1Fp9QlzO');
     const chartLinkInput = await frame.$(".input-1Fp9QlzO");
     chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
@@ -2684,8 +2684,10 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
 // Request a TradingView widget chart from the express server
 async function getTradingViewChart(message) {
-  let args = message.content.split(' ');
+  let args = message.content.toLowerCase().split(' ');
   let browser, page, chartMsg;
+  console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${
+    chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
   getChart(message, args, browser, page, chartMsg, 1);
 }
 
