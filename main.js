@@ -177,7 +177,7 @@ const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=5
 let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey);    // update cmc key the first minute after every hour
+let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey());  // update cmc key the first minute after every hour
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
 
 
@@ -502,10 +502,8 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
     msgh = '__CoinMarketCap__ Price for:\n';
   }
   let msg = '';
-  let flag = false;
-  let ep, bp, up; //pricing values
+  let ep, bp, up; //pricing values (usd, btc, eth)
 
-  let bpchg = parseFloat(cmcArrayDict.BTC.quote.USD.percent_change_24h);
   for (let i = 0; i < coins.length; i++) {
     if (!cmcArrayDict[coins[i].toUpperCase()]) {
       let g = didyoumean(coins[i].toUpperCase(), Object.keys(cmcArrayDict));
@@ -518,17 +516,25 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
     // Special case for a specific badly formatted coin from the API
     if (coins[i].toLowerCase() == "lyxe") {
       coins[i] = "LYXe";
-      ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' ETH`';
-      bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i]].quote.USD.price)).toFixed(8)) + ' BTC`';
-      up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i]].quote.USD.price).toFixed(6)) + ' USD` (`' +
-        Math.round(parseFloat(cmcArrayDict[coins[i]].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
     }
-    else {
-      ep = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' ETH`';
-      bp = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8)) + ' BTC`';
-      up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6)) + ' USD` (`' +
-        Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
-    }
+
+    //log the json entry for selected coin
+    //console.log(cmcArrayDict[coins[i].toUpperCase()]);
+
+    // Get the price data from cache and format it accordingly
+    let plainPriceUSD = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6));
+    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
+    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
+    let upchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100;
+    //unused due to api key limits
+    //let bpchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.BTC.percent_change_24h) * 100) / 100;
+    //let epchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.ETH.percent_change_24h) * 100) / 100;
+
+    // Assembling the text lines for response message
+    up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+    bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
+    ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
+    // ! TO-DO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
     switch (action) {
@@ -538,7 +544,6 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
       case '+':
         msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          up + ' `⇒` `' +
           bp + "\n");
         break;
 
@@ -550,7 +555,6 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
       case 'e':
         msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          up + ' `⇒` `' +
           ep + "\n");
         break;
 
@@ -2933,7 +2937,8 @@ async function getCMCData() {
     });
   } catch (err) {
     fails++;
-    console.error(chalk.red.bold("failed to update cmc dictionary " + chalk.cyan(fails) + " times!"));
+    console.error(chalk.red.bold("ERROR UPDATING CMC CACHE! This is attempt number: " + chalk.cyan(fails) + " : API response below:"));
+    console.log(cmcJSON);
   }
   //console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
 }
