@@ -861,10 +861,8 @@ async function getPriceBittrex(coin1, coin2, chn) {
   let s = parseFloat(tickerJSON.last).toFixed(8);
   s = trimDecimalPlaces(s);
   console.log(chalk.green('Bittrex API ticker response: ' + chalk.cyan(s)));
-  let c = tickerJSON.percentage;
-  c = Math.round(c * 100) / 100;
 
-  let ans = '__Bittrex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+  let ans = '__Bittrex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '`.';
   chn.send(ans);
 }
 
