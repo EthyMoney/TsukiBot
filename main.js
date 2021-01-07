@@ -101,15 +101,7 @@ const app                 = express();
 chartServer();
 
 // Puppeteer for to interact with the headless server and manipulate charts
-const puppeteer           = require('puppeteer'); 
-
-// STEX API client setup
-// const stex                = require('stocks-exchange-client'),
-//                           option = {
-//                             api_key:keys.stex,
-//                             api_secret:keys.stexSecret
-//                           },
-// stexClient                = new stex.client(option, 'https://app.stex.com/api2', 2);
+const puppeteer           = require('puppeteer');
 
 // Graviex key insertion
 graviex.accessKey         = keys.graviexAccessKey;    
@@ -162,6 +154,7 @@ const clientBinance       = new ccxt.binance();
 const clientBittrex       = new ccxt.bittrex();
 const clientBitfinex      = new ccxt.bitfinex2();
 const clientCoinbase      = new ccxt.coinbasepro();
+const clientStex          = new ccxt.stex();
 let clientcmc;            //Will be initialized upon bot bootup
 
 // Reload Coins
@@ -294,59 +287,31 @@ async function getPriceGraviex(chn, coin1, coin2) {
 
 async function getPriceSTEX(chn, coin1, coin2) {
 
-  //default to usdt if none is provided
+  let fail = false;
+  let tickerJSON = '';
   if (typeof coin2 === 'undefined') {
     coin2 = 'BTC';
   }
   if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc') {
     coin2 = 'USDT';
   }
-  let tickerJSON = '';
-  let fail = false;
-  let yesterday = 0;
-  let last = 0;
-  let s = 0;
-
-  //grab last traded price and make sure requested pair is valid
-  await stexClient.tradeHistoryPub(coin1.toUpperCase() + "_" + coin2.toUpperCase(), function (res) {
-    tickerJSON = JSON.parse(res);
-    if (tickerJSON.success === 0 || typeof tickerJSON.success === 'undefined') { fail = true; }
-
-    //exit the function if ticker didn't exist or api failed to respond
-    if (fail) {
-      chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__');
-      return;
-    }
-    if (tickerJSON.result[0]) {
-      s = tickerJSON.result[0].price;
-    }
-    else {
-      chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__. Try a different pair.');
-      return;
-    }
-
-    //grab 24hr data
-    stexClient.ticker(function (res) {
-      let tickerStexSummary = JSON.parse(res);
-      for (var i = 0, len = tickerStexSummary.length; i < len; i++) {
-        if (tickerStexSummary[i].market_name === (coin1.toUpperCase() + "_" + coin2.toUpperCase())) {
-          last = tickerStexSummary[i].last;
-          yesterday = tickerStexSummary[i].lastDayAgo;
-          break;
-        }
-      }
-      console.log(chalk.green('STEX API ticker response: ' + chalk.cyan(s)));
-
-      //calculate % change from day-old price
-      let c = (last - yesterday);
-      c = c / yesterday * 100;
-      c = Math.round(c * 100) / 100;
-      s = trimDecimalPlaces(s);
-
-      let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
-      chn.send(ans);
-    });
+  tickerJSON = await clientStex.fetchTicker(coin1.toUpperCase() + '/' + coin2.toUpperCase()).catch(function (rej) {
+    console.log(chalk.red.bold('STEX error: Ticker ' + chalk.cyan(coin1.toUpperCase() + '/' + coin2.toUpperCase()) + ' not found!'));
+    chn.send('API Error:  STEX does not have market symbol __' + coin1.toUpperCase() + '/' + coin2.toUpperCase() + '__ or the API failed to respond at this time.');
+    fail = true;
   });
+  if (fail) {
+    //exit the function if ticker didn't exist, or api failed to respond
+    return;
+  }
+  let s = parseFloat(tickerJSON.last).toFixed(8);
+  s = trimDecimalPlaces(s);
+  console.log(chalk.green('STEX API ticker response: ' + chalk.cyan(s)));
+  let c = tickerJSON.info.change;
+  c = parseFloat(c).toFixed(2);
+
+  let ans = '__STEX__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + c + '%' + '`' + ')' + '.';
+  chn.send(ans);
 }
 
 
