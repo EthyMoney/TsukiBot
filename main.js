@@ -30,7 +30,7 @@
 // -------------------------------------------
 
 // 1. Make sure you have node.js and npm installed and ready to use. Node version 14.x or newer is required.
-// 2. Open a temrinal in the project directory and run the command "npm install" to install all required dependencies.
+// 2. Open a terminal in the project directory and run the command "npm install" to install all required dependencies.
 // 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
 // 4. Set up your PostgreSQL database according to the schema defined in the docs folder.
@@ -170,8 +170,10 @@ const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=5
 let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', updateCmcKey());  // update cmc key the first minute after every hour
-let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // publish every 3 hours
+let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats);     // publish every 3 hours
+let updateCMCKey = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
+  updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
+});
 
 
 
@@ -189,7 +191,7 @@ let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats); // pub
     These methods are calls on the api of the
     respective exchanges and other services
     for price checks and so much more.
-    These methods are the core funcionality
+    These methods are the core functionality
     of the bot. Command calls will usually end
     in one of these.
 
@@ -1107,7 +1109,7 @@ async function getMexLongsShorts(channel) {
 //------------------------------------------
 //------------------------------------------
 
-// Fuction that converts value of one coin into value in terms of another coin using CG prices
+// Function that converts value of one coin into value in terms of another coin using CG prices
 
 async function priceConversionTool(coin1, coin2, amount, chn) {
 
