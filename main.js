@@ -889,7 +889,7 @@ async function getStocks(coin1, chn, usr) {
 //------------------------------------------
 //------------------------------------------
 
-// Function to grab coin purpose and description data from cached CMC metadata
+// Function to grab coin purpose and description data from cached CoinGecko metadata
 
 async function getCoinDescription(coin1, chn, usr) {
 
@@ -912,22 +912,21 @@ async function getCoinDescription(coin1, chn, usr) {
     let logo = '';
     let text = null;
 
-    // grab logo
+    // grab logo and description if found
     for (let j = 0, len = metadata.data.length; j < len; j++) {
-      if (metadata.data[j].coin === coin1.toUpperCase()) {
+      if (metadata.data[j].coin.toUpperCase() === coin1.toUpperCase()) {
         if (metadata.data[j].logo) {
           logo = metadata.data[j].logo;
         } else {
-          // default to cmc logo
-          logo = 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
-            'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg';
+          // default to CoinGecko logo if coin doesn't have one yet
+          logo = 'https://i.imgur.com/EnWbbrN.png';
         }
         if (metadata.data[j].description) {
           text = metadata.data[j].description;
           break;
         } else {
-          chn.send("**Error:** CMC does not yet have a description for __" + coin1.toUpperCase() + "__");
-          console.log(chalk.red("No CMC desc found for " + chalk.cyan(coin1.toUpperCase())));
+          chn.send("**Error:** CoinGecko does not yet have a description for __" + coin1.toUpperCase() + "__");
+          console.log(chalk.red("No CoinGecko desc found for " + chalk.cyan(coin1.toUpperCase())));
           return;
         }
       }
@@ -936,6 +935,7 @@ async function getCoinDescription(coin1, chn, usr) {
     // check for missing description and exit if missing
     if (!text) {
       chn.send("No description is currently available for **" + coin1.toUpperCase() + "**.");
+      console.log(chalk.red("No CoinGecko desc found for " + chalk.cyan(coin1.toUpperCase())));
       return;
     }
 
@@ -945,8 +945,7 @@ async function getCoinDescription(coin1, chn, usr) {
         .addField("About " + capitalizeFirstLetter(name) + ":", text)
         .setColor('#1b51be')
         .setThumbnail(logo)
-        .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
-          'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+        .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
       chn.send({ embed }).catch(function (rej) {
         chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -954,7 +953,7 @@ async function getCoinDescription(coin1, chn, usr) {
       });
     }
     else {
-      let pages = text.replace(/\s+/g, ' ').trim().match(/.{1,1024}/g); //array of the 1024 character chunks of text
+      let pages = chunkString(text, 1024);
       let blockCursor = 1;
 
       pages.forEach(function (element) {
@@ -962,8 +961,7 @@ async function getCoinDescription(coin1, chn, usr) {
           .addField("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):", element)
           .setColor('#1b51be')
           .setThumbnail(logo)
-          .setFooter('Source: CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
-            'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+          .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
         chn.send({ embed }).catch(function (rej) {
           channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -974,7 +972,7 @@ async function getCoinDescription(coin1, chn, usr) {
     }
   }
   else {
-    chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CMC.");
+    chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CoinGecko.");
   }
 }
 
@@ -2544,6 +2542,41 @@ function translateEN(chn, msg, sneak) {
   }).catch(err => {
     console.error(err);
   });
+}
+
+// Split up large strings by length provided without breaking words or links within them
+function chunkString(str, len) {
+  let input = respectBracketsSpaceSplit(str.trim());
+  let [index, output] = [0, []];
+  output[index] = '';
+  input.forEach(word => {
+    let temp = `${output[index]} ${word}`.trim();
+    if (temp.length <= len) {
+      output[index] = temp;
+    } else {
+      index++;
+      output[index] = word;
+    }
+  });
+  return output;
+}
+
+// Split a string by spaces while keeping strings within brackets intact as one chunk (this assists the chunkString function)
+function respectBracketsSpaceSplit(input) {
+  var i = 0, stack = [], parts = [], part = '';
+  while (i < input.length) {
+    var c = input[i]; i++;  // get character
+    if (c == ' ' && stack.length == 0) {
+      parts.push(part.replace(/"/g, '\\\"'));  // append part
+      part = '';  // reset part accumulator
+      continue;
+    }
+    if (c == '[') stack.push(c);  // begin square brace
+    else if (c == ']' && stack[stack.length - 1] == '[') stack.pop();  // end square brace
+    part += c; // append character to current part
+  }
+  if (part.length > 0) parts.push(part.replace(/"/g, '\\\"'));  // append remaining part
+  return parts;
 }
 
 // Check if string is a valid URL
