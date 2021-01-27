@@ -940,9 +940,10 @@ async function getCoinDescription(coin1, chn, usr) {
     }
 
     // check against discord's embed feild size limit and split if necessary
-    if (text.length <= 1024) {
+    if (text.length <= 2048) {
       let embed = new Discord.MessageEmbed()
-        .addField("About " + capitalizeFirstLetter(name) + ":", text)
+        .setTitle("About " + capitalizeFirstLetter(name) + ":")
+        .setDescription(text)
         .setColor('#1b51be')
         .setThumbnail(logo)
         .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
@@ -953,18 +954,19 @@ async function getCoinDescription(coin1, chn, usr) {
       });
     }
     else {
-      let pages = chunkString(text, 1024);
+      let pages = chunkString(text, 2048);
       let blockCursor = 1;
 
       pages.forEach(function (element) {
         let embed = new Discord.MessageEmbed()
-          .addField("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):", element)
+          .setTitle("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):")
+          .setDescription(element)
           .setColor('#1b51be')
           .setThumbnail(logo)
           .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
         chn.send({ embed }).catch(function (rej) {
-          channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
         });
         blockCursor++;
@@ -1006,7 +1008,7 @@ async function getFearGreedIndex(chn, usr) {
       .setFooter("Next update: " + h + " hrs, " + m + " mins");
 
     chn.send({ embed }).catch(function (rej) {
-      channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+      chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
       console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
     });
   });
@@ -1057,7 +1059,7 @@ async function getMexFunding(chn, message) {
         .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex');
 
       chn.send({ embed }).catch(function (rej) {
-        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
         console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(rej)));
       });
     }
