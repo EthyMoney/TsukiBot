@@ -70,7 +70,7 @@ const extensions          = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 const chalk               = require('chalk');
 
 // Read in and initialize all files
-let keys, pairs, pairs_filtered, pairs_CG, metadata, admin, shortcutConfig, restricted, tagsJSON;
+let keys, pairs, pairs_filtered, pairs_CG, pairs_CG_arr, metadata, admin, shortcutConfig, restricted, tagsJSON;
 initializeFiles();
 
 // Discord Bots List
@@ -107,13 +107,16 @@ const puppeteer           = require('puppeteer');
 graviex.accessKey         = keys.graviexAccessKey;    
 graviex.secretKey         = keys.graviexSecretKey;
 
-// CMC Cache
+// CMC/CG Cache
 let cmcArray              = {};
 let cmcArrayDict          = {};
 let cmcArrayDictParsed    = [];
+let cgArrayDictParsed     = [];
+let cgArrayDict           = {};
 let fails                 = 0;
 let auto                  = true;
 let selectedKey           = 0;
+let cacheUpdateRunning    = false;
 
 // Spam limit count
 let yeetLimit             = 0;
@@ -167,11 +170,12 @@ const quote               = 'Love TsukiBot? Consider a tip to share the love  :)
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 // Scheduled Actions
-let cmcfetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
+let cmcFetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
+let cgFetch       = schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
 let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats);     // publish every 3 hours
-let updateCMCKey = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
+let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
   updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
 });
 
@@ -501,7 +505,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
     up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
     bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
     ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
-    // ! TO-DO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
+    // TODO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
     switch (action) {
@@ -533,6 +537,114 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
       default:
         msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+    }
+  }
+
+  if (action === '%') {
+    let k = Object.keys(ordered).sort(function (a, b) { return parseFloat(b) - parseFloat(a); });
+    for (let k0 in k)
+      msg += ordered[k[k0]];
+  }
+
+  msg += (Math.random() > 0.99) ? "\n" + quote + " " + donationAdd : "";
+  if (msg !== '')
+    chn.send(msgh + msg);
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Function for CoinGecko prices 
+// (in similar format the list-style cmc command above)
+
+function getPriceCG(coins, chn, action = '-', ext = 'd') {
+
+  // don't let command run if cache is still updating for the first time
+  if(cacheUpdateRunning){
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
+  let ordered = {};
+  let msgh;
+
+  if (action === 'p') {
+    msgh = "__CoinGecko__ Price for Top 10 Coins:\n";
+  }
+  else {
+    msgh = '__CoinGecko__ Price for:\n';
+  }
+  let msg = '';
+  let ep, bp, up; //pricing values (ep=ethprice, bp=btcprice, up=usdprice)
+
+
+  for (let i = 0; i < coins.length; i++) {
+    coins[i] = coins[i].toUpperCase(); //make all input coins uppercase
+    if (!cgArrayDict[coins[i]]) {
+      let g = didyoumean(coins[i], Object.keys(cgArrayDict));
+      if (!g)
+        continue;
+      else{
+        coins[i] = g;
+      }
+    }
+
+    // log the json entry for selected coin
+    //console.log(cgArrayDict[coins[i]]);
+
+    // get the price data from cache and format it accordingly
+    let plainPriceUSD = trimDecimalPlaces(parseFloat(cgArrayDict[coins[i]].current_price).toFixed(6));
+    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cgArrayDict[coins[i]].current_price)).toFixed(8));
+    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cgArrayDict[coins[i]].current_price)).toFixed(8));
+    let upchg = Math.round(parseFloat(cgArrayDict[coins[i]].price_change_percentage_24h_in_currency) * 100) / 100;
+
+    // ignore percent in cases where it's a new coin and 24hr percent is not yet available
+    if(!upchg){
+      upchg = "n/a ";
+    }
+    // unused due to api limits
+    //let bpchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.BTC.percent_change_24h) * 100) / 100;
+    //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
+
+    // assembling the text lines for response message
+    up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+    bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
+    ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
+    // TODO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
+
+    coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
+    switch (action) {
+      case '-':
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+
+      case '+':
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+          bp + "\n");
+        break;
+
+      case '*':
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
+          up + '\n`|        ⇒` `' +
+          bp + "\n");
+        break;
+
+      case 'e':
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+          ep + "\n");
+        break;
+
+      case '%':
+        if (cgArrayDict[coins[i]])
+          ordered[cgArrayDict[coins[i]].price_change_percentage_24h_in_currency] =
+            ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+        break;
+
+      default:
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
     }
   }
@@ -1482,59 +1594,79 @@ function getMarketCap(message) {
 
 function getMarketCapSpecific(message) {
 
-  let cursor = 1;
+  //don't let command run if cache is still updating for the first time
+  if(cacheUpdateRunning){
+    message.channel.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
   let cur = '';
   //cut the command prefixes and any leading/trailing spaces
   cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
   cur = cur.toUpperCase();
 
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
-  //special handling for specific badly formatted coin from API
-  if (cur == 'LYXE') {
-    cur = 'LUKSO';
-  }
 
-  //collect and process cached api data 
+  //collect and process cached cg api data 
   (async () => {
     console.log(chalk.yellow(message.author.username) + chalk.green(" requested MC of: " + chalk.cyan(cur)));
     let success = false;
-    let ticker = cmcArrayDictParsed;
+    let ticker = cgArrayDictParsed;
     j = ticker.length;
     for (let i = 0; i < j; i++) {
-      if (ticker[i].symbol === cur || ticker[i].name.toUpperCase() === cur || ticker[i].cmc_rank + '' === cur) {
+      if (ticker[i].symbol.toUpperCase() === cur || ticker[i].name.toUpperCase() === cur || ticker[i].market_cap_rank + '' === cur) {
         let name = ticker[i].name;
-        let slug = ticker[i].slug;
-        let price = ticker[i].quote.USD.price;
-        let percent = ticker[i].quote.USD.percent_change_24h;
-        let rank = ticker[i].cmc_rank;
-        let percent7 = ticker[i].quote.USD.percent_change_7d;
-        let symbol = ticker[i].symbol;
-        let volume = ticker[i].quote.USD.volume_24h;
-        let marketcap = ticker[i].quote.USD.market_cap;
+        let slug = ticker[i].id;
+        let price = ticker[i].current_price;
+        let percent = ticker[i].price_change_percentage_24h_in_currency;
+        let rank = ticker[i].market_cap_rank;
+        let percent7 = ticker[i].price_change_percentage_7d_in_currency;
+        let percent30 = ticker[i].price_change_percentage_30d_in_currency;
+        let percent1y = ticker[i].price_change_percentage_1y_in_currency;
+        let mcappercent = ticker[i].market_cap_change_percentage_24h;
+        let ath = ticker[i].ath;
+        let athdate = ticker[i].ath_date.substring(0, 10);
+        let percentath = ticker[i].ath_change_percentage;
+        let low24hr = ticker[i].low_24h;
+        let high24hr = ticker[i].high_24h;
+        let symbol = ticker[i].symbol.toUpperCase();
+        let volume = ticker[i].total_volume;
+        let marketcap = ticker[i].market_cap;
         let supply = ticker[i].circulating_supply;
         let totalSupply = ticker[i].total_supply;
         let maxSupply = ticker[i].max_supply;
-        let percent1h = ticker[i].quote.USD.percent_change_1h;
+        let percent1h = ticker[i].price_change_percentage_1h_in_currency;
         if (symbol == "ETH") { priceETH = 1; } else { priceETH = convertToETHPrice(price).toFixed(6); }
         if (symbol == "BTC") { priceBTC = 1; } else { priceBTC = convertToBTCPrice(price).toFixed(8); }
 
+        // TODO: Need to add these commented data fields to the message still, but need to figure out a way to make it look pretty first
+        
         //checking for missing data and generating the text lines that will be used in the final response message
-        let l1,l2,l3,l4,l5,l6,l71,l72,l73,l81,l82,l83;
-        l1 = `MC Rank: #${rank}\n`;
-        l2 = (marketcap) ? `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n` : `Market Cap: n/a\n`;
-        l3 = (volume) ? `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n` : `24hr volume: n/a\n`;
-        l4 = (supply) ? `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n` : `In Circulation: n/a\n`;
-        l5 = (totalSupply) ? `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n` : `Total Supply: n/a\n`;
-        l6 = (maxSupply) ? `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n` : `Max Supply: n/a\n`;
-        l71 = (price) ? `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n` : `USD: n/a\n`;
-        l72 = (price) ? `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n` : `BTC: n/a\n`;
-        l73 = (price) ? `ETH: \`${trimDecimalPlaces(priceETH)}\`` : `ETH: n/a`;
-        l81 = (percent1h) ? `1h: \`${parseFloat(percent1h).toFixed(2)}%\`\n` : `1h: n/a\n`;
-        l82 = (percent) ? `24h: \`${parseFloat(percent).toFixed(2)}%\`\n` : `24h: n/a\n`;
-        l83 = (percent7) ? `7d: \`${parseFloat(percent7).toFixed(2)}%\`` : `7d: n/a`;
+        let l1,l2,l3,l4,l5,l6,l71,l72,l73,l74,l75,l81,l82,l83,l84,l85;
+        l1 = (rank)         ?  `MC Rank: #${rank}\n`                                                     : `MC Rank: n/a`;
+        l2 = (marketcap)    ?  `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n`           : `Market Cap: n/a\n`;
+        l3 = (volume)       ?  `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n`             : `24hr volume: n/a\n`;
+        l4 = (supply)       ?  `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n`       : `In Circulation: n/a\n`;
+        l5 = (totalSupply)  ?  `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n`    : `Total Supply: n/a\n`;
+        l6 = (maxSupply)    ?  `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n`        : `Max Supply: n/a\n`;
+        l71 = (price)       ?  `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n`           : `USD: n/a\n`;
+        //l72 = (price)       ?  `24h H: \`${trimDecimalPlaces(parseFloat(high24hr).toFixed(6))}\`\n`      : `24h H: n/a\n`;
+        //l73 = (price)       ?  `24h L: \`${trimDecimalPlaces(parseFloat(low24hr).toFixed(6))}\`\n`       : `24h L: n/a\n`;
+        //l74 = (ath)         ?  `ATH: \`${trimDecimalPlaces(ath)} \`\n`                                   : `ATH: n/a\n`;
+        l75 = (price)       ?  `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n`                               : `BTC: n/a\n`;
+        l76 = (price)       ?  `ETH: \`${trimDecimalPlaces(priceETH)}\``                                 : `ETH: n/a`;
+        l81 = (percent1h)   ?  `1h: \u200B\u200B\u200B\u200B  \`${parseFloat(percent1h).toFixed(2)}%\`\n`: `1h:  n/a\n`;
+        l82 = (percent)     ?  `24h: \`${parseFloat(percent).toFixed(2)}%\`\n`                           : `24h: n/a\n`;
+        l83 = (percent7)    ?  `7d: \u200B\u200B\u200B\u200B  \`${parseFloat(percent7).toFixed(2)}%\`\n` : `7d:  n/a\n`;
+        l84 = (percent30)   ?  `1m: \`${parseFloat(percent30).toFixed(2)}%\`\n`                          : `1m: n/a\n`;
+        l85 = (percent1y)   ?  `1y: \u200B \`${parseFloat(percent1y).toFixed(2)}%\``                     : `1y: n/a`;
+        //l86 = (mcappercent) ?  `MC 24h: \`${parseFloat(mcappercent).toFixed(2)}%\`\n`                    : `MC 24h: n/a\n`;
+        //l87 = (percentath)  ?  `From ATH: \`${parseFloat(percentath).toFixed(2)}%\`\n`                   : `From ATH: n/a\n`;
+        //l88 = (athdate)     ?  `ATH day: \`${athdate}\``                                                 : `ATH day: n/a`;
 
-        //grabbing coin logo (defaults to cmc logo if coin logo doesn't exist)
-        let logo = 'https://lh3.googleusercontent.com/zdHuxTffm4hDJeIetin4lW8M2FStUvG0CIoUNSHSRIwxu9Q7xpbGBtbBXUf2WlOqXw';
+        //grabbing coin logo (defaults to CoinGecko logo if coin logo doesn't exist)
+        let logo = 'https://i.imgur.com/EnWbbrN.png';
         for (let j = 0, len = metadata.data.length; j < len; j++) {
           if (metadata.data[j].slug === slug) {
             if (metadata.data[j].logo) {
@@ -1546,12 +1678,11 @@ function getMarketCapSpecific(message) {
         //assemble the final message as message embed object
         let embed = new Discord.MessageEmbed()
           .addField(name + " (" + symbol + ")", l1 + l2 + l3 + l4 + l5 + l6, false)
-          .addField("Current Prices:", l71 + l72 + l73, true)
-          .addField("Price Changes:", l81 + l82 + l83, true)
+          .addField("Current Prices:", l71 + l75 + l76, true)
+          .addField("Price Changes:", l81 + l82 + l83 + l84 + l85, true)
           .setColor('#1b51be')
           .setThumbnail(logo)
-          .setFooter('Powered by CoinMarketCap', 'https://is3-ssl.mzstatic.com/image/thumb/Purple118/v4/8e/5b/b4/8e5bb4b3-c3a4-2ce0-a48c-d6b614eda574/AppIcon-1x_' +
-            'U007emarketing-0-0-GLES2_U002c0-512MB-sRGB-0-0-0-85-220-0-0-0-6.png/246x0w.jpg');
+          .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
         //send it
         try {
@@ -1563,10 +1694,9 @@ function getMarketCapSpecific(message) {
           console.log(chalk.red('Error sending MC response embed: ' + chalk.cyan(rej)));
         }
       }
-      cursor++;
     }
     if (!success) {
-      message.channel.send("Failed to find a CMC coin associated with that input.\nTry again with either the full typed out name, or shortened ticker.");
+      message.channel.send("Failed to find a CoinGecko coin associated with that input.\nTry again with either the full name, or the ticker symbol.");
       console.log(chalk.red(`Failed to find matching coin for input to mc command of: ${chalk.cyan(cur)}`));
     }
   })();
@@ -1616,7 +1746,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
           let coins = inStr.split(',').filter(function (value) {
             return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
           });
-          getPriceCMC(coins, chn, action);
+          getPriceCG(coins, chn, action);
         } else {
           console.log("Sent missing tbpa notice to " + chalk.blue(msg.member.user.tag));
           chn.send('Looks like you don\'t currently have a saved array. You can set your array with `.tb pa [array]`. Example usage: `.tb pa btc eth xrp .....`');
@@ -1640,14 +1770,14 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
         " For any further questions, use `.tb help` to see the more detailed commands guide");
       return;
     }
-    // filter out any invalid cmc coins and notify user of them accordingly
+    // filter out any invalid cg coins and notify user of them accordingly
     let cleanedCoins = coins.filter(function (value) {
       return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
     });
     let invalidCoins = coins.filter(e => !pairs.includes(e.toUpperCase()));
     let invalidCoinsMessage = '';
     if (invalidCoins.length > 0) {
-      invalidCoinsMessage = "\nNOTE: The following coins were not found on CMC and have been automatically excluded: `" + invalidCoins.toString() + "`";
+      invalidCoinsMessage = "\nNOTE: The following coins were not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
     }
 
     if (action === '') {
@@ -1719,7 +1849,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
               query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, '{' + inStr + '}'], (err, res) => {
                 if (err) { console.log(chalk.red.bold(err + "------TB PA add insert query error")); }
                 else { if(coins.length > 0) {chn.send("Personal array modified. Added: `" + cleanedCoins.toString() + "`" + invalidCoinsMessage);} 
-                  else{chn.send("Your provided coin(s) were not found listed on CoinMarketCap. Your request has been aborted.\nMake sure your coins are valid CMC-listed coins!");}}
+                  else{chn.send("Your provided coin(s) were not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!");}}
                 conn.end();
               });
             }
@@ -1765,6 +1895,8 @@ client.on('ready', () => {
   updateCoins();
   updateCmcKey();
   getCMCData();
+  getCGData('firstrun');
+  cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
   publishDblStats();
 
   // Notify bot operator when the bot starts up or restarts (Disabled because it's annoying when doing testing)
@@ -1943,7 +2075,13 @@ client.on('message', message => {
         message.channel.send(admin['55'] + cmcArrayDictParsed.length);
       }
       else{
-        message.channel.send("Error: Cache is empty. There is likely an issue with the current key!");
+        message.channel.send("Error: CMC cache is empty. There is likely an issue with the current CMC key!");
+      }
+      if (cgArrayDictParsed.length) {
+        message.channel.send(admin['66'] + cgArrayDictParsed.length);
+      }
+      else {
+        message.channel.send("Error: CG cache is empty. Cacher may still be initializing or there may be an API issue.");
       }
     }
   }
@@ -2056,28 +2194,28 @@ function commands(message, botAdmin) {
   let code_in_pre = code_in[0];
   code_in[0] = code_in[0].replace(hasPfx, "");
 
-  // Check for *BTC CMC call (show prices in terms of btc)
+  // Check for *BTC CG call (show prices in terms of btc)
   if (shortcutConfig[message.guild.id] + '*' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + '+' === code_in[0].toLowerCase()) {
     code_in.shift();
-    console.log(chalk.green('CMC *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-    getPriceCMC(code_in, channel, '+');
+    console.log(chalk.green('CG *BTC call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+    getPriceCG(code_in, channel, '+');
     return;
   }
 
-  // Check for *ETH CMC call (show prices in terms of btc via putting an e right before the shortcut, ex: <shortcut>e btc => eth price of btc)
+  // Check for *ETH CG call (show prices in terms of btc via putting an e right before the shortcut, ex: <shortcut>e btc => eth price of btc)
   if (shortcutConfig[message.guild.id] + 'e' === code_in[0].toLowerCase() || shortcutConfig[message.guild.id] + 'eth' === code_in[0].toLowerCase()) {
     code_in.shift();
-    console.log(chalk.green('CMC *ETH call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-    getPriceCMC(code_in, channel, 'e');
+    console.log(chalk.green('CG *ETH call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+    getPriceCG(code_in, channel, 'e');
     return;
   }
 
-  // Check for cmc shortcut then run CMC check
+  // Check for CG shortcut then run CG check
   if (hasPfx === "") {
     if (shortcutConfig[message.guild.id] === code_in[0].toLowerCase()) {
       code_in.shift();
-      console.log(chalk.green('CMC shortcut call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-      getPriceCMC(code_in, channel, '-');
+      console.log(chalk.green('CG shortcut call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+      getPriceCG(code_in, channel, '-');
       return;
     }
 
@@ -2195,7 +2333,7 @@ function commands(message, botAdmin) {
 
         let paramsUnfiltered = code_in.slice(1, code_in.length);
         let params = code_in.slice(1, code_in.length).filter(function (value) {
-          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
 
         // Checking for XBT input and converting it to BTC so the APIs understand it
@@ -2311,11 +2449,11 @@ function commands(message, botAdmin) {
           } else {
             // Before giving up, lest see if this is a command-less price call
             let potentialCoins = code_in.filter(function (value) {
-              return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+              return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
             });
             if (potentialCoins.length > 0) {
-              console.log(chalk.green('CMC base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-              getPriceCMC(potentialCoins, channel, '-');
+              console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+              getPriceCG(potentialCoins, channel, '-');
             }
             else {
               postHelp(message, message.author, command);
@@ -2327,11 +2465,11 @@ function commands(message, botAdmin) {
       } else {
         // Before giving up, lest see if this is a command-less price call
         let potentialCoins = code_in.filter(function (value) {
-          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
         if(potentialCoins.length > 0){
-          console.log(chalk.green('CMC base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
-          getPriceCMC(potentialCoins, channel, '-');
+          console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
+          getPriceCG(potentialCoins, channel, '-');
         }
         else{
           postHelp(message, message.author, command);
@@ -2392,11 +2530,18 @@ function commands(message, botAdmin) {
 
       // Get prices of popular currencies (the top 10 by market cap)
     } else if (scommand === 'pop') {
-      getPriceCMC([cmcArrayDictParsed[0].symbol, cmcArrayDictParsed[1].symbol,
-      cmcArrayDictParsed[2].symbol, cmcArrayDictParsed[3].symbol,
-      cmcArrayDictParsed[4].symbol, cmcArrayDictParsed[5].symbol,
-      cmcArrayDictParsed[6].symbol, cmcArrayDictParsed[7].symbol,
-      cmcArrayDictParsed[8].symbol, cmcArrayDictParsed[9].symbol], channel, 'p');
+      let cursor = 0;
+      // there are a lot fo null values, so lets find the first actual value and move from there
+      cgArrayDictParsed.forEach((coin, index) => {
+        if (coin.market_cap_rank && coin.market_cap_rank == 1){
+          cursor = index;
+        }
+      });
+      getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor + 1].symbol,
+      cgArrayDictParsed[cursor + 2].symbol, cgArrayDictParsed[cursor + 3].symbol,
+      cgArrayDictParsed[cursor + 4].symbol, cgArrayDictParsed[cursor + 5].symbol,
+      cgArrayDictParsed[cursor + 6].symbol, cgArrayDictParsed[cursor + 7].symbol,
+      cgArrayDictParsed[cursor + 8].symbol, cgArrayDictParsed[cursor + 9].symbol], channel, 'p');
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b') {
@@ -2526,6 +2671,9 @@ function capitalizeFirstLetter(string) {
 function translateEN(chn, msg, sneak) {
 
   //remove the command string and potential mentions
+
+  // TODO: the following removal of command prefix only works if it was sent lowercase. 
+  // !   Need to remove upper and mixed cases as well!
   let message = msg.content + "";
   message = message.replace(/<.*>/, '');
   message = message.replace('.tb translate', '');
@@ -2591,6 +2739,13 @@ function validURL(str) {
     '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
     '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
   return !!pattern.test(str);
+}
+
+// Pauses execution when called within an async function for the given milliseconds
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 // Send the session stats of the bot
@@ -2745,7 +2900,7 @@ function getCoin360Heatmap(message) {
 
 // Convert USD price to ETH value
 function convertToETHPrice(priceUSD) {
-  let ETHPrice = cmcArrayDict['eth'.toUpperCase()].quote.USD.price;
+  let ETHPrice = cgArrayDict.ETH.current_price;
   return priceUSD / ETHPrice;
 }
 
@@ -2772,7 +2927,7 @@ function joinProcedure(guild) {
     console.log(chalk.yellowBright("NEW SERVER ADDED TO THE FAMILY!! Welcome: " + chalk.cyan(guild.name) + " with " + chalk.cyan(guild.memberCount) + " users!"));
     if (guild.systemChannel) {
       guild.systemChannel.send("Hello there, thanks for adding me! Get a list of commands and their usage with `.tb help`.\n" +
-        "Your default CMC shortcut is `t` and you can change it at any time." +
+        "Your default price command shortcut is `t` and you can change it at any time using `.tb shortcut`." +
         "\nIf you ever need help or have suggestions, please don't hesitate to join the support server and chat with us! " +
         " Use `.tb stat` for the link.").catch(function (rej) {
           console.log(chalk.red("Failed to send introduction message, missing message send permissions"));
@@ -2840,7 +2995,7 @@ function trimDecimalPlaces(x) {
 
 // Convert a passed-in USD value to BTC value and return it
 function convertToBTCPrice(priceUSD) {
-  let BTCPrice = cmcArrayDict['btc'.toUpperCase()].quote.USD.price;
+  let BTCPrice = cgArrayDict.BTC.current_price;
   return priceUSD / BTCPrice;
 }
 
@@ -2918,8 +3073,8 @@ function updateCmcKey(override) {
 
   getCMCData()
 
-  Update the array every 8 minutes
-  (Endpoint update rate)
+  Update the cmc data array every
+  8 minutes (Endpoint update rate)
 
  ---------------------------------- */
 
@@ -2941,6 +3096,92 @@ async function getCMCData() {
     console.log(cmcJSON);
   }
   //console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
+}
+
+
+/* ---------------------------------
+
+  getCGData()
+
+  Update the CoinGecko data array
+  every 2 minutes (Endpoint update rate)
+
+  Caching process takes up to 30sec to
+  complete. The pricing data will 
+  effectively be updated every ~1.5 mins
+  at this rate (varies by API response delays)
+
+ ---------------------------------- */
+
+async function getCGData(status) {
+
+  if(cacheUpdateRunning){
+    return;
+  }
+  if(status == 'firstrun'){
+    console.log(chalk.yellowBright("Initializing CoinGecko data cache...\n" +
+      chalk.cyan(" ▶ This will take up to 30 seconds. CoinGecko commands will be unavailable until this is complete.")));
+  }
+
+  let coinIDs = [];
+  let marketData = [];
+  let prog1, prog2, prog3 = false;
+
+  for (let i = 0; i < pairs_CG.length; i++) {
+    coinIDs.push(pairs_CG[i].id);
+    // break up API calls by groups of 450 IDs (request URI max size)
+    if (i % 450 === 0 || i === pairs_CG.length - 1) {
+      let resJSON = await CoinGeckoClient.coins.markets({
+        'vs_currency': 'usd',
+        'ids': coinIDs.toString(),
+        'order': 'market_cap_desc',
+        'sparkline': false,
+        'price_change_percentage': '1h,24h,7d,14d,30d,1y'
+      }).catch((rej) => {
+        cacheUpdateRunning = false; // allow for scheduler to call for next update cycle
+        console.log(chalk.redBright("Failed to complete CG cache update. Skipping this instance.... ") + chalk.cyanBright(rej));
+      });
+      if (!resJSON || !resJSON.data){
+        return;
+      }
+      // add this new chunk to the rest
+      await resJSON.data.forEach((value) => {
+        marketData.push(value);
+      });
+      coinIDs = []; // reset IDs array
+      // progress report for first run
+      if (status == 'firstrun') {
+        if (i >= pairs_CG.length * 0.25 && !prog1) {
+          console.log(chalk.blueBright(" ▶ 25%"));
+          prog1 = true;
+        }
+        else if (i >= pairs_CG.length * 0.50 && !prog2) {
+          console.log(chalk.blueBright(" ▶ 50%"));
+          prog2 = true;
+        }
+        else if (i >= pairs_CG.length * 0.75 && !prog3) {
+          console.log(chalk.blueBright(" ▶ 75%"));
+          prog3 = true;
+        }
+      }
+      //await sleep(900); //wait to make next call (not needed with this implementation yet)
+    }
+  }
+  // sort by MC rank descending order
+  let marketDataFiltered = marketData.sort((a, b) => a.market_cap_rank - b.market_cap_rank);
+  cgArrayDictParsed = marketDataFiltered; // plain array copy
+    
+  // build cache with the coin symbols as keys
+  marketDataFiltered.forEach(function (coinObject) {
+    let upperCaseSymbol = coinObject.symbol.toUpperCase();
+    if (!cgArrayDict[upperCaseSymbol])
+      cgArrayDict[upperCaseSymbol] = coinObject;
+  });
+
+  if(cacheUpdateRunning){
+    console.log(chalk.greenBright(" ▶ 100%\n" + "CoinGecko data cache initialization complete. Commands are now active."));
+    cacheUpdateRunning = false;
+  }
 }
 
 
@@ -3022,13 +3263,22 @@ function initializeFiles() {
     pairs_filtered = JSON.parse(fs.readFileSync("./common/coins_filtered.json", "utf8"));
   }
 
-  //allowed coin pairs from coin gecko
+  //allowed coin pairs data from coin gecko
   try {
     pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json", "utf8"));
   } catch (err) {
     fs.appendFileSync('./common/coinsCG.json', '[]');
     console.log(chalk.green('Automatically created new coinsCG.json file.'));
     pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json", "utf8"));
+  }
+
+  //allowed coin pairs data from coin gecko (ticker symbols only, as array)
+  try {
+    pairs_CG_arr = JSON.parse(fs.readFileSync("./common/coinsCGtickers.json", "utf8"));
+  } catch (err) {
+    fs.appendFileSync('./common/coinsCGtickers.json', '[]');
+    console.log(chalk.green('Automatically created new coinsCGtickers.json file.'));
+    pairs_CG_arr = JSON.parse(fs.readFileSync("./common/coinsCGtickers.json", "utf8"));
   }
 
   //server tags
