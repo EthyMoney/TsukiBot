@@ -8,7 +8,7 @@
   "license": "MIT",
   "dependencies": {
     "alphavantage": "^2.2.0",
-    "ccxt": "^1.41.3",
+    "ccxt": "^1.41.63",
     "chalk": "^4.1.0",
     "coingecko-api": "^1.0.10",
     "coinmarketcap-api": "^3.1.1",
@@ -23,15 +23,15 @@
     "jsdom": "^16.4.0",
     "languagedetect": "^2.0.0",
     "node-fetch": "^2.6.1",
-    "node-schedule": "^1.3.2",
+    "node-schedule": "^2.0.0",
     "pg": "^8.5.1",
-    "pg-promise": "^10.9.1",
-    "puppeteer": "^5.5.0",
+    "pg-promise": "^10.9.2",
+    "puppeteer": "^7.0.1",
     "request": "^2.88.2",
     "request-promise": "^4.2.6",
     "string": "^3.3.3",
     "translate-google": "^1.4.3",
-    "web3": "^1.3.3",
-    "ws": "^7.4.2"
+    "web3": "^1.3.4",
+    "ws": "^7.4.3"
   }
 }
