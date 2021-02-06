@@ -1644,7 +1644,7 @@ function getMarketCapSpecific(message) {
         
         //checking for missing data and generating the text lines that will be used in the final response message
         let l1,l2,l3,l4,l5,l6,l71,l72,l73,l74,l75,l81,l82,l83,l84,l85;
-        l1 = (rank)         ?  `MC Rank: #${rank}\n`                                                     : `MC Rank: n/a`;
+        l1 = (rank)         ?  `MC Rank: #${rank}\n`                                                     : `MC Rank: n/a\n`;
         l2 = (marketcap)    ?  `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n`           : `Market Cap: n/a\n`;
         l3 = (volume)       ?  `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n`             : `24hr volume: n/a\n`;
         l4 = (supply)       ?  `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n`       : `In Circulation: n/a\n`;
@@ -2333,7 +2333,7 @@ function commands(message, botAdmin) {
 
         let paramsUnfiltered = code_in.slice(1, code_in.length);
         let params = code_in.slice(1, code_in.length).filter(function (value) {
-          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
         });
 
         // Checking for XBT input and converting it to BTC so the APIs understand it
@@ -2449,7 +2449,7 @@ function commands(message, botAdmin) {
           } else {
             // Before giving up, lest see if this is a command-less price call
             let potentialCoins = code_in.filter(function (value) {
-              return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
+              return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
             });
             if (potentialCoins.length > 0) {
               console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
@@ -2465,7 +2465,7 @@ function commands(message, botAdmin) {
       } else {
         // Before giving up, lest see if this is a command-less price call
         let potentialCoins = code_in.filter(function (value) {
-          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
         });
         if(potentialCoins.length > 0){
           console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
@@ -2537,11 +2537,11 @@ function commands(message, botAdmin) {
           cursor = index;
         }
       });
-      getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor + 1].symbol,
-      cgArrayDictParsed[cursor + 2].symbol, cgArrayDictParsed[cursor + 3].symbol,
-      cgArrayDictParsed[cursor + 4].symbol, cgArrayDictParsed[cursor + 5].symbol,
-      cgArrayDictParsed[cursor + 6].symbol, cgArrayDictParsed[cursor + 7].symbol,
-      cgArrayDictParsed[cursor + 8].symbol, cgArrayDictParsed[cursor + 9].symbol], channel, 'p');
+      getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor - 1].symbol,
+      cgArrayDictParsed[cursor - 2].symbol, cgArrayDictParsed[cursor - 3].symbol,
+      cgArrayDictParsed[cursor - 4].symbol, cgArrayDictParsed[cursor - 5].symbol,
+      cgArrayDictParsed[cursor - 6].symbol, cgArrayDictParsed[cursor - 7].symbol,
+      cgArrayDictParsed[cursor - 8].symbol, cgArrayDictParsed[cursor - 9].symbol], channel, 'p');
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b') {
@@ -3168,7 +3168,7 @@ async function getCGData(status) {
     }
   }
   // sort by MC rank descending order
-  let marketDataFiltered = marketData.sort((a, b) => a.market_cap_rank - b.market_cap_rank);
+  let marketDataFiltered = marketData.sort((a, b) => b.market_cap_rank - a.market_cap_rank);
   cgArrayDictParsed = marketDataFiltered; // plain array copy
     
   // build cache with the coin symbols as keys
