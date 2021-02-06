@@ -11,20 +11,23 @@ var fs = require("fs");
 
 // Import coingecko-api
 const CoinGecko = require('coingecko-api');
- 
+
 // Initiate the CoinGecko API Client
 const CoinGeckoClient = new CoinGecko();
- 
- 
- 
+
 // Make API call and do JSON build operation
 var update = async() => {
   let data = await CoinGeckoClient.coins.list();
+  let tickers = [];
+  await data.data.forEach((value) => {
+    tickers.push(value.symbol.toUpperCase());
+  });
   
   //console.log(data);
   
   // Write the identification JSON to file
   fs.writeFileSync("./common/coinsCG.json", JSON.stringify(data.data));
+  fs.writeFileSync("./common/coinsCGtickers.json", JSON.stringify(tickers));
   //console.log("CoinGecko coin list complete!");
 };
 
