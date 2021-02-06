@@ -11,9 +11,9 @@ common/keys.api
 common/serverPerms.json
 common/shortcuts.json
 common/metadata.json
+common/coinsCGtickers.json
 .DS_Store
 stuff
 graviex
 .vs
-
 .jshintrc
