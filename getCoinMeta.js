@@ -9,13 +9,44 @@ let meta = { "data": [] };
 let skipped = [];
 let count = 0;
 let cgCoinsList = "";
+let resJSON = null;
+let attempt = 1;
 
 
-async function collectMetadata(coin) {
-  let resJSON = await CoinGeckoClient.coins.fetch(coin, {
+async function getCGdata(coin, index) {
+  resJSON = await CoinGeckoClient.coins.fetch(coin, {
     'localization': false, 'tickers': false,
     'market_data': false, 'developer_data': false
+  }).catch((rej) => {
+    // notify of failed attempt(s)
+    if (attempt < 3) {
+      console.log(chalk.yellowBright("Attempt " + chalk.magentaBright(attempt) + " failed for " + chalk.cyanBright(coin) + " : (" + index + ") --> Re-attempting"));
+      attempt += 1;
+    }
+    else {
+      console.log(chalk.yellowBright("Attempt " + chalk.magentaBright(attempt) + " failed for " + chalk.cyanBright(coin) + " : (" + index + ") " +
+        chalk.redBright("---> All attempts failed! SHUTTING DOWN :(")));
+    }
   });
+}
+
+async function collectMetadata(coin, index) {
+
+  // Get api data
+  await getCGdata(coin, index);
+
+  // Give it another second try if first attempt failed (usually this is due to a timeout and can be recovered)
+  if (!resJSON) {
+    await getCGdata(coin, index);
+  }
+  // One final (3rd) attempt before failing and shutting down
+  if (!resJSON) {
+    await getCGdata(coin, index);
+  }
+  // All attempts failed, closing out now
+  if (!resJSON) {
+    process.exit(1);
+  }
 
   // Skip instances where the coin has no data on API side (this can happen if the API removed it while this process is running)
   if (resJSON.error) {
@@ -69,6 +100,9 @@ async function collectMetadata(coin) {
     links: resJSON.data.links
   };
   meta.data.push(coinMeta);
+
+  resJSON = null;
+  attempt = 1;
 }
 
 function writeToFile() {
@@ -92,7 +126,7 @@ async function startup() {
   cgCoinsList = await CoinGeckoClient.coins.list();
   for (let i = 0; i < cgCoinsList.data.length; i++) {
     console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
-    await collectMetadata(cgCoinsList.data[i].id);
+    await collectMetadata(cgCoinsList.data[i].id, i + 1);
     await sleep(1500); //rate limiting requests to not exceed api limits
   }
   writeToFile();
