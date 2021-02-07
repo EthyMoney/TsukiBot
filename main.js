@@ -3163,12 +3163,24 @@ async function getCGData(status) {
     return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
   });
   cgArrayDictParsed = marketDataFiltered; // plain array copy
-    
+
   // build cache with the coin symbols as keys
   marketDataFiltered.forEach(function (coinObject) {
     let upperCaseSymbol = coinObject.symbol.toUpperCase();
-    if (!cgArrayDict[upperCaseSymbol])
+    // add if not present already
+    if (!cgArrayDict[upperCaseSymbol]) {
       cgArrayDict[upperCaseSymbol] = coinObject;
+    }
+    // otherwise just update the one that's there
+    else {
+      if (cgArrayDict[upperCaseSymbol]) {
+        cgArrayDict[upperCaseSymbol] = coinObject;
+      }
+      // ! WARNING:
+      // TODO: (MEMORY LEAK!) Need to look for symbols in the cache that no longer exist in the data received.
+      // TODO:    This means they are not longer on coingecko and should be removed from the cache when seen.
+      // TODO:    If left to run for a long time, residual delisted coins will stack up in the cache unhandled (which = memory leak)
+    }
   });
 
   if(cacheUpdateRunning){
