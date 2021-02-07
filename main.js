@@ -1005,88 +1005,78 @@ async function getStocks(coin1, chn, usr) {
 
 async function getCoinDescription(coin1, chn, usr) {
 
-  let ticker = cmcArrayDictParsed;
+  let ticker = cgArrayDictParsed;
   j = ticker.length;
-  let foundAnotherWay = false;
+  let foundCoins = [];
+  let logos = [];
+  let descriptions = [];
 
-  //check if coin exists on cmc by checking for name, ticker, and mc rank
+  // check if coin exists on CG by checking for name, ticker, mc rank, and even cg id
   for (let i = 0; i < j; i++) {
-    if (ticker[i].symbol === coin1.toUpperCase() || (ticker[i].name).toUpperCase() === coin1.toUpperCase() || ticker[i].cmc_rank + '' === coin1) {
-      foundAnotherWay = true;
-      // reset coin1 to ticker from other means of lookup
-      coin1 = ticker[i].symbol;
+    if (ticker[i].symbol.toUpperCase() === coin1 || (ticker[i].name).toUpperCase() === coin1 ||
+      ticker[i].market_cap_rank == coin1 || ticker[i].id.toUpperCase() == coin1) {
+      foundCoins.push(ticker[i]); // grab all matches
     }
   }
 
-  if (cmcArrayDict[coin1.toUpperCase()] || foundAnotherWay) {
-    console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1.toUpperCase())));
-    let name = cmcArrayDict[coin1.toUpperCase()].slug;
-    let logo = '';
-    let text = null;
+  if (foundCoins.length > 0) {
+    console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1)));
 
-    // grab logo and description if found
-    for (let j = 0, len = metadata.data.length; j < len; j++) {
-      if (metadata.data[j].coin.toUpperCase() === coin1.toUpperCase()) {
-        if (metadata.data[j].logo) {
-          logo = metadata.data[j].logo;
-        } else {
-          // default to CoinGecko logo if coin doesn't have one yet
-          logo = 'https://i.imgur.com/EnWbbrN.png';
-        }
-        if (metadata.data[j].description) {
-          text = metadata.data[j].description;
-          break;
-        } else {
-          chn.send("**Error:** CoinGecko does not yet have a description for __" + coin1.toUpperCase() + "__");
-          console.log(chalk.red("No CoinGecko desc found for " + chalk.cyan(coin1.toUpperCase())));
-          return;
+    foundCoins.forEach((value, index) => {
+      // grab logo and description if found by id
+      for (let j = 0, len = metadata.data.length; j < len; j++) {
+        if (metadata.data[j].slug === value.id) {
+          if (metadata.data[j].logo) {
+            logos.push(metadata.data[j].logo);
+          } else {
+            // default to CoinGecko logo if coin doesn't have one yet
+            logos.push('https://i.imgur.com/EnWbbrN.png');
+          }
+          if (metadata.data[j].description) {
+            descriptions.push(metadata.data[j].description);
+          } else {
+            descriptions.push("*No description available for this coin from CoinGecko yet.*");
+          }
         }
       }
-    }
 
-    // check for missing description and exit if missing
-    if (!text) {
-      chn.send("No description is currently available for **" + coin1.toUpperCase() + "**.");
-      console.log(chalk.red("No CoinGecko desc found for " + chalk.cyan(coin1.toUpperCase())));
-      return;
-    }
-
-    // check against discord's embed feild size limit and split if necessary
-    if (text.length <= 2048) {
-      let embed = new Discord.MessageEmbed()
-        .setTitle("About " + capitalizeFirstLetter(name) + ":")
-        .setDescription(text)
-        .setColor('#1b51be')
-        .setThumbnail(logo)
-        .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
-
-      chn.send({ embed }).catch(function (rej) {
-        chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-        console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
-      });
-    }
-    else {
-      let pages = chunkString(text, 2048);
-      let blockCursor = 1;
-
-      pages.forEach(function (element) {
+      // check against discord's embed feild size limit and cleanly split if necessary
+      if (descriptions[index].length <= 2048) {
         let embed = new Discord.MessageEmbed()
-          .setTitle("About " + capitalizeFirstLetter(name) + " (PAGE " + blockCursor + "):")
-          .setDescription(element)
+          .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + "):")
+          .setDescription(descriptions[index])
           .setColor('#1b51be')
-          .setThumbnail(logo)
+          .setThumbnail(logos[index])
           .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
         chn.send({ embed }).catch(function (rej) {
           chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
         });
-        blockCursor++;
-      });
-    }
+      }
+      else {
+        let pages = chunkString(descriptions[index], 2048);
+        let blockCursor = 1;
+
+        pages.forEach(function (element) {
+          let embed = new Discord.MessageEmbed()
+            .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + ")  (PAGE " + blockCursor + "):")
+            .setDescription(element)
+            .setColor('#1b51be')
+            .setThumbnail(logos[index])
+            .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
+
+          chn.send({ embed }).catch(function (rej) {
+            chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+            console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
+          });
+          blockCursor++;
+        });
+      }
+    });
   }
   else {
-    chn.send("**Error:** __" + coin1.toUpperCase() + "__ is not a valid coin on CoinGecko.");
+    chn.send("**Error:** __" + coin1 + "__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.");
   }
 }
 
@@ -2373,7 +2363,8 @@ function commands(message, botAdmin) {
 
             // Coin description call
           } else if (command === 'info') {
-            getCoinDescription(code_in[1], channel, message.author);
+            let preppedInput = message.content.substring(8).trim().toUpperCase(); //cut prefix and end spaces, then capitalize
+            getCoinDescription(preppedInput, channel, message.author);
 
             // CG call (skip the filter)
           } else if (command.toString().trim() === 'cg' || command.toString().trim() === 'coingecko') {
@@ -3167,8 +3158,10 @@ async function getCGData(status) {
       //await sleep(900); //wait to make next call (not needed with this implementation yet)
     }
   }
-  // sort by MC rank descending order
-  let marketDataFiltered = marketData.sort((a, b) => b.market_cap_rank - a.market_cap_rank);
+  // sort by MC rank ascending order with nulls placed at the end
+  let marketDataFiltered = marketData.sort(function (a, b) {
+    return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
+  });
   cgArrayDictParsed = marketDataFiltered; // plain array copy
     
   // build cache with the coin symbols as keys
