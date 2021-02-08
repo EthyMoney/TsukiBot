@@ -32,10 +32,12 @@
 // 1. Make sure you have node.js and npm installed and ready to use. Node version 14.x or newer is required.
 // 2. Open a terminal in the project directory and run the command "npm install" to install all required dependencies.
 // 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
+// 4. Head down toward the bottom of this file and take note of the comment in the getChart function. You may need to comment out that executable path for 
+//    chromium depending on your environment. The commend there tells you whether you need to do it or not. (charts may not work if you don't check this!)
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
-// 4. Set up your PostgreSQL database according to the schema defined in the docs folder.
-// 5. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
-// 6. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
+// 5. Set up your PostgreSQL database according to the schema defined in the docs folder.
+// 6. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
+// 7. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
 //    If you have any questions or issues, feel free to contact me in the support discord server and I'll try to help you out. Link: https://discordapp.com/invite/VWNUbR5
 
 // Alright the hard part is over. Carry on :)
@@ -328,75 +330,128 @@ async function getPriceSTEX(chn, coin1, coin2) {
 
 async function getPriceCoinGecko(coin, coin2, chn, action) {
 
-  //determine whether or not the call was from the conversion command to determine if we need to return the values
+  // don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
+  // determine whether or not the call was from the conversion command to determine if we need to return the values
   let noSend = false;
   if (action && action == "convert") {
     noSend = true;
   }
+  let arr = [];
+  let data = [];
 
   coin = coin.toLowerCase() + "";
-  //default to usd if no comparison is provided
+  // default to usd if no comparison is provided
   if (!coin2) {
     coin2 = 'usd';
   }
   coin2 = coin2.toLowerCase();
-  //find out the ID for coin requested and also get IDs for any possible duplicate tickers
+
+  // find out the ID for coin requested and also get IDs for any possible duplicate tickers
   let foundCount = 0;
   let coinID, coinID1, coinID2, coinID3 = "";
-  for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if (pairs_CG[i].symbol === coin) {
+  for (let i = 0, len = cgArrayDictParsed.length; i < len; i++) {
+    if (cgArrayDictParsed[i].symbol.toLowerCase() == coin) {
       if (foundCount == 0)
-        coinID = pairs_CG[i].id;
+        coinID = cgArrayDictParsed[i].id;
       if (foundCount == 1)
-        coinID1 = pairs_CG[i].id;
+        coinID1 = cgArrayDictParsed[i].id;
       if (foundCount == 2)
-        coinID2 = pairs_CG[i].id;
+        coinID2 = cgArrayDictParsed[i].id;
       if (foundCount == 3) {
-        coinID3 = pairs_CG[i].id;
+        coinID3 = cgArrayDictParsed[i].id;
       }
       foundCount++;
     }
   }
-  //process for if multiple coins are found with the same ticker
+  // process for if multiple coins are found with the same ticker
   if (foundCount > 1) {
-    let data;
-    if (foundCount == 2)
-      data = await CoinGeckoClient.simple.price({
-        ids: [coinID, coinID1],
-        vs_currencies: ['usd', coin2.toLowerCase()],
-        include_24hr_vol: [true],
-        include_24hr_change: [true]
+    //special handling for conversion calls
+    if (noSend) {
+      if (foundCount == 2)
+        cgArrayDictParsed.forEach((value) => {
+          if (value.id == coinID || value.id == coinID1) {
+            data.push(value);
+          }
+        });
+      if (foundCount == 3)
+        cgArrayDictParsed.forEach((value) => {
+          if (value.id == coinID || value.id == coinID1 || value.id == coinID2) {
+            data.push(value);
+          }
+        });
+      if (foundCount == 4)
+        cgArrayDictParsed.forEach((value) => {
+          if (value.id == coinID || value.id == coinID1 || value.id == coinID2 || value.id == coinID3) {
+            data.push(value);
+          }
+        });
+      // sort by MC rank ascending order with nulls placed at the end
+      data = data.sort(function (a, b) {
+        return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
       });
-    if (foundCount == 3)
-      data = await CoinGeckoClient.simple.price({
-        ids: [coinID, coinID1, coinID2],
-        vs_currencies: ['usd', coin2.toLowerCase()],
-        include_24hr_vol: [true],
-        include_24hr_change: [true]
-      });
-    if (foundCount == 4)
-      data = await CoinGeckoClient.simple.price({
-        ids: [coinID, coinID1, coinID2, coinID3],
-        vs_currencies: ['usd', coin2.toLowerCase()],
-        include_24hr_vol: [true],
-        include_24hr_change: [true]
-      });
-    //build the reply message that shows all coins found with the given ticker, and label them by full name
+    }
+    // normal cg price call, so we need to check pairing currencies
+    else {
+      if (foundCount == 2)
+        data = await CoinGeckoClient.simple.price({
+          ids: [coinID, coinID1],
+          vs_currencies: ['usd', coin2.toLowerCase()],
+          include_24hr_vol: [true],
+          include_24hr_change: [true]
+        });
+      if (foundCount == 3)
+        data = await CoinGeckoClient.simple.price({
+          ids: [coinID, coinID1, coinID2],
+          vs_currencies: ['usd', coin2.toLowerCase()],
+          include_24hr_vol: [true],
+          include_24hr_change: [true]
+        });
+      if (foundCount == 4)
+        data = await CoinGeckoClient.simple.price({
+          ids: [coinID, coinID1, coinID2, coinID3],
+          vs_currencies: ['usd', coin2.toLowerCase()],
+          include_24hr_vol: [true],
+          include_24hr_change: [true]
+        });
+    }
+
+
+    // build the reply message that shows all coins found with the given ticker, and label them by full name
     let builtMessage = "";
     let errMsg = "";
     let cursor = 0;
-    let arr = Object.entries(data.data);
+    if (noSend) {
+      arr = data;
+    }
+    else {
+      arr = Object.entries(data.data);
+    }
     let conversionArray1 = [];
     let conversionArray2 = [];
     let conversionArray3 = [];
     arr.forEach(element => {
       cursor++;
-      let name = element[0];
-      let s = parseFloat(element[1][coin2]).toFixed(8);
-      let c = Math.round(element[1][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      let s, c, name;
+      if (noSend) {
+        name = element.name;
+        s = parseFloat(element.current_price).toFixed(8);
+        c = parseFloat(element.price_change_percentage_24h).toFixed(2);
+      }
+      else {
+        name = element[0];
+        s = parseFloat(element[1][coin2]).toFixed(8);
+        c = Math.round(element[1][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      }
+
       s = trimDecimalPlaces(s);
       if (!noSend) {
-        if (!isNaN(s)) { //looking for NaN, making sure price is valid
+        if (!isNaN(s)) { // looking for NaN, making sure price is valid
           if (cursor == 1) {
             builtMessage += "__CoinGecko Price for:__\n**" + name.toUpperCase() + "--" + coin2.toUpperCase() + "** is: `" + s +
               " " + coin2.toUpperCase() + "` (`" + c + "%`).\n";
@@ -407,7 +462,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
           }
           console.log(chalk.green('CoinGecko API ticker response: ' + chalk.cyan(s)));
         }
-        else{
+        else {
           errMsg = "Pricing not available in terms of **" + coin2.toUpperCase() + "**. Try another pairing!";
         }
       }
@@ -422,19 +477,31 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
     else
       return [conversionArray1, conversionArray2, conversionArray3];
   }
-  //process for when only one coin is found for a ticker
+  // process for when only one coin is found for a ticker
   else {
-    if (foundCount > 0) {
-      let data = await CoinGeckoClient.simple.price({
-        ids: [coinID],
-        vs_currencies: ['usd', coin2.toLowerCase()],
-        include_24hr_vol: [true],
-        include_24hr_change: [true]
-      });
-      let s = parseFloat(data.data[coinID][coin2]).toFixed(8);
-      let c = Math.round(data.data[coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+    if (foundCount == 1) {
+      let s, c;
+      if (noSend) {
+        cgArrayDictParsed.forEach((value) => {
+          if (value.id == coinID) {
+            data.push(value);
+          }
+        });
+        s = parseFloat(data[0].current_price).toFixed(8);
+        c = parseFloat(data[0].price_change_percentage_24h).toFixed(2);
+      }
+      else {
+        data = await CoinGeckoClient.simple.price({
+          ids: [coinID],
+          vs_currencies: ['usd', coin2.toLowerCase()],
+          include_24hr_vol: [true],
+          include_24hr_change: [true]
+        });
+        s = parseFloat(data.data[coinID][coin2]).toFixed(8);
+        c = Math.round(data.data[coinID][coin2.toLowerCase() + "_24h_change"] * 100) / 100;
+      }
       s = trimDecimalPlaces(s);
-      if (isNaN(s) || !s) { //looking for NaN, making sure price is valid
+      if (isNaN(s) || !s) { // looking for NaN, making sure price is valid
         chn.send("**" + coin.toUpperCase() + "** was found, but the pairing currency **" + coin2.toUpperCase() + "** was not found. Try another pairing!");
         return;
       }
@@ -457,7 +524,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
 //------------------------------------------
 //------------------------------------------
 
-// Function for Coin Market Cap prices
+// Function for CoinMarketCap prices
 
 function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
@@ -497,7 +564,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
     let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
     let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
     let upchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100;
-    //unused due to api key limits
+    // unused due to api key limits
     //let bpchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.BTC.percent_change_24h) * 100) / 100;
     //let epchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.ETH.percent_change_24h) * 100) / 100;
 
@@ -570,6 +637,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
 
   let ordered = {};
   let msgh;
+  let selectedCoinObjects = [];
 
   if (action === 'p') {
     msgh = "__CoinGecko__ Price for Top 10 Coins:\n";
@@ -587,19 +655,23 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
       let g = didyoumean(coins[i], Object.keys(cgArrayDict));
       if (!g)
         continue;
-      else{
+      else {
         coins[i] = g;
       }
     }
 
-    // log the json entry for selected coin
-    //console.log(cgArrayDict[coins[i]]);
+    // look through cache and get each matching coin
+    cgArrayDictParsed.forEach((value) => {
+      if (value.symbol.toUpperCase() == coins[i]) {
+        selectedCoinObjects.push(value);
+      }
+    });
 
-    // get the price data from cache and format it accordingly
-    let plainPriceUSD = trimDecimalPlaces(parseFloat(cgArrayDict[coins[i]].current_price).toFixed(6));
-    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cgArrayDict[coins[i]].current_price)).toFixed(8));
-    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cgArrayDict[coins[i]].current_price)).toFixed(8));
-    let upchg = Math.round(parseFloat(cgArrayDict[coins[i]].price_change_percentage_24h_in_currency) * 100) / 100;
+    // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
+    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
+    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
+    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
+    let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
 
     // ignore percent in cases where it's a new coin and 24hr percent is not yet available
     if(!upchg){
@@ -638,8 +710,8 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         break;
 
       case '%':
-        if (cgArrayDict[coins[i]])
-          ordered[cgArrayDict[coins[i]].price_change_percentage_24h_in_currency] =
+        if (selectedCoinObjects[0])
+          ordered[selectedCoinObjects[0].price_change_percentage_24h_in_currency] =
             ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
 
@@ -1214,12 +1286,20 @@ async function getMexLongsShorts(channel) {
 async function priceConversionTool(coin1, coin2, amount, chn) {
 
   if (!coin1 || !coin2 || !amount) {
-    //show help message and then exit if wrong input is provided
+    // show help message and then exit if wrong input is provided
     chn.send("**Here's how to use the coin conversion command:**\n " +
       ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " +
       ":small_blue_diamond: Example: `.tb cv 20 eth btc`\n");
     return;
   }
+
+  // don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
   coin1 = coin1.toLowerCase() + "";
   coin2 = coin2.toLowerCase() + "";
 
@@ -1242,18 +1322,14 @@ async function priceConversionTool(coin1, coin2, amount, chn) {
   let found2 = false;
   let coinID1 = "";
   let coinID2 = "";
-  for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if (pairs_CG[i].symbol === coin1) {
-      coinID1 = pairs_CG[i].id;
+  for (let i = 0, len = cgArrayDictParsed.length; i < len; i++) {
+    if (cgArrayDictParsed[i].symbol.toLowerCase() == coin1) {
+      coinID1 = cgArrayDictParsed[i].id;
       found1 = true;
-      break;
     }
-  }
-  for (let i = 0, len = pairs_CG.length; i < len; i++) {
-    if (pairs_CG[i].symbol === coin2) {
-      coinID2 = pairs_CG[i].id;
+    if (cgArrayDictParsed[i].symbol.toLowerCase() == coin2) {
+      coinID2 = cgArrayDictParsed[i].id;
       found2 = true;
-      break;
     }
   }
 
@@ -1277,7 +1353,6 @@ async function priceConversionTool(coin1, coin2, amount, chn) {
     chn.send(builtMessage);
     console.log(chalk.green("Currency conversion requested for " + chalk.cyan(coin1) + " to " + chalk.cyan(coin2)));
   }
-
   else {
     chn.send("One or more of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
   }
@@ -2528,11 +2603,11 @@ function commands(message, botAdmin) {
           cursor = index;
         }
       });
-      getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor - 1].symbol,
-      cgArrayDictParsed[cursor - 2].symbol, cgArrayDictParsed[cursor - 3].symbol,
-      cgArrayDictParsed[cursor - 4].symbol, cgArrayDictParsed[cursor - 5].symbol,
-      cgArrayDictParsed[cursor - 6].symbol, cgArrayDictParsed[cursor - 7].symbol,
-      cgArrayDictParsed[cursor - 8].symbol, cgArrayDictParsed[cursor - 9].symbol], channel, 'p');
+      getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor + 1].symbol,
+      cgArrayDictParsed[cursor + 2].symbol, cgArrayDictParsed[cursor + 3].symbol,
+      cgArrayDictParsed[cursor + 4].symbol, cgArrayDictParsed[cursor + 5].symbol,
+      cgArrayDictParsed[cursor + 6].symbol, cgArrayDictParsed[cursor + 7].symbol,
+      cgArrayDictParsed[cursor + 8].symbol, cgArrayDictParsed[cursor + 9].symbol], channel, 'p');
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b') {
