@@ -648,9 +648,11 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   let msg = '';
   let ep, bp, up; //pricing values (ep=ethprice, bp=btcprice, up=usdprice)
 
-
   for (let i = 0; i < coins.length; i++) {
     coins[i] = coins[i].toUpperCase(); //make all input coins uppercase
+  }
+
+  for (let i = 0; i < coins.length; i++) {
     if (!cgArrayDict[coins[i]]) {
       let g = didyoumean(coins[i], Object.keys(cgArrayDict));
       if (!g)
@@ -667,11 +669,13 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
       }
     });
 
+    //console.log(selectedCoinObjects);
+
     // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
-    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
-    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
-    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
-    let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
+    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[i].current_price).toFixed(6));
+    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[i].current_price)).toFixed(8));
+    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[i].current_price)).toFixed(8));
+    let upchg = Math.round(parseFloat(selectedCoinObjects[i].price_change_percentage_24h_in_currency) * 100) / 100;
 
     // ignore percent in cases where it's a new coin and 24hr percent is not yet available
     if(!upchg){
@@ -710,8 +714,8 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         break;
 
       case '%':
-        if (selectedCoinObjects[0])
-          ordered[selectedCoinObjects[0].price_change_percentage_24h_in_currency] =
+        if (selectedCoinObjects[i])
+          ordered[selectedCoinObjects[i].price_change_percentage_24h_in_currency] =
             ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
 
