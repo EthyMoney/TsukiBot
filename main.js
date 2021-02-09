@@ -129,9 +129,6 @@ let getEmCoach            = false;
 // Spellcheck
 const didyoumean          = require("didyoumean");
 
-// Google translate
-const translateSimple     = require('translate-google');
-
 // CryptoCompare requires global fetch
 global.fetch              = require('node-fetch');
 
@@ -2164,27 +2161,55 @@ client.on('message', message => {
 
 /* -------------------------------------------------------
 
-   This is the main method. It gets the current message
-   and a boolean that states if the sender has a
-   botAdmin role.
+  This is the commands function. Every message that the bot
+  receives that passed through the previous tests and
+  filtering of the message event handler will be forwarded
+  to here. This function receives that forwarded message
+  as well as a Boolean that states if the message author
+  has a botAdmin role assigned to them.
 
-   The first section checks for simple parameter
-   inputs. These are of the form [prefix][command].
+  This function has a LOT going on here. It's in charge
+  of doing the heavy lifting to format and route incoming
+  message traffic to the correct commands.
 
-   The second section checks for multi-parameter inputs,
-   such cmc and cc. Multi-parameter inputs have the
-   format [prefix] [command] [parameters].
+  To make what's going on here a little easier to
+  read, we will split up all the input processing into
+  labeled sections below. Sections 1, 2, and 3.
 
-   The third section checks for shortcut commands 
-   and other random commands.
+  *SECTION 1: Handles commands that take no parameters.
+  These have the usage format [prefix] [command]
 
-   These cases default to posting the help text. The
-   reference text for all commands is found in 
-   common/commands.md. A link to this page will be 
-   posted if a command is not recognised or is used
-   incorrectly.
+  *SECTION 2: Handles commands with one or more parameters.
+  The parameters received for these commands
+  get broken up and placed into an array called code_in
+  for easier processing and organization.
+  These commands have the usage format
+  [prefix] [command] [parameter(s)].
 
-   Simple enough right? Lets do this!
+  *SECTION 3: Handles shortcut commands
+  This section takes care of the shortcut commands
+  and some of the other random addon commands. These
+  command calls will have no spaces in their input
+  and don't take parameters unless otherwise stated.
+  These calls typically consist of the prefix and a
+  short phrase or letter right next to it that
+  represents the command. These have the usage format
+  [prefix][command/symbol] (remember, no spaces at all)
+
+  Side note:
+  Sections 1 and 2 will default to posting the commands
+  help message if the provided command is not recognized
+  or the input is invalid. This message contains the
+  suggestion to use the ".tb help" command to get a link to
+  the commands documentation on GitHub. This document can
+  be found in "common/commands.md" for your reference.
+  Section 3 does NOT have this verification in place. The
+  bot will simply ignore the message and not do anything
+  if the checks for shortcut commands fails.
+
+  Got the hang of it now? Let’s do this! I clearly
+  labeled each of the sections below so you don't get too lost :)
+
 
  ------------------------------------------------------- */
 
@@ -2299,22 +2324,19 @@ function commands(message, botAdmin) {
       command = code_in[0].toLowerCase();
     }
 
+
+
     //
-    // Check commands that don't require paramers
     //
+    // * SECTION 1: Check commands that don't require paramers
+    //
+    //
+
+
 
     // Get DiscordID via DM
     if (command === 'id') {
       message.author.send("Your ID is `" + message.author.id + "`.");
-
-      // Converts cryptos at binance rates
-    } else if (command === 'convert' || command === 'cv') {
-      if (code_in[4]) {
-        priceConversionTool(code_in[2], code_in[4], code_in[1], channel);
-      }
-      else {
-        priceConversionTool(code_in[2], code_in[3], code_in[1], channel);
-      }
 
       // Statistics
     } else if (command === 'stat') {
@@ -2336,20 +2358,11 @@ function commands(message, botAdmin) {
     } else if (command === 'ls' || command === 'longs' || command === 'shorts' || command === 'positions' || command === 'longs/shorts') {
       getMexLongsShorts(channel);
 
-      // Create a new tag
-    } else if (command === 'createtag' || command === 'tagcreate') {
-      tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
-
-      // Call an existing tag
-    } else if (command === 'tag') {
-      tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
-
       // Call the tag list for current server
     } else if (command === 'taglist' || command === 'tags' || command === 'listtags') {
-      tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
-
-      // Delete a tag
-    } else if (command === 'deletetag') {
+      if(command == 'tags' || command == 'listtags'){
+        command = 'taglist';
+      }
       tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
 
       // Dev option to show the tags cache in console (be careful with this, it will spam your console HARD)
@@ -2387,8 +2400,11 @@ function commands(message, botAdmin) {
 
 
       //
-      // Done checking for no-input commands, now checking rest of commands:
+      // 
+      // * SECTION 2: Commands with parameter(s)
       //
+      //
+
 
 
       // Check if there is parameter content ("pa" and "mc" are exceptions to this rule since they can be called as standalone commands)
@@ -2415,7 +2431,8 @@ function commands(message, botAdmin) {
         // Keeping the pad
         params.unshift('0');
         if (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'mc', 'stocks', 'stock', 'info',
-          'gr', 'graviex', 'grav', 'pa', 'pa+', 'pa-', 'cmc', 'e', 'etherscan', 'binance', 'n'].indexOf(command) > -1) {
+          'gr', 'graviex', 'grav', 'pa', 'pa+', 'pa-', 'cmc', 'e', 'etherscan', 'binance', 'n', 'convert', 'cv', 'tag', 'createtag',
+          'tagcreate', 'deletetag', 'newtag'].indexOf(command) > -1) {
 
           // Coinbase call
           if (command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase') {
@@ -2486,6 +2503,30 @@ function commands(message, botAdmin) {
               channel.send("Error: Only the server owner has permission to change the CMC shortcut!");
             }
 
+            // Convert cryptos at CoinGecko rates
+          } else if (command === 'convert' || command === 'cv') {
+            if (code_in[4]) {
+              priceConversionTool(code_in[2], code_in[4], code_in[1], channel);
+            }
+            else {
+              priceConversionTool(code_in[2], code_in[3], code_in[1], channel);
+            }
+
+            // Create a new tag
+          } else if (command === 'createtag' || command === 'tagcreate' || command === 'newtag') {
+            if (command == 'tagcreate' || command == 'newtag') {
+              command = 'createtag';
+            }
+            tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1], code_in[2]);
+
+            // Call an existing tag
+          } else if (command === 'tag') {
+            tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
+
+            // Delete a tag
+          } else if (command === 'deletetag') {
+            tagsEngine(msg.channel, msg.author, msg.createdTimestamp, msg.guild, command.toString().toLowerCase(), code_in[1]);
+
             // Poloniex call (no filter)
           } else if (command === 'polo' || command === 'p' || command === 'poloniex') {
             getPricePolo(code_in[1], code_in[2], channel);
@@ -2548,6 +2589,11 @@ function commands(message, botAdmin) {
     }
 
 
+
+    //
+    //
+    // SECTION 3: Shortcuts! Format: [prefix][shortcut] (no spaces in input, no parameters)
+    //
     // --------------------------------------------------------------------------------------------------------
     //                                          Shortcut Commands
     // --------------------------------------------------------------------------------------------------------
@@ -2570,7 +2616,7 @@ function commands(message, botAdmin) {
         getCoinArray(message.author.id, channel, message, '', scommand[2] || '-');
       }
 
-      // Get Coinbase ETHX
+      // Get Coinbase ETHX (exception to the "no spaces" rule: this shortcut can take one parameter)
     } else if (scommand === 'g' || scommand === 'cb') {
       if (code_in[1] && code_in[1].toUpperCase() === 'EUR') {
         getPriceCoinbase(channel, 'ETH', 'EUR');
@@ -2580,7 +2626,7 @@ function commands(message, botAdmin) {
         getPriceCoinbase(channel, 'ETH', 'USD');
       }
 
-      // Get Kraken ETHX
+      // Get Kraken ETHX (exception to the "no spaces" rule: this shortcut can take one parameter)
     } else if (scommand === 'k') {
       if (code_in[1] && code_in[1].toUpperCase() === 'EUR') {
         getPriceKraken('ETH', 'EUR', channel);
@@ -2739,29 +2785,72 @@ function capitalizeFirstLetter(string) {
 
 // Traslate message to english
 function translateEN(chn, msg, sneak) {
-
-  //remove the command string and potential mentions
-
-  // TODO: the following removal of command prefix only works if it was sent lowercase. 
-  // !   Need to remove upper and mixed cases as well!
   let message = msg.content + "";
+  // strip out mentions, emojis, and command prefixes
   message = message.replace(/<.*>/, '');
-  message = message.replace('.tb translate', '');
-  message = message.replace('.tb t', '');
-  message = message.replace('.tb trans', '');
-  message = message.replace('.tbt', '');
-  //do the translation
-  translateSimple(message, { to: 'en' }).then(res => {
-    //console.log(chalk.green('google translated: ' + chalk.cyan(res)));
+  message = message.replace(RegExp('.tb translate', 'gi'), '');
+  message = message.replace(RegExp('-t translate', 'gi'), '');
+  message = message.replace(RegExp('.tb trans', 'gi'), '');
+  message = message.replace(RegExp('-t trans', 'gi'), '');
+  message = message.replace(RegExp('.tb t', 'gi'), '');
+  message = message.replace(RegExp('-t t', 'gi'), '');
+  message = message.replace(RegExp('.tbt', 'gi'), '');
+  message = message.replace(RegExp('-tt', 'gi'), '');
+  // check for empty input and send help response
+  if (message.length == 0) {
+    chn.send("Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.");
+    console.log(chalk.green("Translation command help sent to: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
+    return;
+  }
+  // do the translation
+  translateHelper(message).then(function (res) {
     if (!sneak) {
-      chn.send('Translation: `' + res + '`');
+      chn.send(`Translation:  \`${res.translation}\``);
+      console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)))
     }
     else {
       console.log(chalk.yellow(msg.author.username) + ": " + chalk.cyan(res));
     }
   }).catch(err => {
-    console.error(err);
+    console.error(chalk.red("Translation command error! : ") + chalk.cyan(err));
+    chn.send("Translation failed at this time. Try again later!");
   });
+}
+
+// Helper function for the translation command
+function translateHelper(originalText, cb) {
+  let text = encodeURIComponent(originalText);
+  let promise = new Promise((resolve, reject) => {
+    request({
+      url: `https://www.google.com/async/translate?vet=12ahUKEwjV8_i2iMbuAhUdSxUIHW_IBL8QqDgwAHoECAEQJg..i&ei=M5QWYJWOHJ2W1fAP75CT-As&rlz=1C1CHBF_enUS919FR919&yv=3`,
+      method: "POST",
+      form: {
+        "async": `translate,sl:auto,tl:en,st:${text},id:1612089740280,qc:true,ac:true,_id:tw-async-translate,_pms:s,_fmt:pc`
+      }
+    }, function (err, response, body) {
+      if (err)
+        return reject(err);
+      if (response.statusCode != 200) {
+        return reject(response.statusCode + " " + response.body);
+      }
+      let matchLang = body.match(/<span id="tw-answ-detected-sl">(.+?)<\/span>/i);
+      let matchTranslation = body.match(/<span id="tw-answ-target-text">(.+?)<\/span>/i);
+      let lang, translation;
+      if (matchLang) {
+        let [full, language] = matchLang;
+        lang = language;
+      }
+      if (matchTranslation) {
+        let [full, text] = matchTranslation;
+        translation = text;
+      }
+      resolve({ original: originalText, lang: lang, translation: translation });
+    });
+  });
+  if (cb && typeof cb == 'function')
+    promise.then(res => cb(null, res)).catch((err) => { cb(err); });
+  else
+    return promise;
 }
 
 // Split up large strings by length provided without breaking words or links within them
