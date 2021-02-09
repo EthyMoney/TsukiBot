@@ -96,6 +96,7 @@ const CoinGecko           = require('coingecko-api');
 
 // Import web3
 const Web3                = require('web3');
+let web3eth               = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
 
 // Express server for charts
 const express             = require('express');
@@ -1566,7 +1567,13 @@ function getEtherBalance(address, chn, action = 'b') {
     balance.then(function (res) {
       chn.send('The total ether registered for `' + address + '` is: `' + trimDecimalPlaces(res.result / 1000000000000000000) + ' ETH`.');
     });
-  } else {
+    console.log(chalk.green("Etherscan balance lookup called in: ") + chalk.cyan(chn.guild.name));
+  } else if (action === 'ens') {
+    web3eth.eth.ens.getOwner(address).then(function (owner) {
+      getEtherBalance(owner, chn);
+    });
+  }
+  else {
     let block = api.proxy.eth_blockNumber();
     let tx = api.proxy.eth_getTransactionByHash(address);
     tx.then(function (res) {
@@ -1585,6 +1592,7 @@ function getEtherBalance(address, chn, action = 'b') {
         chn.send('Transaction not found. (Neither mined nor broadcasted.)');
       }
     });
+    console.log(chalk.green("Etherscan txn lookup called in: ") + chalk.cyan(chn.guild.name));
   }
 }
 
@@ -2545,12 +2553,15 @@ function commands(message, botAdmin) {
 
             // Etherscan call
           } else if ((command === 'etherscan' || command === 'e')) {
-            if (params[1].length === 42) {
-              getEtherBalance(params[1], channel);
-            } else if (params[1].length === 66) {
-              getEtherBalance(params[1], channel, 'tx');
-            } else {
-              channel.send("Format: `.tb e [HEXADDRESS or TXHASH]` (with prefix 0x).");
+            if (code_in[1].length === 42) {
+              getEtherBalance(code_in[1], channel);
+            } else if (code_in[1].length === 66) {
+              getEtherBalance(code_in[1], channel, 'tx');
+            } else if (code_in[1].toLowerCase().includes('.eth')){
+              getEtherBalance(code_in[1], channel, 'ens');
+            }
+            else {
+              channel.send("Format: `.tb e [HEXADDRESS, TXHASH, or ENS.eth address]` (hexaddress or txhash have prefix 0x).");
             }
 
           } else if (command === 'translate' || command === 't' || command === 'trans') {
@@ -2592,7 +2603,7 @@ function commands(message, botAdmin) {
 
     //
     //
-    // SECTION 3: Shortcuts! Format: [prefix][shortcut] (no spaces in input, no parameters)
+    // * SECTION 3: Shortcut commands. Format: [prefix][shortcut] (no spaces in input, no parameters)
     //
     // --------------------------------------------------------------------------------------------------------
     //                                          Shortcut Commands
