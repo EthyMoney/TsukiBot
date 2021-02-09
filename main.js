@@ -54,7 +54,6 @@
 // File read for JSON and PostgreSQL
 const fs                  = require('fs');
 const pg                  = require('pg');
-const pgp                 = require('pg-promise');
 
 // Scheduler
 const schedule            = require('node-schedule');
@@ -102,6 +101,9 @@ let web3eth               = new Web3(`https://mainnet.infura.io/v3/${keys.infura
 const express             = require('express');
 const app                 = express();
 chartServer();
+
+// Automatic color selector for embeds
+const colorAverager       = require('fast-average-color-node');
 
 // Puppeteer for to interact with the headless server and manipulate charts
 const puppeteer           = require('puppeteer');
@@ -1084,6 +1086,7 @@ async function getCoinDescription(coin1, chn, usr) {
   let foundCoins = [];
   let logos = [];
   let descriptions = [];
+  let logoColors = [];
 
   // check if coin exists on CG by checking for name, ticker, mc rank, and even cg id
   for (let i = 0; i < j; i++) {
@@ -1096,15 +1099,19 @@ async function getCoinDescription(coin1, chn, usr) {
   if (foundCoins.length > 0) {
     console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1)));
 
-    foundCoins.forEach((value, index) => {
+    foundCoins.forEach(async (value, index) => {
       // grab logo and description if found by id
       for (let j = 0, len = metadata.data.length; j < len; j++) {
         if (metadata.data[j].slug === value.id) {
           if (metadata.data[j].logo) {
             logos.push(metadata.data[j].logo);
+            await colorAverager.getAverageColor(metadata.data[j].logo).then(color => {
+              logoColors.push(color.hex);
+            });
           } else {
             // default to CoinGecko logo if coin doesn't have one yet
             logos.push('https://i.imgur.com/EnWbbrN.png');
+            logoColors.push('#1b51be');
           }
           if (metadata.data[j].description) {
             descriptions.push(metadata.data[j].description);
@@ -1119,7 +1126,7 @@ async function getCoinDescription(coin1, chn, usr) {
         let embed = new Discord.MessageEmbed()
           .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + "):")
           .setDescription(descriptions[index])
-          .setColor('#1b51be')
+          .setColor(logoColors[index])
           .setThumbnail(logos[index])
           .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
@@ -1136,7 +1143,7 @@ async function getCoinDescription(coin1, chn, usr) {
           let embed = new Discord.MessageEmbed()
             .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + ")  (PAGE " + blockCursor + "):")
             .setDescription(element)
-            .setColor('#1b51be')
+            .setColor(logoColors[index])
             .setThumbnail(logos[index])
             .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
@@ -1711,6 +1718,7 @@ function getMarketCapSpecific(message) {
         let totalSupply = ticker[i].total_supply;
         let maxSupply = ticker[i].max_supply;
         let percent1h = ticker[i].price_change_percentage_1h_in_currency;
+        let logoColor = '#1b51be';
         if (symbol == "ETH") { priceETH = 1; } else { priceETH = convertToETHPrice(price).toFixed(6); }
         if (symbol == "BTC") { priceBTC = 1; } else { priceBTC = convertToBTCPrice(price).toFixed(8); }
 
@@ -1745,6 +1753,9 @@ function getMarketCapSpecific(message) {
           if (metadata.data[j].slug === slug) {
             if (metadata.data[j].logo) {
               logo = metadata.data[j].logo;
+              await colorAverager.getAverageColor(logo).then(color => {
+                logoColor = color.hex;
+              });
             }
           }
         }
@@ -1754,7 +1765,7 @@ function getMarketCapSpecific(message) {
           .addField(name + " (" + symbol + ")", l1 + l2 + l3 + l4 + l5 + l6, false)
           .addField("Current Prices:", l71 + l75 + l76, true)
           .addField("Price Changes:", l81 + l82 + l83 + l84 + l85, true)
-          .setColor('#1b51be')
+          .setColor(logoColor)
           .setThumbnail(logo)
           .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
