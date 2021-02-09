@@ -18,6 +18,7 @@
     "discord.js": "^12.5.1",
     "etherscan-api": "^10.0.5",
     "express": "^4.17.1",
+    "fast-average-color-node": "^1.0.3",
     "finnhub": "^1.2.1",
     "graviex": "^1.0.0",
     "jsdom": "^16.4.0",
