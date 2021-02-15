@@ -1582,7 +1582,23 @@ function getEtherBalance(address, chn, action = 'b') {
     console.log(chalk.green("Etherscan balance lookup called in: ") + chalk.cyan(chn.guild.name));
   } else if (action === 'ens') {
     web3eth.eth.ens.getOwner(address).then(function (owner) {
-      getEtherBalance(owner, chn);
+      // check for unregistered ENS name, and then send not found notification and ENS link to potentially register that name
+      if (owner == '0x0000000000000000000000000000000000000000'){
+        console.log(chalk.green("Etherscan ENS registration sent for " + chalk.yellow(address) + " in " + chalk.cyan(chn.guild.name)));
+        let addy = "https://app.ens.domains/name/" + address;
+        let embed = new Discord.MessageEmbed()
+          .setTitle("That ENS name is not yet registered!")
+          .setDescription("Want to make it yours?  " + `[${"CLICK HERE!"}](${addy})`)
+          .setThumbnail("https://imgur.com/jUMEIgL.png")
+          .setColor('#1b51be');
+        chn.send({ embed }).catch(function (rej) {
+          chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+          console.log(chalk.red('Error sending etherscan command\'s ENS not found message embed! : ' + chalk.cyan(rej)));
+        });
+      }
+      else{
+        getEtherBalance(owner, chn);
+      }
     });
   }
   else {
