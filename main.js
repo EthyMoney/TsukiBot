@@ -662,20 +662,22 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
       }
     }
 
+    let found = false;
     // look through cache and get each matching coin
     cgArrayDictParsed.forEach((value) => {
-      if (value.symbol.toUpperCase() == coins[i]) {
+      if (value.symbol.toUpperCase() == coins[i] && !found) {
         selectedCoinObjects.push(value);
+        found = true; // make sure we only grab the higher MC ranked coin
       }
     });
 
-    //console.log(selectedCoinObjects);
+    //console.log(selectedCoinObjects[0]);
 
     // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
-    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[i].current_price).toFixed(6));
-    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[i].current_price)).toFixed(8));
-    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[i].current_price)).toFixed(8));
-    let upchg = Math.round(parseFloat(selectedCoinObjects[i].price_change_percentage_24h_in_currency) * 100) / 100;
+    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
+    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
+    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
+    let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
 
     // ignore percent in cases where it's a new coin and 24hr percent is not yet available
     if(!upchg){
@@ -714,8 +716,8 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         break;
 
       case '%':
-        if (selectedCoinObjects[i])
-          ordered[selectedCoinObjects[i].price_change_percentage_24h_in_currency] =
+        if (selectedCoinObjects[0])
+          ordered[selectedCoinObjects[0].price_change_percentage_24h_in_currency] =
             ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
 
@@ -723,6 +725,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
     }
+    selectedCoinObjects = []; // clear array for next coin
   }
 
   if (action === '%') {
@@ -1099,15 +1102,15 @@ async function getCoinDescription(coin1, chn, usr) {
   if (foundCoins.length > 0) {
     console.log(chalk.green("Coin description requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1)));
 
-    foundCoins.forEach(async (value, index) => {
-      // grab logo and description if found by id
+    // grabbing for each coin found with matching input
+    for (let index = 0, len = foundCoins.length; index < len; index++) {
+      // grab logo and description if found by id in the cache
       for (let j = 0, len = metadata.data.length; j < len; j++) {
-        if (metadata.data[j].slug === value.id) {
+        if (metadata.data[j].slug === foundCoins[index].id) {
           if (metadata.data[j].logo) {
             logos.push(metadata.data[j].logo);
-            await colorAverager.getAverageColor(metadata.data[j].logo).then(color => {
-              logoColors.push(color.hex);
-            });
+            let color = await colorAverager.getAverageColor(metadata.data[j].logo);
+            logoColors.push(color.hex);
           } else {
             // default to CoinGecko logo if coin doesn't have one yet
             logos.push('https://i.imgur.com/EnWbbrN.png');
@@ -1154,7 +1157,7 @@ async function getCoinDescription(coin1, chn, usr) {
           blockCursor++;
         });
       }
-    });
+    }
   }
   else {
     chn.send("**Error:** __" + coin1 + "__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.");
@@ -3352,6 +3355,19 @@ async function getCGData(status) {
   let marketDataFiltered = marketData.sort(function (a, b) {
     return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
   });
+
+  // clean up any potential duplicates duplicates
+  let cleaned = [];
+  let uniqueCoin = {};
+  for (let i in marketDataFiltered) {
+    coinID = marketDataFiltered[i].id;
+    uniqueCoin[coinID] = marketDataFiltered[i];
+  }
+  for (let i in uniqueCoin) {
+    cleaned.push(uniqueCoin[i]);
+  } 
+  marketDataFiltered = cleaned;
+
   cgArrayDictParsed = marketDataFiltered; // plain array copy
 
   // build cache with the coin symbols as keys
