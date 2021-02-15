@@ -98,8 +98,10 @@ const Web3                = require('web3');
 let web3eth               = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
 
 // Express server for charts
+const path                = require('path');
 const express             = require('express');
 const app                 = express();
+const dir                 = path.join(__dirname, 'public');
 chartServer();
 
 // Automatic color selector for embeds
@@ -2989,7 +2991,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     page = await browser.newPage();
-    await page.goto(`http://localhost:8080/${args[1]}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
+    await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
     await page.click('#tradingview_bc0b0');
 
     if (query.includes('log')) {
@@ -2998,16 +3000,33 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       await page.keyboard.up('Alt');
     }
 
+    await page.click('#tsukilogo');
+
+    await page.setViewport({
+      width: query.includes('wide') ? 1275 : 715,
+      height: 557
+    });
+
+    await page.screenshot({ path: `chartscreens/chart.png` });
+    msg.channel.send({
+      files: [{
+          attachment: 'chartscreens/chart.png',
+          name: 'chart.png'
+        }]
+      });
+
+    /*
     await page.keyboard.down('Alt');
     await page.keyboard.press('KeyS');
     await page.keyboard.up('Alt');
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    await frame.waitForTimeout(3500);
+    await frame.waitFor(2500);
     // await frame.waitForSelector('.input-1Fp9QlzO');
     const chartLinkInput = await frame.$(".input-1Fp9QlzO");
     chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
+    */
 
     await page.close();
     await browser.close();
@@ -3580,8 +3599,12 @@ function initializeFiles() {
 
 function chartServer() {
   const port = 8080;
+  app.use(express.static(dir));
   app.get('/:ticker', function(req, res) {
-    let query = req.query.query.split(",");
+    let query = [];
+    if (req.query.query) {
+      query = req.query.query.split(",");
+    }
 
     const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd', 'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly']
     const intervalMap = { '1m':'1', '1':'1', '3m':'3', '3':'3', '5m':'5', '5':'5', '15m':'15', '15':'15', '30m':'30', '30':'30', '1h':'60', '60':'60', '2h':'120', '120':'120', '3h':'180', '180':'180', '4h':'240', '240':'240', '1d':'D', 'd':'D', 'day':'D', 'daily':'D', '1w':'W', 'w':'W', 'week':'W', 'weekly':'W', '1mo':'M', 'm':'M', 'mo':'M', 'month':'M', 'monthly':'M' }
@@ -3620,19 +3643,21 @@ function chartServer() {
       }
     });
 
-    res.write(`<!-- TradingView Widget BEGIN -->
+    res.write(`
+    <div id="ccchart-container" style="width:${query.includes('wide') ? '1280' : '720'}px; height: 600px; position:relative; top:-50px; left:-10px;">
+    <!-- TradingView Widget BEGIN -->
     <div class="tradingview-widget-container">
       <div id="tradingview_bc0b0"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
       <script type="text/javascript">
       new TradingView.widget(
       {
-        "width": ${query.includes('wide') ? '1920' : '960'},
-        "height": 800,
+        "width": ${query.includes('wide') ? '1280' : '720'},
+        "height": 600,
         "symbol": "${req.params.ticker}",
         "interval": "${intervalMap[intervalKey]}",
         "timezone": "Etc/UTC",
-        "theme": "dark",
+        "theme": "${query.includes('moro') || query.includes('light') ? 'light' : 'dark'}",
         "style": "1",
         "locale": "en",
         "toolbar_bg": "#f1f3f6",
@@ -3646,8 +3671,14 @@ function chartServer() {
       );
       </script>
     </div>
-    <!-- TradingView Widget END -->`);
-    res.end();
+    <!-- TradingView Widget END -->
+    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:30px; height:30px; width:30px; position:absolute; bottom:35px; left:50px;"></div>
+    <div id="bera1" style="background: url('bera1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
+    <div id="bera2" style="background: url('bera2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
+    <div id="bera1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
+    <div id="bera2" style="background: url('blul2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
+    </div>`);
+    res.end() 
   });
   app.listen(port, () => {
     console.log(`Chart server listening at http://localhost:${port}`);
