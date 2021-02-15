@@ -125,8 +125,14 @@ function sleep(ms) {
 async function startup() {
   cgCoinsList = await CoinGeckoClient.coins.list();
   for (let i = 0; i < cgCoinsList.data.length; i++) {
-    console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
-    await collectMetadata(cgCoinsList.data[i].id, i + 1);
+    // skip coins with no id in api
+    if (!cgCoinsList.data[i].id){
+      console.log(chalk.yellow("NO ID FOUND [SKIPPED]") + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
+    }
+    else{
+      console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
+      await collectMetadata(cgCoinsList.data[i].id, i + 1);
+    }
     await sleep(1500); //rate limiting requests to not exceed api limits
   }
   writeToFile();
