@@ -1826,6 +1826,14 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
   // delete .tbpa command after 5 min (optional)
   // msg.delete({ timeout: 300000 });
 
+  // look for action within the provided coins list (for in case the user didn't use shortcut call like they should have)
+  if (coins[0] == '+') {
+    action = coins.shift();
+  }
+  else if (coins[0] == '-') {
+    action = coins.shift();
+  }
+
   // .tbpa call (display action)
   if (coins === '') {
     query = conn.query("SELECT * FROM tsukibot.profiles where id = $1;", [id], (err, res) => {
