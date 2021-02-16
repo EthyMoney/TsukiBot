@@ -631,7 +631,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 function getPriceCG(coins, chn, action = '-', ext = 'd') {
 
   // don't let command run if cache is still updating for the first time
-  if(cacheUpdateRunning){
+  if (cacheUpdateRunning) {
     chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
@@ -644,6 +644,9 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   if (action === 'p') {
     msgh = "__CoinGecko__ Price for Top 10 Coins:\n";
   }
+  else if (action === 'm') {
+    msgh = "__CoinGecko__ Price for Top 5 Gainers and Losers:\n";
+  }
   else {
     msgh = '__CoinGecko__ Price for:\n';
   }
@@ -655,23 +658,36 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   }
 
   for (let i = 0; i < coins.length; i++) {
-    if (!cgArrayDict[coins[i]]) {
-      let g = didyoumean(coins[i], Object.keys(cgArrayDict));
-      if (!g)
-        continue;
-      else {
-        coins[i] = g;
-      }
+    // for getting coin by ID (biggest movers action call)
+    if (action === 'm') {
+      // look through cache and get each matching coin
+      cgArrayDictParsed.forEach((value) => {
+        if (value.id.toUpperCase() == coins[i]) {
+          selectedCoinObjects.push(value);
+          // replace the id in the coins array with the symbol (for readability)
+          coins[i] = value.symbol.toUpperCase();
+        }
+      });
     }
-
-    let found = false;
-    // look through cache and get each matching coin
-    cgArrayDictParsed.forEach((value) => {
-      if (value.symbol.toUpperCase() == coins[i] && !found) {
-        selectedCoinObjects.push(value);
-        found = true; // make sure we only grab the higher MC ranked coin
+    // otherwise process as normal call and look for symbols
+    else {
+      if (!cgArrayDict[coins[i]]) {
+        let g = didyoumean(coins[i], Object.keys(cgArrayDict));
+        if (!g)
+          continue;
+        else {
+          coins[i] = g;
+        }
       }
-    });
+      let found = false;
+      // look through cache and get each matching coin
+      cgArrayDictParsed.forEach((value) => {
+        if (value.symbol.toUpperCase() == coins[i] && !found) {
+          selectedCoinObjects.push(value);
+          found = true; // make sure we only grab the higher MC ranked coin
+        }
+      });
+    }
 
     //console.log(selectedCoinObjects[0]);
 
@@ -682,7 +698,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
 
     // ignore percent in cases where it's a new coin and 24hr percent is not yet available
-    if(!upchg){
+    if (!upchg) {
       upchg = "n/a ";
     }
     // unused due to api limits
@@ -1672,6 +1688,37 @@ function getEtherGas(chn) {
 }
 
 
+function getBiggestMovers(chn){
+
+    //don't let command run if cache is still updating for the first time
+  if(cacheUpdateRunning){
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
+  // filter out coins that don't have BOTH a valid mc rank AND 24h % change
+  let cgdatatemp = cgArrayDictParsed.filter(function(value){ 
+        return value.market_cap_rank !== null && value.price_change_percentage !== null;
+  });
+  // now sort the result by 24 % change in descending order
+  cgdatatemp.sort(function (a, b) {
+    return b.price_change_percentage_24h - a.price_change_percentage_24h;
+  });
+  // forward to the prices command
+  let top5 = cgdatatemp.slice(0, 5);
+  let bottom5 = cgdatatemp.slice(cgdatatemp.length - 5, cgdatatemp.length);
+  let preparedArr = top5.concat(bottom5);
+  let idArr = [];
+  preparedArr.forEach((value) => {
+    idArr.push(value.id);
+  });
+  getPriceCG(idArr, chn, 'm');
+
+  console.log(chalk.green("CoinGecko biggest movers command called in: ") + chalk.yellow(chn.guild.name));
+}
+
+
 //------------------------------------------
 //------------------------------------------
 
@@ -2442,6 +2489,10 @@ function commands(message, botAdmin) {
       // Send link to the the user's avatar
     } else if (command === 'avatar' || command === 'myavatar') {
       msg.channel.send(msg.author.avatarURL());
+
+      // Send the biggest gainers and losers in terms of % change over 24h
+    } else if (command === 'gainz' || command === 'movers' || command === 'gains') {
+      getBiggestMovers(msg.channel);
 
     } else {
 
