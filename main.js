@@ -169,8 +169,8 @@ const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
 // Donation and footer stuff
-const donationAdd         = "\n`0x169381506870283cbABC52034E4ECc123f3FAD02`(ETH)";
-const quote               = 'Love TsukiBot? Consider a tip to share the love  :)';
+const quote               = 'Enjoying TsukiBot? Tell your friends!';
+const botInviteAdd        = "\nAdd the bot to other servers by using  `.tb invite`  for the link  :)";
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 // Scheduled Actions
@@ -616,7 +616,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
       msg += ordered[k[k0]];
   }
 
-  msg += (Math.random() > 0.99) ? "\n" + quote + " " + donationAdd : "";
+  msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
   if (msg !== '')
     chn.send(msgh + msg);
 }
@@ -736,7 +736,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
       msg += ordered[k[k0]];
   }
 
-  msg += (Math.random() > 0.99) ? "\n" + quote + " " + donationAdd : "";
+  msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
   if (msg !== '')
     chn.send(msgh + msg);
 }
