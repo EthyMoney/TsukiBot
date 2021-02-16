@@ -1850,7 +1850,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
           inStr = inStr.replace(/\}+/g, ''); //remove right bracket
           //Convert processed string to array of coins, then filter the array
           let coins = inStr.split(',').filter(function (value) {
-            return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+            return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
           });
           getPriceCG(coins, chn, action);
         } else {
@@ -1878,9 +1878,9 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
     }
     // filter out any invalid cg coins and notify user of them accordingly
     let cleanedCoins = coins.filter(function (value) {
-      return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+      return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
     });
-    let invalidCoins = coins.filter(e => !pairs.includes(e.toUpperCase()));
+    let invalidCoins = coins.filter(e => !pairs_CG_arr.includes(e.toUpperCase()));
     let invalidCoinsMessage = '';
     if (invalidCoins.length > 0) {
       invalidCoinsMessage = "\nNOTE: The following coins were not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
@@ -2458,7 +2458,7 @@ function commands(message, botAdmin) {
 
         let paramsUnfiltered = code_in.slice(1, code_in.length);
         let params = code_in.slice(1, code_in.length).filter(function (value) {
-          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
 
         // Checking for XBT input and converting it to BTC so the APIs understand it
@@ -2603,7 +2603,7 @@ function commands(message, botAdmin) {
           } else {
             // Before giving up, lest see if this is a command-less price call
             let potentialCoins = code_in.filter(function (value) {
-              return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+              return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
             });
             if (potentialCoins.length > 0) {
               console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
@@ -2619,7 +2619,7 @@ function commands(message, botAdmin) {
       } else {
         // Before giving up, lest see if this is a command-less price call
         let potentialCoins = code_in.filter(function (value) {
-          return !isNaN(value) || pairs.indexOf(value.toUpperCase()) > -1;
+          return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
         if(potentialCoins.length > 0){
           console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
@@ -2849,7 +2849,7 @@ function translateEN(chn, msg, sneak) {
   translateHelper(message).then(function (res) {
     if (!sneak) {
       chn.send(`Translation:  \`${res.translation}\``);
-      console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)))
+      console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
     }
     else {
       console.log(chalk.yellow(msg.author.username) + ": " + chalk.cyan(res));
@@ -2993,7 +2993,8 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       chartMsg.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + msg.content + '``');
     }
 
-    let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken', 'kucoin', 'okcoin', 'okex', 'poloniex']
+    let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken',
+      'kucoin', 'okcoin', 'okex', 'poloniex'];
     exchanges.forEach(exchange => {
       if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
         args[1] = exchange + ':' + args[1];
@@ -3447,6 +3448,7 @@ function updateCoins() {
   pairs = JSON.parse(fs.readFileSync("./common/coins.json", "utf8"));
   pairs_filtered = JSON.parse(fs.readFileSync("./common/coins_filtered.json", "utf8"));
   pairs_CG = JSON.parse(fs.readFileSync("./common/coinsCG.json", "utf8"));
+  pairs_CG_arr = JSON.parse(fs.readFileSync("./common/coinsCGtickers.json", "utf8"));
   console.log(chalk.green.bold('Reloaded known coins'));
 }
 
@@ -3622,10 +3624,13 @@ function chartServer() {
       query = req.query.query.split(",");
     }
 
-    const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd', 'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly']
-    const intervalMap = { '1m':'1', '1':'1', '3m':'3', '3':'3', '5m':'5', '5':'5', '15m':'15', '15':'15', '30m':'30', '30':'30', '1h':'60', '60':'60', '2h':'120', '120':'120', '3h':'180', '180':'180', '4h':'240', '240':'240', '1d':'D', 'd':'D', 'day':'D', 'daily':'D', '1w':'W', 'w':'W', 'week':'W', 'weekly':'W', '1mo':'M', 'm':'M', 'mo':'M', 'month':'M', 'monthly':'M' }
-    
-    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl', 'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr']
+    const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd',
+      'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly'];
+    const intervalMap = { '1m':'1', '1':'1', '3m':'3', '3':'3', '5m':'5', '5':'5', '15m':'15', '15':'15', '30m':'30', '30':'30', '1h':'60',
+      '60':'60', '2h':'120', '120':'120', '3h':'180', '180':'180', '4h':'240', '240':'240', '1d':'D', 'd':'D', 'day':'D', 'daily':'D', '1w':'W',
+      'w':'W', 'week':'W', 'weekly':'W', '1mo':'M', 'm':'M', 'mo':'M', 'month':'M', 'monthly':'M' };
+    const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl',
+      'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr'];
     const studiesMap = {
       'bb': "BB@tv-basicstudies",
       'bbr': "BollingerBandsR@tv-basicstudies",
@@ -3694,7 +3699,7 @@ function chartServer() {
     <div id="bera1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
     <div id="bera2" style="background: url('blul2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
     </div>`);
-    res.end() 
+    res.end();
   });
   app.listen(port, () => {
     console.log(`Chart server listening at http://localhost:${port}`);
