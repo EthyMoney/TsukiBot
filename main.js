@@ -861,7 +861,7 @@ async function getPriceKraken(coin1, coin2, chn) {
     //exit the function if ticker didn't exist, or api failed to respond
     return;
   }
-  let s = tickerJSON.last;
+  let s = parseFloat(tickerJSON.last).toFixed(8);
   s = trimDecimalPlaces(s);
   console.log(chalk.green('Kraken API ticker response: ' + chalk.cyan(s)));
   // Calculate % change from daily opening
