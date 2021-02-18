@@ -706,7 +706,13 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
 
     // assembling the text lines for response message
-    up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+    if(8 - plainPriceUSD.length < 0){
+    // special case for huge numbers (will skip formatting)
+      up = plainPriceUSD + ' USD` (`' + upchg + '%`)';
+    }
+    else{
+      up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+    }
     bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
     ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
     // TODO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
