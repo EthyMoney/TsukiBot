@@ -530,6 +530,13 @@ async function getPriceCoinGecko(coin, coin2, chn, action) {
 
 function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
+  // don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
   if (!cmcArrayDict.BTC) return;
 
   let ordered = {};
