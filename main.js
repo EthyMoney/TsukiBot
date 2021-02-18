@@ -3089,6 +3089,11 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       await page.keyboard.up('Alt');
     }
 
+    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
+    const frame = await elementHandle.contentFrame();
+    //await frame.waitForSelector('.tv-spinner', {visible: false});
+    await frame.waitForSelector('div[data-name="legend-series-item"', {visible: true});
+
     await page.click('#tsukilogo');
 
     await page.setViewport({
