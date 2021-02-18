@@ -3108,6 +3108,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
           name: 'chart.png'
         }]
       });
+    chartMsg.delete(15);
 
     /*
     await page.keyboard.down('Alt');
