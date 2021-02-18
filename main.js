@@ -1155,6 +1155,12 @@ async function getCoinDescription(coin1, chn, usr) {
         }
       }
 
+      // for if coin was found in the tickers cache, but not the metadate cache yet (for brand new coins)
+      if(!descriptions[index]){
+        logos.push('https://i.imgur.com/EnWbbrN.png');
+        descriptions.push("*No description available for this coin from CoinGecko yet. Check again later!*");
+      }
+
       // check against discord's embed feild size limit and cleanly split if necessary
       if (descriptions[index].length <= 2048) {
         let embed = new Discord.MessageEmbed()
