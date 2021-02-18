@@ -1781,7 +1781,7 @@ function getMarketCapSpecific(message) {
         let percent1y = ticker[i].price_change_percentage_1y_in_currency;
         let mcappercent = ticker[i].market_cap_change_percentage_24h;
         let ath = ticker[i].ath;
-        let athdate = ticker[i].ath_date.substring(0, 10);
+        let athdate = (ticker[i].ath_date) ? ticker[i].ath_date.substring(0, 10) : ticker[i].ath_date;
         let percentath = ticker[i].ath_change_percentage;
         let low24hr = ticker[i].low_24h;
         let high24hr = ticker[i].high_24h;
