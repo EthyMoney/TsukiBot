@@ -1718,7 +1718,7 @@ function getBiggestMovers(chn){
 
   // filter out coins that don't have BOTH a valid mc rank AND 24h % change
   let cgdatatemp = cgArrayDictParsed.filter(function(value){ 
-        return value.market_cap_rank !== null && value.price_change_percentage !== null;
+        return value.market_cap_rank !== null && value.price_change_percentage !== null && value.total_volume >= 10000;
   });
   // now sort the result by 24 % change in descending order
   cgdatatemp.sort(function (a, b) {
