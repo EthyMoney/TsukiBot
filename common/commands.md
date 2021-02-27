@@ -1,22 +1,51 @@
-TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/lib/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
+TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
 ========
 
-#### Welcome to the commands list! Here you can find all available commands and details on how to use them. <br>
+#### Welcome to the official commands list! Here you can find all available commands and details on how to use them. <br>
 
 ### NOTE: If you didn't see an introduction message when the bot joined or the bot does not respond to you, it is missing permissions! 
 
-Please make sure that TsukiBot has permission to send and read messages, manage roles, manage channels, and manage messages. These permissions are **REQUIRED** for the bot to work correctly!! If you need help, join the support server using the link at the bottom of this document.
+Please make sure that TsukiBot has permission to send and read messages, send embed messages, send files, add reactions, manage reactions, embed links, and manage messages. These permissions are **REQUIRED** for the bot to work correctly!! If you need help, join the support server using the link at the bottom of this page.
 
 TsukiBot deletes files that are not photos or videos by default. The bot will create a role named "File Perms" when it joins. Add this role to yourself 
-and any users that you authorize to send files. If a user doesn't have this role and the bot has manage messages perms, their files will be deleted.
-This a recommended protection measure for crypo users to prevent spread of malicious scripts, phishing malware, or accidentally shared key files.
+and any users that you authorize to send files. If a user doesn't have this role and the bot has manage messages perms allowed, their files will be deleted.
+This a recommended protection measure for crypto users to prevent the spread of malicious scripts, phishing malware, or accidentally shared private key files.
 
-#### All commands follow this general structure: `.tb <command> <parameters>`
+#### All commands follow this general structure unless noted otherwise: `.tb <command> <parameters>`
 
 <br>
 
 
-## Exchange/Index Price Checks:
+## Simple CoinGecko Price Checks:
+##### Usage: `t <single coin ticker or list of tickers separated by spaces>`
+This is the most commonly used command in the bot. It's a super simple and fast way to check prices of coins using CoinGecko. The prices available for this command are updated every 2 minutes and supports all (over 6000 and counting) coins listed on CoinGecko.<br><br>The default prefix to call for these prices is just `t`, but you can change this prefix to whatever you want it to be for your server using the shortcut command found down below on this page. You can call the price for just one coin, or multiple coins by listing them out with spaces between them. You must provide the coin TICKER symbol when using this command. For example, Ethereum has the ticker symbol ETH, and Bitcoin has the ticker symbol BTC, and so on..<br><br>You can also call this command and have it give prices in terms of ETH and BTC by adding a symbol behind the prefix. You can do this by adding a `*` or `+` right behind the prefix to call the coin(s) in BTC(satoshi) prices, or a `e` for ETH prices. See the examples down below on this page to see this in action.
+
+Examples:
++ `t eth` : Price of Ethereum
++ `t eth btc glm` : Price of Ethereum, Bitcoin, and Golem
++ `t+ eth` : Price of Ethereum in terms of BTC price
++ `te btc` : price of Bitcoin in terms of ETH price<br>
+Simple enough right?
+
+<br>
+
+
+## TradingView Charts:
+##### Usage: `.tbc <tradingview pair/ticker> <timeframe> <indicators> <exchange> <other options>`
+TsukiBot supports grabbing charts from TradingView and sending them and an image right in the channel where you called for them. This command is very versatile as its input is basically only limited by whatever TradingView can take. You can put stocks, cryptocurrencies, and whatever else is listed on TradingView these days.<br><br>Providing a timeframe, indicator, exchange, or other options are all completely optional and you can call this command with just a market/tradingview pair and it will default to the other options to TradingView's chart defaults (such as one hour timeframe, no idicators, and so on).<br><br>The following are the options currently tested to be supported by this command (with more on the way):
+
++ Pairs: Whatever pairs and tickers that TradingView supports. Note that with cryptos and stocks it works best to use a full pairing rather than just the single ticker. Like "btcusd" instead of just  "btc", or "gmeusd" instead of just "gme", and so on)
++ Timeframes: 1m, 1, 3m, 3, 5m, 5, 15m, 15, 30m, 30, 1h, 60, 2h, 120, 3h, 180, 4h, 240, 1d, d, day, daily, 1w, w, week, weekly, 1mo, m, mo, month, monthly
++ Indicators: bb, bbr, bbw, crsi, ichi, ichimoku, macd, ma, ema, dema, tema, moonphase, pphl, pivotshl, rsi, stoch, stochrsi, williamr
++ Exchanges: binance, bitstamp, bitbay, bitfinex, bittrex, bybit, coinbase, ftx, gemini, hitbtc, kraken, kucoin, okcoin, okex, poloniex
++ Other Options: wide (widens the image to show more history), bera, blul (I won't tell you what these do, go ahead and try them yourself)
+
+Need a visual example? Check out the visual demo down below to see the charts command in action.
+
+
+<br>
+
+## Specific Real-Time Exchange/Index Price Checks:
 ##### Usage: `.tb <exchange> <coin> <comparison>` 
 `<exchange>` is the symbol of the exchange or index to check from. The available symbols are listed below. `<coin>` is the coin to check the price of and `<comparison>` is the currency to show the price in. Providing a comparison is **optional** and will default to BTC or USD (depending on exchange) if none is provided. While every exchange and index will support different comparisons, some common ones inlcude USD, BTC, EUR, and ETH. You can use the following shortcut symbols for the `<exchange>` parameter, otherwise you can write the full name if you prefer.
 
@@ -39,10 +68,10 @@ The following have this usage: `.tb <exchange> <coins>` Where `<coins>` can be e
 
 <br>
 
-## Personal Array:
-These commands are for managing and checking your own personal list of coins. <br>
-The following 3 commands follow the exact usage shown, followed by a space and a space-separated list of mulptiple coins. An example of this would be `.tb pa eth btc xrp gnt`. This example would
-create a new personal list for you that contains eth, btc, xrp, and gnt.
+## Personal Array (Personal Coin Watchlists:
+These commands are for managing and checking your very own personal list of coins which you can call the prices for in various ways. All data for this command is sourced from CoinGecko. <br>
+The following 3 commands follow the exact usage shown, followed by a space and a space-separated list of mulptiple coins. An example of this would be `.tb pa eth btc xrp glm`. This example would
+create a new personal list for you that contains eth, btc, xrp, and glm.
 
 + `.tb pa`: &nbsp; &nbsp; &nbsp; Create new or overwrite your existing personal array
 + `.tb pa+`: &nbsp; &nbsp; Add coins to your existing personal array
@@ -73,39 +102,46 @@ Here's an example of creating a tag so you get the idea: `.tb createtag google w
 
 ## Miscellaneous Commands
 ##### Usage: `.tb <command> <parameter>` 
-These are commands that didn't cleanly fit into the other catagories, so they are here. They all follow the usage listed above and their parameters vary. Each commands parameter is listed next to the command below.
+These are commands that didn't cleanly fit into the other catagories, so they are here. They all follow the usage listed above and their parameters vary. Each commands parameter is listed next to the command below (if they have a parameter).
 
-+ `mc` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Total global market cap as well as BTC dominance for all of crypto. (no parameter)
-+ `mc <coin>`:  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Market cap, supply, and volume data for the provided coin
-+ `e <add or tx>`:  &nbsp; &nbsp;  Etherscan details of ethereum address or transaction
-+ `t <text>`:   &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Translate provided text to English using Google Translate
-+ `subrole <name>` : &nbsp; Create a general role in the server with provided name
-+ `.tbmyavatar` : &nbsp; &nbsp; &nbsp; &nbsp; Display and provide a link to your current avatar
-+ `stock <stock ticker>`: &nbsp; NSADAQ/NYSE Averaged price for a stock
-+ `info <coin>`:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Description about a given coin (accepts ticker, name, or MC rank number)
-+ `id` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get your unique Discord ID number DM'd to you
-+ `funding` :  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the BitMEX perpetual swap contracts funding rates
-+ `fg` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the current Bitcoin fear and greed index value
-+ `ls` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get the current open long and short positions for BTC on Bitmex
-+ `invite` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Get a pre-permissioned link to add TsukiBot to your own server!
-+ `@TsukiBot` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; If you mention the bot it will reply to you and show the current response ping
++ `mc` : Total global market cap as well as BTC dominance for all of crypto. (no parameter, and does not require the ".tb" prefix)
++ `mc <coin>`: Market cap, supply, and volume data for the provided coin. (accepts ticker, name, or MC rank number and does not require the ".tb" prefix)
++ `e <addy or tx>`: Etherscan ETH balance details of ethereum address or transaction (accepts both 0x addresses, and ENS (name.eth) addresses!
++ `t <text>`: Translate provided text to English using Google Translate
++ `.tbmyavatar` : Display and provide a link to your current avatar
++ `stock <stock ticker>`: NSADAQ/NYSE Averaged price for a stock
++ `info <coin>`: Description about a given coin (accepts ticker, name, or MC rank number)
++ `id` :  Get your unique Discord ID number DM'd to you
++ `funding` : Get the BitMEX perpetual swap contracts funding rates
++ `fg` : Get the current Bitcoin fear and greed index value
++ `ls` : Get the current open long and short positions for BTC on Bitmex
++ `invite` : Get a pre-permissioned link to add TsukiBot to your own server!
++ `@TsukiBot` : If you mention the bot it will reply to you and show the current response ping (doesn't require a command)
++ `gas` : Shows the current Ethereum gas prices required to send a transaction (shows the current slow price, standard price, and fast price)
++ `movers` : Shows the top 5 biggest gainers and losers coins for the day according to their % change. (filters the result to only show coins with a valid market cap and 24hr volume that's over 10k USD)
 
 This one provides the bot session statistics and is used exactly as shown:
-+ `.tb stat` : &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bot session stats, most most requested coin, messages per minute, and link to support server
-+ `.tb cv <amount> <coin1> to <coin2>` Currency conversion tool for Binance coins. This will convert a given amound of a coin(coin1) to another coin(coin2). Use the coin tickers, not full names.
++ `.tb stat` : Bot session stats, most most requested coin, messages per minute, and link to support server
++ `.tb cv <amount> <coin1> to <coin2>` Currency conversion tool for coins. This will convert a given amound of a coin(coin1) to another coin(coin2). Use the coin tickers for this command, not full names or IDs.
 
 <br>
 
 ## Shortcuts
 These are shortcuts for getting to things a little faster and easier! All shortcuts follow the exact usage shown below.
 
-+ `.tb shortcut <prefix>` : Set a custom prefix to access CMC in the server. <br>
++ `.tb shortcut <prefix>` : Set a custom prefix to quickly access the CoinGecko price command in the server. <br>
 Alphanumeric and/or `! $ % . _ , < > = + * &`; max. 3 characters and can only be set by a server admin.<br>
-When calling your shortcut for prices, you can add a `*` or `+` right behind the shortcut to call the coin(s) in satoshi prices. See the examples down below to see this in action.
+When calling your shortcut for prices, you can add a `*` or `+` right behind the shortcut to call the coin(s) in satoshi prices, or a `e` for ETH prices. See the examples down below to see this in action.
 + `.tbpop` : Get prices of top 10 coins my market cap
 + `.tbp` : Poloniex ETH/USD price
 + `.tbb` : Bittrex ETH/USD price
 + `.tbm` : Bitmex ETH/USD price
++ `.tbn` : Binance ETH/USD price
++ `.tbf` : Bitfinex ETH/USD price
++ `.tbt <text>` : Translation command shortcut
++ `.tbhmap`: Coin % changes as a heatmap image from Coin360
++ `mc`   : Global market cap command shortcut
++ `mc <coin>` : Specific coin market cap command shortcut
 
 The following can be used like the ones above to get ETH/USD prices **OR** they can have a comparison currency passed to them them. `<comparison>` is optional and will default to USD if none is provided. USD, EUR, and BTC is supported for the comparison.
 + `.tbg <comparison>` : Coinbase ETH price in terms of the proivded comparison currency. 
@@ -132,9 +168,8 @@ The following can be used like the ones above to get ETH/USD prices **OR** they 
 
 <br>
 
-## Need a visual example? Check out these screenshots:
-<blockquote class="imgur-embed-pub" lang="en" data-id="a/sQaEkah"><a href="//imgur.com/a/sQaEkah">View Examples Here</a></blockquote>
-
+## More of a visual learner? Check out these demonstration screenshots:
+<blockquote class="imgur-embed-pub" lang="en" data-id="a/EhZ8sQw"  ><a href="//imgur.com/a/EhZ8sQw">TsukiBot Demo</a></blockquote>
 <br><br>
 
 ---
@@ -145,6 +180,6 @@ Join the support server here: [discordapp.com/TsukiBot](https://discord.gg/VWNUb
 
 ---
 
-ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are greatly appreciated! The bot is 100% free to use and a lot work goes into making TsukiBot the best crypto bot on Discord. Consider a donation to say thanks and help support future development!
+ETH donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are greatly appreciated! The bot is 100% free to use and a lot work goes into making TsukiBot the best crypto bot on Discord. Consider a donation to say thanks and to help support future development!
 
 [![Discord Bots](https://discordbots.org/api/widget/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
