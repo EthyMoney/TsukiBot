@@ -58,35 +58,43 @@ async function collectMetadata(coin, index) {
   //
   // Starting with the hardest part, rebuilding the description string
   //
-  let stringResponse = resJSON.data.description;
-  stringResponse = resJSON.data.description.en;
-  descDOM = new JSDOM(stringResponse);
-  let convertedLinks = [];
 
-  // Extract all of the html links, convert them to discord embed links, and then put them into an array
-  let elements = descDOM.window.document.getElementsByTagName('a');
-  for (let i = 0; i < elements.length; i++) {
-    let element = elements[i];
-    let url = element.href;
-    let hyperlinkText = element.text;
-    let discordHyperlink = `[${hyperlinkText}](${url})`;
-    convertedLinks.push(discordHyperlink);
+  // Checking to make sure that there even is a description for this coin
+  if(resJSON.data.description){
+    var stringResponse = resJSON.data.description.en;
+    descDOM = new JSDOM(stringResponse);
+    let convertedLinks = [];
+
+    // Extract all of the html links, convert them to discord embed links, and then put them into an array
+    let elements = descDOM.window.document.getElementsByTagName('a');
+    for (let i = 0; i < elements.length; i++) {
+      let element = elements[i];
+      let url = element.href;
+      let hyperlinkText = element.text;
+      let discordHyperlink = `[${hyperlinkText}](${url})`;
+      convertedLinks.push(discordHyperlink);
+    }
+
+    // Replace each html link in the description string its the corresponding converted link we created earlier
+    for (let i = 0; i < convertedLinks.length; i++) {
+      let locatedString = S(stringResponse).between("<a href=\"", "</a>").s;
+      let lookupString = `<a href=\"${locatedString}</a>`;
+      stringResponse = stringResponse.replace(lookupString, convertedLinks[i]);
+    }
+
+    // Clean up the newline formatting
+    stringResponse = S(stringResponse).replaceAll('\r\n\r\n', '\n\n').s;
+    stringResponse = S(stringResponse).replaceAll('\r\n\r', '\n\n').s;
+    stringResponse = S(stringResponse).replaceAll('\r\n', '\n').s;
+    stringResponse = S(stringResponse).replaceAll('\n\r', '\n').s;
+    stringResponse = S(stringResponse).replaceAll('\n\r\n', '\n\n').s;
+    stringResponse = S(stringResponse).replaceAll('\n\r\n\r', '\n\n').s;
   }
-
-  // Replace each html link in the description string its the corresponding converted link we created earlier
-  for (let i = 0; i < convertedLinks.length; i++) {
-    let locatedString = S(stringResponse).between("<a href=\"", "</a>").s;
-    let lookupString = `<a href=\"${locatedString}</a>`;
-    stringResponse = stringResponse.replace(lookupString, convertedLinks[i]);
+  // Otherwise we just leave the description blank if there isn't one found (the bot knows what to do with this when it sees it)
+  else{
+    var stringResponse = "";
+    console.log(chalk.magenta(`Blank description saved for: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
   }
-
-  // Clean up the newline formatting
-  stringResponse = S(stringResponse).replaceAll('\r\n\r\n', '\n\n').s;
-  stringResponse = S(stringResponse).replaceAll('\r\n\r', '\n\n').s;
-  stringResponse = S(stringResponse).replaceAll('\r\n', '\n').s;
-  stringResponse = S(stringResponse).replaceAll('\n\r', '\n').s;
-  stringResponse = S(stringResponse).replaceAll('\n\r\n', '\n\n').s;
-  stringResponse = S(stringResponse).replaceAll('\n\r\n\r', '\n\n').s;
 
 
   // Now we can build this coins entry with its data and description, then add it to our main meta json
