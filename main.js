@@ -2155,6 +2155,11 @@ client.on('message', message => {
   // Check for Ghost users
   if (message.author === null) return;
 
+  // Check for bot users (we ignore other bots, including ourself)
+  if (message.author == client.user || message.author.bot) {
+    return;
+  }
+
   // Keep a counter of messages
   messageCount = (messageCount + 1) % 10000;
   if (messageCount === 0) referenceTime = Date.now();
@@ -2858,7 +2863,7 @@ function commands(message, botAdmin) {
     }
 
     // Say hi to my pal George
-    if (message.member.id === '221172361813032961' && guildID === '290891518829658112' && Math.random() < 0.05) {
+    if (message.member && message.member.id === '221172361813032961' && guildID === '290891518829658112' && Math.random() < 0.05) {
       channel.send('Hi George! :sunglasses:');
     }
 
