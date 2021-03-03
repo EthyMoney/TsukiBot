@@ -3059,6 +3059,15 @@ function postSessionStats(message) {
   message.channel.send({ embed });
 }
 
+async function loadPuppeteerBrowser() {
+  return puppeteer.launch({
+    headless: true,
+    // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
+    executablePath:'/usr/bin/chromium-browser',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+}
+
 async function getChart(msg, args, browser, page, chartMsg, attempt) {
   try {
     if (args.length < 2) {
@@ -3084,12 +3093,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       }
     });
     
-    browser = await puppeteer.launch({
-      headless: true,
-      // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
-      executablePath:'/usr/bin/chromium-browser',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    browser = await loadPuppeteerBrowser();
     page = await browser.newPage();
     await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
     await page.click('#tradingview_bc0b0');
@@ -3160,7 +3164,33 @@ async function getTradingViewChart(message) {
 }
 
 // Request a Coin360 style heatmap
-function getCoin360Heatmap(message) {
+async function getCoin360Heatmap(message) {
+  browser = await loadPuppeteerBrowser();
+  let page = await browser.newPage();
+  await page.goto(`https://coin360.com/`, { waitUntil: "networkidle0", timeout: 60000 });
+
+  await page.setViewport({
+    width: 715,
+    height: 557
+  });
+
+  // Hide the header, filters, and bottom newsfeed thingy
+  const itemsToHide = ['header', '.MapFiltersContainer', '.TreeMaps__ZoomControls', '.NewsFeed']
+  itemsToHide.forEach(async item => {
+    let hideItem = await page.$(item);
+    await hideItem.evaluate((el) => el.style.display = 'none');
+  });
+
+  await page.screenshot({ path: `chartscreens/hmap.png` });
+    message.channel.send({
+      files: [{
+          attachment: 'chartscreens/hmap.png',
+          name: 'hmap.png'
+        }]
+      });
+
+  /* Previous methodology for pulling hmap from the coin360 api (pre-puppeteer screenshoting) */
+  /*
   const options = {
     hostname: 'coin360.com',
     path: '/api/share?width=1440&height=1200&path=/&search=getScreen%26zoom%3D%7B%22x%22%3A0%2C%22y%22%3A0%2C%22k%22%3A1%7D',
@@ -3205,6 +3235,7 @@ function getCoin360Heatmap(message) {
   });
 
   req.end();
+  */
 }
 
 // Convert USD price to ETH value
