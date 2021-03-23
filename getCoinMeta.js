@@ -19,37 +19,32 @@ async function getCGdata(coin, index) {
     'market_data': false, 'developer_data': false
   }).catch((rej) => {
     // notify of failed attempt(s)
-    if (attempt < 3) {
+    if (attempt < 10) {
       console.log(chalk.yellowBright("Attempt " + chalk.magentaBright(attempt) + " failed for " + chalk.cyanBright(coin) + " : (" + index + ") --> Re-attempting"));
       attempt += 1;
     }
     else {
       console.log(chalk.yellowBright("Attempt " + chalk.magentaBright(attempt) + " failed for " + chalk.cyanBright(coin) + " : (" + index + ") " +
         chalk.redBright("---> All attempts failed! SHUTTING DOWN :(")));
+      process.exit(1);
     }
   });
 }
 
 async function collectMetadata(coin, index) {
 
+  let stringResponse = '';
+
   // Get api data
   await getCGdata(coin, index);
 
-  // Give it another second try if first attempt failed (usually this is due to a timeout and can be recovered)
-  if (!resJSON) {
+  // Keep trying again on failed attempts (usually this is due to a request timeout and can be recovered with a retry)
+  while (!resJSON) {
     await getCGdata(coin, index);
-  }
-  // One final (3rd) attempt before failing and shutting down
-  if (!resJSON) {
-    await getCGdata(coin, index);
-  }
-  // All attempts failed, closing out now
-  if (!resJSON) {
-    process.exit(1);
   }
 
-  // Skip instances where the coin has no data on API side (this can happen if the API removed it while this process is running)
-  if (resJSON.error) {
+  // Skip instances where the coin has missing data on API side (this can happen if the API removes it while this process is running or the entry is corrupt)
+  if (resJSON.error || !resJSON.data.symbol || !resJSON.data.name) {
     skipped.push(coin);
     console.log(chalk.yellowBright(`SKIPPED COIN: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
     return;
@@ -60,8 +55,8 @@ async function collectMetadata(coin, index) {
   //
 
   // Checking to make sure that there even is a description for this coin
-  if(resJSON.data.description){
-    var stringResponse = resJSON.data.description.en;
+  if (resJSON.data.description) {
+    stringResponse = resJSON.data.description.en;
     descDOM = new JSDOM(stringResponse);
     let convertedLinks = [];
 
@@ -91,8 +86,8 @@ async function collectMetadata(coin, index) {
     stringResponse = S(stringResponse).replaceAll('\n\r\n\r', '\n\n').s;
   }
   // Otherwise we just leave the description blank if there isn't one found (the bot knows what to do with this when it sees it)
-  else{
-    var stringResponse = "";
+  else {
+    stringResponse = "";
     console.log(chalk.magenta(`Blank description saved for: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
   }
 
@@ -109,6 +104,7 @@ async function collectMetadata(coin, index) {
   };
   meta.data.push(coinMeta);
 
+  // Reset for next coin
   resJSON = null;
   attempt = 1;
 }
@@ -134,10 +130,10 @@ async function startup() {
   cgCoinsList = await CoinGeckoClient.coins.list();
   for (let i = 0; i < cgCoinsList.data.length; i++) {
     // skip coins with no id in api
-    if (!cgCoinsList.data[i].id){
+    if (!cgCoinsList.data[i].id) {
       console.log(chalk.yellow("NO ID FOUND [SKIPPED]") + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
     }
-    else{
+    else {
       console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
       await collectMetadata(cgCoinsList.data[i].id, i + 1);
     }
