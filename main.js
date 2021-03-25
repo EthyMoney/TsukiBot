@@ -367,7 +367,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action, usr) {
   }
   coin2 = coin2.toLowerCase();
 
-  if(!noSend) console.log(chalk.green("CoinGecko price requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + "/" + chalk.cyan(coin2)));
+  if(!noSend) console.log(chalk.green("CoinGecko price requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin) + "/" + chalk.cyan(coin2)));
 
   // find out the ID for coin requested and also get IDs for any possible duplicate tickers
   let foundCount = 0;
@@ -1438,7 +1438,7 @@ async function priceConversionTool(coin1, coin2, amount, chn, usr) {
     coin1 = "ebase";
   }
 
-  console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + "-->" + chalk.cyan(coin2)));
+  console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
 
   //lookup ID for coins requested
   let found1 = false;
@@ -1474,7 +1474,6 @@ async function priceConversionTool(coin1, coin2, amount, chn, usr) {
     }
 
     chn.send(builtMessage);
-    console.log(chalk.green("Currency conversion requested for " + chalk.cyan(coin1) + " to " + chalk.cyan(coin2)));
   }
   else {
     chn.send("One or more of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
@@ -2666,7 +2665,7 @@ function commands(message, botAdmin) {
 
             // CG call (skip the filter)
           } else if (command.toString().trim() === 'cg' || command.toString().trim() === 'coingecko') {
-            getPriceCoinGecko(code_in[1], code_in[2], channel, msg.author);
+            getPriceCoinGecko(code_in[1], code_in[2], channel, "price", msg.author);
 
             // STEX call (skip the filter)
           } else if (command === 'st' || command === 'stex') {
