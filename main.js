@@ -662,6 +662,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   let ordered = {};
   let msgh;
   let selectedCoinObjects = [];
+  let msg_part1 = "";
 
   if (action === 'p') {
     msgh = "__CoinGecko__ Price for Top 10 Coins:\n";
@@ -746,19 +747,15 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         break;
 
       case '+':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          bp + "\n");
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + bp + "\n");
         break;
 
       case '*':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
-          up + '\n`|        ⇒` `' +
-          bp + "\n");
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' + up + '\n`|        ⇒` `' + bp + "\n");
         break;
 
       case 'e':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          ep + "\n");
+        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + ep + "\n");
         break;
 
       case '%':
@@ -772,17 +769,35 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         break;
     }
     selectedCoinObjects = []; // clear array for next coin
+    // see if we need to overflow into a second message (for really long lists of coins)
+    if(msg_part1.length == 0 && 2000 - msg.length <= 40){
+      msg_part1 = msg;
+      msg = "";
+    }
   }
 
   if (action === '%') {
     let k = Object.keys(ordered).sort(function (a, b) { return parseFloat(b) - parseFloat(a); });
-    for (let k0 in k)
+    for (let k0 in k){
+      // see if we need to overflow into a second message (for really long lists of coins)
+      if (msg_part1.length == 0 && 2000 - msg.length <= 40) {
+        msg_part1 = msg;
+        msg = "";
+      }
       msg += ordered[k[k0]];
+    }
   }
 
   msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
-  if (msg !== '')
-    chn.send(msgh + msg);
+  if (msg !== ''){
+    if(msg_part1.length > 1){
+      chn.send(msg_part1);
+      chn.send(msg);
+    }
+    else{
+      chn.send(msg);
+    }
+  }
 }
 
 
@@ -836,7 +851,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd', usr) {
 
 // Function for Bitfinex prices
 
-async function getPriceBitfinex(coin1, coin2, chn, coin2Failover, usr) {
+async function getPriceBitfinex(usr, coin1, coin2, chn, coin2Failover) {
 
   let tickerJSON = '';
   if (!coin2) {
@@ -859,7 +874,7 @@ async function getPriceBitfinex(coin1, coin2, chn, coin2Failover, usr) {
       return;
     }
     //attempt re-calling with usd coin2 correction if failure occurs
-    getPriceBitfinex(coin1, "USD", chn, true);
+    getPriceBitfinex(msg.author, coin1, "USD", chn, true);
     //Exit rest of loop for re-run
     return;
   });
@@ -1693,7 +1708,7 @@ function getEtherBalance(usr, address, chn, action = 'b') {
         });
       }
       else{
-        getEtherBalance(owner, chn);
+        getEtherBalance(usr, owner, chn);
       }
     });
   }
@@ -2631,7 +2646,7 @@ function commands(message, botAdmin) {
 
             // Finex call
           } else if (command === 'bitfinex' || command === 'f') {
-            getPriceBitfinex(code_in[1], code_in[2], channel, msg.author);
+            getPriceBitfinex(msg.author, code_in[1], code_in[2], channel);
 
             // Bitmex call
           } else if (command === 'bitmex' || command === 'm' || command === 'mex') {
@@ -2809,30 +2824,30 @@ function commands(message, botAdmin) {
       // Get Coinbase ETHX (exception to the "no spaces" rule: this shortcut can take one parameter)
     } else if (scommand === 'g' || scommand === 'cb') {
       if (code_in[1] && code_in[1].toUpperCase() === 'EUR') {
-        getPriceCoinbase(channel, 'ETH', 'EUR');
+        getPriceCoinbase(channel, 'ETH', 'EUR', msg.author);
       } else if (code_in[1] && code_in[1].toUpperCase() === 'BTC') {
-        getPriceCoinbase(channel, 'BTC', 'USD');
+        getPriceCoinbase(channel, 'BTC', 'USD', msg.author);
       } else {
-        getPriceCoinbase(channel, 'ETH', 'USD');
+        getPriceCoinbase(channel, 'ETH', 'USD', msg.author);
       }
 
       // Get Kraken ETHX (exception to the "no spaces" rule: this shortcut can take one parameter)
     } else if (scommand === 'k') {
       if (code_in[1] && code_in[1].toUpperCase() === 'EUR') {
-        getPriceKraken('ETH', 'EUR', channel);
+        getPriceKraken('ETH', 'EUR', channel, msg.author);
       } else if (code_in[1] && code_in[1].toUpperCase() === 'BTC') {
-        getPriceKraken('BTC', 'USD', channel);
+        getPriceKraken('BTC', 'USD', channel, msg.author);
       } else {
-        getPriceKraken('ETH', 'USD', channel);
+        getPriceKraken('ETH', 'USD', channel, msg.author);
       }
 
       // Get Poloniex ETHUSDT
     } else if (scommand === 'p') {
-      getPricePolo('ETH', 'USD', channel);
+      getPricePolo('ETH', 'USD', channel, msg.author);
 
       // Get Bitfinex ETHUSD
     } else if (scommand === 'f') {
-      getPriceBitfinex('ETH', 'USD', channel);
+      getPriceBitfinex(msg.author, 'ETH', 'USD', channel);
 
       // Get prices of popular currencies (the top 10 by market cap)
     } else if (scommand === 'pop') {
@@ -2851,15 +2866,15 @@ function commands(message, botAdmin) {
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b') {
-      getPriceBittrex('ETH', 'USD', channel);
+      getPriceBittrex('ETH', 'USD', channel, msg.author);
 
       // Get BitMEX ETHUSD
     } else if (scommand === 'm') {
-      getPriceMex('ETH', 'none', channel);
+      getPriceMex('ETH', 'none', channel, msg.author);
 
       // Get Binance ETHUSD
     } else if (scommand === 'n') {
-      getPriceBinance("ETH", "USD", channel);
+      getPriceBinance("ETH", "USD", channel, msg.author);
 
       // Call help scommand
     } else if (scommand === 'help' || scommand === 'h') {
@@ -3228,6 +3243,10 @@ async function getTradingViewChart(message) {
 
 // Request a Coin360 style heatmap
 async function getCoin360Heatmap(message) {
+
+  message.channel.send("hmap command temporarily unavailable while it's being fixed.");
+  return;
+  
   browser = await loadPuppeteerBrowser();
   let page = await browser.newPage();
   await page.goto(`https://coin360.com/`, { waitUntil: "networkidle0", timeout: 60000 });
