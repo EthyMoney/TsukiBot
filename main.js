@@ -721,7 +721,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
 
     // ignore percent in cases where it's a new coin and 24hr percent is not yet available
-    if (!upchg) {
+    if (!upchg && upchg != 0) {
       upchg = "n/a ";
     }
     // unused due to api limits
@@ -1900,13 +1900,13 @@ function getMarketCapSpecific(message) {
         //l74 = (ath)         ?  `ATH: \`${trimDecimalPlaces(ath)} \`\n`                                   : `ATH: n/a\n`;
         l75 = (price)       ?  `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n`                               : `BTC: n/a\n`;
         l76 = (price)       ?  `ETH: \`${trimDecimalPlaces(priceETH)}\``                                 : `ETH: n/a`;
-        l81 = (percent1h)   ?  `1h: \u200B\u200B\u200B\u200B  \`${parseFloat(percent1h).toFixed(2)}%\`\n`: `1h:  n/a\n`;
-        l82 = (percent)     ?  `24h: \`${parseFloat(percent).toFixed(2)}%\`\n`                           : `24h: n/a\n`;
-        l83 = (percent7)    ?  `7d: \u200B\u200B\u200B\u200B  \`${parseFloat(percent7).toFixed(2)}%\`\n` : `7d:  n/a\n`;
-        l84 = (percent30)   ?  `1m: \`${parseFloat(percent30).toFixed(2)}%\`\n`                          : `1m: n/a\n`;
-        l85 = (percent1y)   ?  `1y: \u200B \`${parseFloat(percent1y).toFixed(2)}%\``                     : `1y: n/a`;
-        //l86 = (mcappercent) ?  `MC 24h: \`${parseFloat(mcappercent).toFixed(2)}%\`\n`                    : `MC 24h: n/a\n`;
-        //l87 = (percentath)  ?  `From ATH: \`${parseFloat(percentath).toFixed(2)}%\`\n`                   : `From ATH: n/a\n`;
+        l81 = (percent1h || percent1h == 0)    ?  `1h: \u200B\u200B\u200B\u200B  \`${parseFloat(percent1h).toFixed(2)}%\`\n`: `1h:  n/a\n`;
+        l82 = (percent || percent == 0)        ?  `24h: \`${parseFloat(percent).toFixed(2)}%\`\n`                           : `24h: n/a\n`;
+        l83 = (percent7 || percent7 == 0)      ?  `7d: \u200B\u200B\u200B\u200B  \`${parseFloat(percent7).toFixed(2)}%\`\n` : `7d:  n/a\n`;
+        l84 = (percent30 || percent30 == 0)    ?  `1m: \`${parseFloat(percent30).toFixed(2)}%\`\n`                          : `1m: n/a\n`;
+        l85 = (percent1y || percent1y == 0)    ?  `1y: \u200B \`${parseFloat(percent1y).toFixed(2)}%\``                     : `1y: n/a`;
+        //l86 = (mcappercent || mcappercent == 0) ?  `MC 24h: \`${parseFloat(mcappercent).toFixed(2)}%\`\n`                    : `MC 24h: n/a\n`;
+        //l87 = (percentath || percentath == 0)  ?  `From ATH: \`${parseFloat(percentath).toFixed(2)}%\`\n`                   : `From ATH: n/a\n`;
         //l88 = (athdate)     ?  `ATH day: \`${athdate}\``                                                 : `ATH day: n/a`;
 
         //grabbing coin logo (defaults to CoinGecko logo if coin logo doesn't exist)
