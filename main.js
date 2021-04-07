@@ -77,7 +77,7 @@ initializeFiles();
 
 // Discord Bots List
 const DBL                 = require("dblapi.js");
-let dbl;                  //will be initialized upon startup
+let dbl;                  // Will be initialized upon startup
 
 // HTTP and websocket request
 const https               = require('https');
@@ -151,7 +151,7 @@ let channelName           = 'general';
 let messageCount          = 0;
 let referenceTime         = Date.now();
 
-// Finnhub API
+// Finnhub API client
 const finnhub             = require('finnhub');
 const api_key             = finnhub.ApiClient.instance.authentications.api_key;
 api_key.apiKey            = keys.finnhub;
@@ -167,7 +167,7 @@ const clientBittrex       = new ccxt.bittrex();
 const clientBitfinex      = new ccxt.bitfinex2();
 const clientCoinbase      = new ccxt.coinbasepro();
 const clientStex          = new ccxt.stex();
-let clientcmc;            //Will be initialized upon bot bootup
+let clientcmc;            // Will be initialized upon bot bootup
 
 // Reload Coins
 const reloader            = require('./getCoins');
@@ -791,11 +791,11 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
   if (msg !== ''){
     if(msg_part1.length > 1){
-      chn.send(msg_part1);
+      chn.send(msgh + msg_part1);
       chn.send(msg);
     }
     else{
-      chn.send(msg);
+      chn.send(msgh + msg);
     }
   }
 }
@@ -1404,80 +1404,111 @@ async function getMexLongsShorts(channel, author) {
 
 // Function that converts value of one coin into value in terms of another coin using CG prices
 
-async function priceConversionTool(coin1, coin2, amount, chn, usr) {
+function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  if (!coin1 || !coin2 || !amount) {
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD"];
+
+  if (!coin1 || !coin2 || !amount || isNaN(amount)) {
+    if (isNaN(amount)) {
+      chn.send("Invalid amount entered.");
+    }
     // show help message and then exit if wrong input is provided
-    chn.send("**Here's how to use the coin conversion command:**\n " +
+    chn.send("**Here's how to use the currency conversion command:**\n " +
       ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " +
-      ":small_blue_diamond: Example: `.tb cv 20 eth btc`\n");
+      ":small_blue_diamond: Examples: `.tb cv 20 eth usd`  `.tb cv 10 usd cad`\n " +
+      ":small_blue_diamond: Supported cryptos: `All CoinGecko-listed coins`\n " +
+      ":small_blue_diamond: Support fiat currencies: `" + fiatPairs + "`");
     return;
   }
 
-  // don't let command run if cache is still updating for the first time
+  // Don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
     chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
 
-  coin1 = coin1.toLowerCase() + "";
-  coin2 = coin2.toLowerCase() + "";
+  // Setup
+  coin1 = coin1.toUpperCase() + "";
+  coin2 = coin2.toUpperCase() + "";
+  let isForexPairingCoin1 = false;
+  let isForexPairingCoin2 = false;
+  let forexRates = null; // will hold our rates if needed to be collected below
 
-  // Convert imputs to matching CG values
-  if (coin2 == "usd") {
-    coin2 = "usdt";
-  }
-  if (coin1 == "usd") {
-    coin1 = "usdt";
-  }
-  if (coin2 == "eur") {
-    coin2 = "ebase";
-  }
-  if (coin1 == "eur") {
-    coin1 = "ebase";
-  }
+  // Remove potential commas in amount
+  amount = amount.replace(/,/g, '');
 
-  console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
+  // Collect our forex pairs and then proceed with that data
+  finnhubClient.forexRates({ "base": "USD" }, async (error, data, response) => {
+    if (error) { console.error(error); return; }
+    forexRates = data.quote;
 
-  //lookup ID for coins requested
-  let found1 = false;
-  let found2 = false;
-  let coinID1 = "";
-  let coinID2 = "";
-  for (let i = 0, len = cgArrayDictParsed.length; i < len; i++) {
-    if (cgArrayDictParsed[i].symbol.toLowerCase() == coin1) {
-      coinID1 = cgArrayDictParsed[i].id;
-      found1 = true;
+    if (fiatPairs.includes(coin1)) {
+      isForexPairingCoin1 = true;
     }
-    if (cgArrayDictParsed[i].symbol.toLowerCase() == coin2) {
-      coinID2 = cgArrayDictParsed[i].id;
-      found2 = true;
-    }
-  }
-
-  //if both IDs were found, grab price, %change, and name data from API
-  if (found1 && found2) {
-    let cgData = await getPriceCoinGecko(coin1, "usd", chn, "convert");
-    let cgData2 = await getPriceCoinGecko(coin2, "usd", chn, "convert");
-    let builtMessage = "";
-    for (let i = 0; i < cgData2[0].length; i++) {
-      //select the prices from the API response and then calculate the converted amount
-      let price1 = parseFloat(cgData[0][0]).toFixed(8);
-      let price2 = parseFloat(cgData2[0][i]).toFixed(8);
-      let name = cgData2[2][i];
-      let amount2 = (amount * price1) / (price2);
-      if (cgData2[0].length > 1)
-        builtMessage += "`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "` (" + name.toUpperCase() + ")\n";
-      else
-        builtMessage += "`" + amount + " " + coin1.toUpperCase() + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2.toUpperCase() + "`";
+    if (fiatPairs.includes(coin2)) {
+      isForexPairingCoin2 = true;
     }
 
-    chn.send(builtMessage);
-  }
-  else {
-    chn.send("One or more of your coins were not found on Coin Gecko. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
-  }
+    console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
+
+    // Look up IDs for coins requested (if cryptos)
+    let found1 = (isForexPairingCoin1) ? true : false;
+    let found2 = (isForexPairingCoin2) ? true : false;
+    if (!found1 || !found2) {
+      for (let i = 0, len = cgArrayDictParsed.length; i < len; i++) {
+        if (!found1 && cgArrayDictParsed[i].symbol.toUpperCase() == coin1) {
+          found1 = true;
+        }
+        if (!found2 && cgArrayDictParsed[i].symbol.toUpperCase() == coin2) {
+          found2 = true;
+        }
+      }
+    }
+
+    //if both IDs were found, grab price, %change, and name data from API and/or the forex rate cache
+    if (found1 && found2) {
+      let cgData, cgData2, price1, price2;
+      if (isForexPairingCoin1) {
+        price1 = 1 / forexRates[coin1];
+      }
+      else {
+        cgData = await getPriceCoinGecko(coin1, "usd", chn, "convert");
+      }
+      if (isForexPairingCoin2) {
+        price2 = 1 / forexRates[coin2];
+      }
+      else {
+        cgData2 = await getPriceCoinGecko(coin2, "usd", chn, "convert");
+      }
+
+      let builtMessage = "";
+      let amount2;
+      if (cgData2) {
+        for (let i = 0; i < cgData2[0].length; i++) {
+          //select the prices from the API response and then calculate the converted amount
+          if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
+          price2 = parseFloat(cgData2[0][i]).toFixed(8);
+          let name = cgData2[2][i];
+          amount2 = (amount * price1) / (price2);
+          if (cgData2[0].length > 1)
+            builtMessage += "`" + amount + " " + coin1 + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2 + "` (" + name.toUpperCase() + ")\n";
+          else
+            builtMessage += "`" + amount + " " + coin1 + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2 + "`";
+        }
+      }
+      else {
+        if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
+        amount2 = (amount * price1) / (price2);
+        builtMessage += "`" + amount + " " + coin1 + " ` ➪ ` " + numberWithCommas(amount2.toFixed(6)) + " " + coin2 + "`";
+      }
+
+      chn.send(builtMessage);
+    }
+    else {
+      chn.send("One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
+    }
+  });
 }
 
 
@@ -2608,8 +2639,10 @@ function commands(message, botAdmin) {
 
 
 
-      // Check if there is parameter content ("pa" and "mc" are exceptions to this rule since they can be called as standalone commands)
-      if ((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1) || (['pa'].indexOf(command) > -1)) {
+      // Check if there is parameter content
+      // ("pa", "mc", and "cv"/"convert" commands are exceptions to this rule since they can be called as standalone commands either for help responses or default values)
+      if ((code_in.length > 1 && code_in.length < 30) || (['mc'].indexOf(command) > -1) || (['pa'].indexOf(command) > -1) ||
+        (['cv'].indexOf(command) > -1) || (['convert'].indexOf(command) > -1)) {
 
         /* --------------------------------------------------------------------------------
           First we need to get the supplied coin list. Then we apply a filter function. 
@@ -2621,13 +2654,6 @@ function commands(message, botAdmin) {
         let params = code_in.slice(1, code_in.length).filter(function (value) {
           return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
-
-        // Checking for XBT input and converting it to BTC so the APIs understand it
-        if (code_in[1] && code_in[1].toLowerCase() == "xbt") {
-          code_in[1] = "BTC";
-        } if (code_in[2] && code_in[2].toLowerCase() == "xbt") {
-          code_in[2] = "BTC";
-        }
 
         // Keeping the pad
         params.unshift('0');
