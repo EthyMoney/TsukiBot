@@ -3167,7 +3167,7 @@ async function loadPuppeteerBrowser() {
   return puppeteer.launch({
     headless: true,
     // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
-    executablePath:'/usr/bin/chromium-browser',
+    //executablePath:'/usr/bin/chromium-browser',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 }
@@ -3215,6 +3215,9 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
     await page.click('#tsukilogo');
 
+    // Click and move mouse (to remove the focus dots on the chart), then set view to just the chart itself
+    await page.mouse.click(45, 500, { button: 'left' });
+    await page.mouse.move(-1, -1);
     await page.setViewport({
       width: query.includes('wide') ? 1275 : 715,
       height: 557
@@ -3226,6 +3229,8 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
           attachment: 'chartscreens/chart.png',
           name: 'chart.png'
         }]
+      }).then(()=>{
+        chartMsg.delete(); // Remove the placeholder
       });
 
     /*
@@ -3267,82 +3272,59 @@ async function getTradingViewChart(message) {
 }
 
 // Request a Coin360 style heatmap
-async function getCoin360Heatmap(message) {
+async function getCoin360Heatmap(msg) {
 
-  message.channel.send("hmap command temporarily unavailable while it's being fixed.");
-  return;
-  
-  browser = await loadPuppeteerBrowser();
+  console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(msg.member.user.tag)}`);
+
+  let browser = await loadPuppeteerBrowser();
   let page = await browser.newPage();
-  await page.goto(`https://coin360.com/`, { waitUntil: "networkidle0", timeout: 60000 });
 
-  await page.setViewport({
-    width: 715,
-    height: 557
+  // Send placeholder
+  let sentMsg;
+  msg.channel.send("One moment please...").then(placeHolder => {
+    sentMsg = placeHolder;
   });
 
-  // Hide the header, filters, and bottom newsfeed thingy
-  const itemsToHide = ['header', '.MapFiltersContainer', '.TreeMaps__ZoomControls', '.NewsFeed'];
-  itemsToHide.forEach(async item => {
-    let hideItem = await page.$(item);
-    await hideItem.evaluate((el) => el.style.display = 'none');
-  });
+  // Open the page and wait for it to load up
+  await page.goto('https://coin360.com/');
+  await sleep(4000);
 
+  // Remove headers and footer from the page screenshot
+  let removeThis = ".Header";
+  let removeThisAlso = ".MapFiltersContainer";
+  let ohYeahAndThisToo = ".NewsFeed";
+  await page.evaluate((sel) => {
+    var elements = document.querySelectorAll(sel);
+    for (var i = 0; i < elements.length; i++) {
+      elements[i].parentNode.removeChild(elements[i]);
+    }
+  }, removeThis);
+  await page.evaluate((sel) => {
+    var elements = document.querySelectorAll(sel);
+    for (var i = 0; i < elements.length; i++) {
+      elements[i].parentNode.removeChild(elements[i]);
+    }
+  }, removeThisAlso);
+  await page.evaluate((sel) => {
+    var elements = document.querySelectorAll(sel);
+    for (var i = 0; i < elements.length; i++) {
+      elements[i].parentNode.removeChild(elements[i]);
+    }
+  }, ohYeahAndThisToo);
+
+  // Take screenshot and send it
+  await page.content();
   await page.screenshot({ path: `chartscreens/hmap.png` });
-    message.channel.send({
-      files: [{
-          attachment: 'chartscreens/hmap.png',
-          name: 'hmap.png'
-        }]
-      });
-
-  /* Previous methodology for pulling hmap from the coin360 api (pre-puppeteer screenshoting) */
-  /*
-  const options = {
-    hostname: 'coin360.com',
-    path: '/api/share?width=1440&height=1200&path=/&search=getScreen%26zoom%3D%7B%22x%22%3A0%2C%22y%22%3A0%2C%22k%22%3A1%7D',
-    method: 'GET',
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-  };
-
-  const req = https.request(options, res => {
-    const { statusCode } = res;
-    const contentType = res.headers['content-type'];
-
-    let error;
-    // Any 2xx status code signals a successful response but
-    // here we're only checking for 200.
-    if (statusCode !== 200) {
-      error = new Error('Request Failed.\n' + `Status Code: ${statusCode}`);
-    } else if (!/^application\/json/.test(contentType)) {
-      error = new Error('Invalid content-type.\n' + `Expected application/json but received ${contentType}`);
-    }
-    if (error) {
-      console.error(error.message);
-      // Consume response data to free up memory
-      res.resume();
-      return;
-    }
-
-    res.setEncoding('utf8');
-    let rawData = '';
-    res.on('data', (chunk) => { rawData += chunk; });
-    res.on('end', () => {
-      try {
-        const parsedData = JSON.parse(rawData);
-        message.channel.send(`https://coin360.com/shareimg/${parsedData.url}`);
-      } catch (e) {
-        console.error(e.message);
-      }
-    });
+  msg.channel.send({
+    files: [{
+      attachment: 'chartscreens/hmap.png',
+      name: 'hmap.png'
+    }]
+  }).then(()=>{
+    sentMsg.delete(); // Remove the placeholder
   });
-
-  req.on('error', error => {
-    console.error(error, Object.keys(error));
-  });
-
-  req.end();
-  */
+  await page.close();
+  await browser.close();
 }
 
 // Convert USD price to ETH value
