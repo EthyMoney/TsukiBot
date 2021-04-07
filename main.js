@@ -1367,14 +1367,14 @@ async function getMexLongsShorts(channel, author) {
 
     // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
     try {
-      // BTC data from selected class name
-      let block = dom.window.document.getElementsByClassName('col-md-3');
-      // index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together
-      let title = block[1].querySelector('h3').textContent;
-      let longs = block[1].querySelector('div.single-margin-platform div.field-value div.value.long').textContent.trim().split(" ")[0].trim();
-      let longsPercent = block[1].querySelector('div.single-margin-platform div.field-value div.field.long small').textContent;
-      let shorts = block[1].querySelector('div.single-margin-platform div.field-value div.value.short').textContent.trim().split(" ")[0].trim();
-      let shortsPercent = block[1].querySelector('div.single-margin-platform div.field-value div.field.short small').textContent;
+      // Grabbing all exchange data from selected class name
+      let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
+      // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
+      var title = block[1].querySelector('h6').textContent;
+      var longs = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
+      var longsPercent = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > span:nth-child(2)').textContent;
+      var shorts = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
+      var shortsPercent = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
     }
     catch (err) {
       // Check for errors during data parsing and report them
@@ -1406,7 +1406,7 @@ async function getMexLongsShorts(channel, author) {
 
 function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK"];
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB"];
 
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
@@ -1417,7 +1417,7 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
       ":small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n " +
       ":small_blue_diamond: Examples: `.tb cv 20 eth usd`  `.tb cv 10 usd cad`\n " +
       ":small_blue_diamond: Supported cryptos: `All CoinGecko-listed coins`\n " +
-      ":small_blue_diamond: Support fiat currencies: `" + fiatPairs + "`");
+      ":small_blue_diamond: Supported fiat currencies: `" + fiatPairs + "`");
     return;
   }
 
