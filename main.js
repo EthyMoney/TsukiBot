@@ -1406,10 +1406,10 @@ async function getMexLongsShorts(channel, author) {
 
 function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD"];
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK"];
 
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
-    if (isNaN(amount)) {
+    if (amount && isNaN(amount)) {
       chn.send("Invalid amount entered.");
     }
     // show help message and then exit if wrong input is provided
