@@ -738,7 +738,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     }
     bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
     ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
-    // TODO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
+    // TODO: add eur price and chg as well. (will need to get additional pair data from api to do this)
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
     switch (action) {
@@ -799,7 +799,6 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   }
 
   if (msg.length > 0) {
-    console.log("wtf")
     if (msg_part1.length > 0) {
       chn.send(msgh + msg_part1);
       chn.send(msg);
@@ -3049,6 +3048,11 @@ function translateEN(chn, msg, sneak) {
   // do the translation
   translateHelper(message).then(function (res) {
     if (!sneak) {
+      if (!res.translation){
+        chn.send("Your input text is too large or an error occured. Try shortening it if you have a lot of text!");
+        console.log(chalk.red("Translation command failed and was undefined. Sent notification to user."));
+        return;
+      }
       chn.send(`Translation:  \`${res.translation}\``);
       console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
     }
