@@ -729,11 +729,11 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
 
     // assembling the text lines for response message
-    if(8 - plainPriceUSD.length < 0){
-    // special case for huge numbers (will skip formatting)
+    if (8 - plainPriceUSD.length < 0) {
+      // special case for huge numbers (will skip formatting)
       up = plainPriceUSD + ' USD` (`' + upchg + '%`)';
     }
-    else{
+    else {
       up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
     }
     bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
@@ -770,7 +770,8 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     }
     selectedCoinObjects = []; // clear array for next coin
     // see if we need to overflow into a second message (for really long lists of coins)
-    if(msg_part1.length == 0 && 2000 - msg.length <= 40){
+    let lineLimit = (action == '*') ? 75 : 40;
+    if (msg_part1.length == 0 && 1950 - msg.length <= lineLimit) {
       msg_part1 = msg;
       msg = "";
     }
@@ -778,9 +779,9 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
 
   if (action === '%') {
     let k = Object.keys(ordered).sort(function (a, b) { return parseFloat(b) - parseFloat(a); });
-    for (let k0 in k){
+    for (let k0 in k) {
       // see if we need to overflow into a second message (for really long lists of coins)
-      if (msg_part1.length == 0 && 2000 - msg.length <= 40) {
+      if (msg_part1.length == 0 && 1950 - msg.length <= 40) {
         msg_part1 = msg;
         msg = "";
       }
@@ -789,12 +790,21 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   }
 
   msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
-  if (msg !== ''){
-    if(msg_part1.length > 1){
+
+  // Check for message being too long even after the 2-message split
+  if (msg.length > 2000) {
+    chn.send("Error: Your tbpa is too long to send! Please remove some coins and try again. Use `.tb pa` to see how to do this.");
+    console.log(chalk.magenta("Oversize tbpa notification sent to user above. Size overflow msg: ") + chalk.cyan(msg.length));
+    return;
+  }
+
+  if (msg.length > 0) {
+    console.log("wtf")
+    if (msg_part1.length > 0) {
       chn.send(msgh + msg_part1);
       chn.send(msg);
     }
-    else{
+    else {
       chn.send(msgh + msg);
     }
   }
