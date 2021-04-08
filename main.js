@@ -2058,12 +2058,12 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
     }
     // filter out any invalid cg coins and notify user of them accordingly
     let cleanedCoins = coins.filter(function (value) {
-      return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
+      return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1 && isAlphaNumeric(value);
     });
-    let invalidCoins = coins.filter(e => !pairs_CG_arr.includes(e.toUpperCase()));
+    let invalidCoins = coins.filter(e => !pairs_CG_arr.includes(e.toUpperCase()) || !isAlphaNumeric(e));
     let invalidCoinsMessage = '';
     if (invalidCoins.length > 0) {
-      invalidCoinsMessage = "\nNOTE: The following coins were not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
+      invalidCoinsMessage = "\nNOTE: The following coins were invalid or not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
     }
 
     if (action === '') {
@@ -2135,7 +2135,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
               query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, '{' + inStr + '}'], (err, res) => {
                 if (err) { console.log(chalk.red.bold(err + "------TB PA add insert query error")); }
                 else { if(coins.length > 0) {chn.send("Personal array modified. Added: `" + cleanedCoins.toString() + "`" + invalidCoinsMessage);} 
-                  else{chn.send("Your provided coin(s) were not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!");}}
+                  else{chn.send("Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!");}}
                 conn.end();
               });
             }
@@ -2627,6 +2627,10 @@ function commands(message, botAdmin) {
     } else if (command === 'gainz' || command === 'movers' || command === 'gains') {
       getBiggestMovers(msg.channel, msg.author);
 
+      // Coin360 heatmap
+    } else if (command === 'hmap') {
+      getCoin360Heatmap(msg);
+
     } else {
 
 
@@ -3100,6 +3104,20 @@ function chunkString(str, len) {
   return output;
 }
 
+// Valid string checker
+function isAlphaNumeric(str) {
+  let code, i, len;
+  for (i = 0, len = str.length; i < len; i++) {
+    code = str.charCodeAt(i);
+    if (!(code > 47 && code < 58) && // numeric (0-9)
+        !(code > 64 && code < 91) && // upper alpha (A-Z)
+        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      return false;
+    }
+  }
+  return true;
+}
+
 // Split a string by spaces while keeping strings within brackets intact as one chunk (this assists the chunkString function)
 function respectBracketsSpaceSplit(input) {
   var i = 0, stack = [], parts = [], part = '';
@@ -3274,7 +3292,7 @@ async function getTradingViewChart(message) {
 // Request a Coin360 style heatmap
 async function getCoin360Heatmap(msg) {
 
-  console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(msg.member.user.tag)}`);
+  console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(msg.member.user.tag)}`);
 
   let browser = await loadPuppeteerBrowser();
   let page = await browser.newPage();
@@ -3287,7 +3305,7 @@ async function getCoin360Heatmap(msg) {
 
   // Open the page and wait for it to load up
   await page.goto('https://coin360.com/');
-  await sleep(4000);
+  await sleep(5000);
 
   // Remove headers and footer from the page screenshot
   let removeThis = ".Header";
