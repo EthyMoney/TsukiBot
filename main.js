@@ -596,7 +596,6 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
     up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
     bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
     ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
-    // TODO: add eur price and chg as well. (will likely wait for coingecko switchover before implementing)
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
     switch (action) {
@@ -3214,21 +3213,79 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     let query = args.slice(2);
     if (attempt == 1) {
       msg.channel.send('Fetching ``' + msg.content + '``')
-      .then(sentMsg => {
-        chartMsg = sentMsg;
-      });
+        .then(sentMsg => {
+          chartMsg = sentMsg;
+        });
     } else {
       chartMsg.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + msg.content + '``');
     }
 
+    let binancePairs = await clientBinance.loadMarkets();
+    let expandedPair = false;
+    let basePair;
+    let exchangeProvided = false;
     let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken',
       'kucoin', 'okcoin', 'okex', 'poloniex'];
+
+    console.log("user input");
+    console.log(args);
+
+    // Check for missing pair and replace it with usd for any coin found in the CG cache if only a ticker is provided
+    for (let i = 0; i < 500; i++) {
+      if (cgArrayDictParsed[i] && args.includes(cgArrayDictParsed[i].symbol)) {
+        console.log("matched symbol to cache");
+        let pos = args.indexOf(cgArrayDictParsed[i].symbol);
+        args[pos] = cgArrayDictParsed[i].symbol + "usd";
+        console.log(args);
+        expandedPair = true;
+        basePair = cgArrayDictParsed[i].symbol;
+      }
+    }
+
+    // Check for provided exchange
+    let found = false;
     exchanges.forEach(exchange => {
       if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
-        args[1] = exchange + ':' + args[1];
+        if (exchange == "binance" && expandedPair && basePair != "eth" && basePair != "btc") {
+          args[1] = args[1] + "t"; // use tether if Binance
+        }
+        // Make sure this pair exists on Binance before attempting to call it
+        Object.keys(binancePairs).forEach(key => {
+          let cur = binancePairs[key];
+          if (cur.info.symbol.toLowerCase() == args[1]) {
+            found = true;
+            console.log("verified pair with binance");
+            console.log(args);
+            args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
+            exchangeProvided = true;
+          }
+        });
       }
     });
-    
+
+    // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
+    if (!found && args.includes("binance")) {
+      msg.channel.send("Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!");
+      await sleep(50);
+      chartMsg.delete();
+      return;
+    }
+
+    // Attempt to default exchange to Binance if no exchange was provided (for better accuracy on charts)
+    if (!exchangeProvided) {
+      Object.keys(binancePairs).forEach(key => {
+        let cur = binancePairs[key];
+        if (expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase() && basePair != "eth" && basePair != "btc") {
+          args[1] = args[1] + "t";
+        }
+        if (cur.info.symbol.toLowerCase() == args[1] || (expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase() && (basePair == "eth" || basePair == "btc"))) {
+          console.log("matched pair to binance");
+          args[1] = "binance" + ':' + args[1];
+          console.log(args);
+        }
+      });
+    }
+
     browser = await loadPuppeteerBrowser();
     page = await browser.newPage();
     await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
@@ -3243,27 +3300,27 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
     //await frame.waitForSelector('.tv-spinner', {visible: false});
-    await frame.waitForSelector('div[data-name="legend-series-item"', {visible: true});
+    await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
 
-    await page.click('#tsukilogo');
-
-    // Click and move mouse (to remove the focus dots on the chart), then set view to just the chart itself
-    await page.mouse.click(45, 500, { button: 'left' });
+    // Click the mouse in top right corner of chart and then move the cursor off the screen (to remove the focus dots on the chart candles)
+    await page.mouse.click(query.includes('wide') ? 1205 : 625, 3, { button: 'left' });
     await page.mouse.move(-1, -1);
     await page.setViewport({
       width: query.includes('wide') ? 1275 : 715,
       height: 557
     });
 
+    await sleep(500);
+
     await page.screenshot({ path: `chartscreens/chart.png` });
     msg.channel.send({
       files: [{
-          attachment: 'chartscreens/chart.png',
-          name: 'chart.png'
-        }]
-      }).then(()=>{
-        chartMsg.delete(); // Remove the placeholder
-      });
+        attachment: 'chartscreens/chart.png',
+        name: 'chart.png'
+      }]
+    }).then(() => {
+      chartMsg.delete(); // Remove the placeholder
+    });
 
     /*
     await page.keyboard.down('Alt');
@@ -3278,12 +3335,10 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
     */
 
-    await page.close();
     await browser.close();
   } catch (err) {
     console.log(err);
-    await page.close();
-    await browser.close();
+    if (browser) await browser.close();
     if (attempt < 3) {
       attempt = attempt + 1;
       getChart(msg, args, browser, page, chartMsg, attempt);
