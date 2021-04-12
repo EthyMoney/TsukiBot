@@ -3998,6 +3998,8 @@ function chartServer() {
     <div id="crab1" style="background: url('crab1.png'); background-size:125px; height:117px; width:126px; position:absolute; bottom:0px; left:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
     <div id="crab2" style="background: url('crab2.png'); background-size:346px; height:206px; width:345px; position:absolute; bottom:15%; left:50%; transform:translate(-50%, -50%); display:${query.includes('crab') ? 'block' : 'none'};"></div>
     <div id="crab3" style="background: url('crab3.png'); background-size:95px; height:109px; width:93px; position:absolute; bottom:0px; right:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
+    <div id="cryptosoy1" style="background: url('cryptosoy1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
+    <div id="cryptosoy2" style="background: url('cryptosoy2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:-5px; right:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
     </div>`);
     res.end();
   });
