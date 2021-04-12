@@ -111,6 +111,9 @@ const colorAverager       = require('fast-average-color-node');
 // Puppeteer for to interact with the headless server and manipulate charts
 const puppeteer           = require('puppeteer');
 
+// PNG image comparison tool (for finding bad charts)
+const PixelDiff           = require('pixel-diff');
+
 // Graviex key insertion
 graviex.accessKey         = keys.graviexAccessKey;    
 graviex.secretKey         = keys.graviexSecretKey;
@@ -3263,14 +3266,6 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       }
     });
 
-    // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
-    if (!found && args.includes("binance")) {
-      msg.channel.send("Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!");
-      await sleep(50);
-      chartMsg.delete();
-      return;
-    }
-
     // Attempt to default exchange to Binance if no exchange was provided (for better accuracy on charts)
     if (!exchangeProvided) {
       Object.keys(binancePairs).forEach(key => {
@@ -3286,10 +3281,17 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
       });
     }
 
+    // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
+    if (!found && args.includes("binance")) {
+      msg.channel.send("Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!");
+      await sleep(1500);
+      chartMsg.delete();
+      return;
+    }
+
     browser = await loadPuppeteerBrowser();
     page = await browser.newPage();
     await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
-    await page.click('#tradingview_bc0b0');
 
     if (query.includes('log')) {
       await page.keyboard.down('Alt');
@@ -3299,48 +3301,60 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
     const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
     const frame = await elementHandle.contentFrame();
-    //await frame.waitForSelector('.tv-spinner', {visible: false});
     await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
 
-    // Click the mouse in top right corner of chart and then move the cursor off the screen (to remove the focus dots on the chart candles)
-    await page.mouse.click(query.includes('wide') ? 1208 : 628, 3, { button: 'left' });
-    await page.mouse.move(-1, -1);
+    // Set the view area to be captured by the screenshot
     await page.setViewport({
       width: query.includes('wide') ? 1275 : 715,
       height: 557
     });
 
+    // Wait a moment just to make sure that all elements are loaded up
     await sleep(500);
 
+    // Run pixel comparison between the received chart and a known failure
     await page.screenshot({ path: `chartscreens/chart.png` });
-    msg.channel.send({
-      files: [{
-        attachment: 'chartscreens/chart.png',
-        name: 'chart.png'
-      }]
-    }).then(() => {
-      chartMsg.delete(); // Remove the placeholder
+    let diff = new PixelDiff({
+      imageAPath: 'chartscreens/chart.png',
+      imageBPath: 'chartscreens/failchart.png',
+      thresholdType: PixelDiff.THRESHOLD_PERCENT,
+      threshold: 0.99, // 99% threshold
+      imageOutputPath: 'chartscreens/failchartdiff.png'
     });
 
-    /*
-    await page.keyboard.down('Alt');
-    await page.keyboard.press('KeyS');
-    await page.keyboard.up('Alt');
-
-    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
-    const frame = await elementHandle.contentFrame();
-    await frame.waitFor(2500);
-    // await frame.waitForSelector('.input-1Fp9QlzO');
-    const chartLinkInput = await frame.$(".input-1Fp9QlzO");
-    chartMsg.edit(await frame.evaluate(x => x.value, chartLinkInput));
-    */
+    // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
+    diff.run((error, result) => {
+      if (error) {
+        throw error;
+      } else {
+        let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
+        console.log('chart validation test ' + status);
+        console.log('found ' + result.differences + ' differences from failure');
+        if (result.differences < 5000) {
+          msg.reply("Unable to generate chart with your provided input. Check spelling, pair, and other options to ensure they are valid.")
+            .then(() => {
+              chartMsg.delete(); // Remove the placeholder
+            });
+        }
+        else {
+          msg.channel.send({
+            files: [{
+              attachment: 'chartscreens/chart.png',
+              name: 'chart.png'
+            }]
+          }).then(() => {
+            chartMsg.delete(); // Remove the placeholder
+          });
+        }
+      }
+    });
 
     await browser.close();
   } catch (err) {
     console.log(err);
     if (browser) await browser.close();
     if (attempt < 3) {
-      attempt = attempt + 1;
+      attempt++;
       getChart(msg, args, browser, page, chartMsg, attempt);
     }
     else {
@@ -3374,7 +3388,7 @@ async function getCoin360Heatmap(msg) {
 
   // Open the page and wait for it to load up
   await page.goto('https://coin360.com/');
-  await sleep(5000);
+  await sleep(20000); //yikes, but needed
 
   // Remove headers and footer from the page screenshot
   let removeThis = ".Header";
