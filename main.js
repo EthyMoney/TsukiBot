@@ -186,7 +186,8 @@ let cmcFetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fet
 let cgFetch       = schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
 let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
 let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats);     // publish every 3 hours
+let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats);      // publish every 3 hours
+let hmapFetch     = schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
 let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
   updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
 });
@@ -1821,6 +1822,11 @@ function getEtherGas(chn, usr) {
     });
 }
 
+//------------------------------------------
+//------------------------------------------
+
+// Send top 5 biggest gainer and loser
+// coins of the past 24hrs
 
 function getBiggestMovers(chn, usr){
 
@@ -1850,6 +1856,24 @@ function getBiggestMovers(chn, usr){
   getPriceCG(idArr, chn, 'm');
 
   console.log(chalk.green("CoinGecko biggest movers command called in: " + chalk.yellow(chn.guild.name) + " by " + chalk.yellow(usr.username)));
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// Send Coin360 coins heatmap
+function sendCoin360Heatmap(msg){
+  
+  console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(msg.member.user.tag)}`);
+
+  // Hmap image is cached in 30 min cycles by scheduler, we just need to send it here
+  msg.channel.send({
+    files: [{
+      attachment: 'chartscreens/hmap.png',
+      name: 'hmap.png'
+    }]
+  });
 }
 
 
@@ -2193,6 +2217,7 @@ client.on('ready', () => {
   getCGData('firstrun');
   cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
   publishDblStats();
+  getCoin360Heatmap();
 
   // Notify bot operator when the bot starts up or restarts (Disabled because it's annoying when doing testing)
   //    client.fetchUser("210259922888163329")
@@ -2638,7 +2663,7 @@ function commands(message, botAdmin) {
 
       // Coin360 heatmap
     } else if (command === 'hmap') {
-      getCoin360Heatmap(msg);
+      sendCoin360Heatmap(msg);
 
     } else {
 
@@ -2932,7 +2957,7 @@ function commands(message, botAdmin) {
 
       // Coin360 Heatmap
     } else if (scommand === 'hmap') {
-      getCoin360Heatmap(message);
+      sendCoin360Heatmap(message);
 
       //
       // The following meme commands are set to only work in the SpaceStation server until a configuration option is added to disable them when not wanted
@@ -3370,58 +3395,44 @@ async function getTradingViewChart(message) {
   getChart(message, args, browser, page, chartMsg, 1);
 }
 
-// Request a Coin360 style heatmap
-async function getCoin360Heatmap(msg) {
-
-  console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(msg.member.user.tag)}`);
+// Collect and save Coin360 heatmap to cache
+async function getCoin360Heatmap() {
 
   let browser = await loadPuppeteerBrowser();
   let page = await browser.newPage();
-
-  // Send placeholder
-  let sentMsg;
-  msg.channel.send("One moment please...").then(placeHolder => {
-    sentMsg = placeHolder;
-  });
+  let fail = false;
 
   // Open the page and wait for it to load up
-  await page.goto('https://coin360.com/');
-  await sleep(20000); //yikes, but needed
-
-  // Remove headers and footer from the page screenshot
-  let removeThis = ".Header";
-  let removeThisAlso = ".MapFiltersContainer";
-  let ohYeahAndThisToo = ".NewsFeed";
-  await page.evaluate((sel) => {
-    var elements = document.querySelectorAll(sel);
-    for (var i = 0; i < elements.length; i++) {
-      elements[i].parentNode.removeChild(elements[i]);
-    }
-  }, removeThis);
-  await page.evaluate((sel) => {
-    var elements = document.querySelectorAll(sel);
-    for (var i = 0; i < elements.length; i++) {
-      elements[i].parentNode.removeChild(elements[i]);
-    }
-  }, removeThisAlso);
-  await page.evaluate((sel) => {
-    var elements = document.querySelectorAll(sel);
-    for (var i = 0; i < elements.length; i++) {
-      elements[i].parentNode.removeChild(elements[i]);
-    }
-  }, ohYeahAndThisToo);
-
-  // Take screenshot and send it
-  await page.content();
-  await page.screenshot({ path: `chartscreens/hmap.png` });
-  msg.channel.send({
-    files: [{
-      attachment: 'chartscreens/hmap.png',
-      name: 'hmap.png'
-    }]
-  }).then(()=>{
-    sentMsg.delete(); // Remove the placeholder
+  await page.goto('https://coin360.com/').catch(err =>{
+    console.log(chalk.red("Navigation timeout while getting heatmap image. Will try again on next cycle."));
+    fail = true;
   });
+  if(fail){
+    return;
+  }
+
+  // Set the view area to be captured by the screenshot
+  await page.setViewport({
+    width: 2680,
+    height: 2010
+  });
+
+  await page.content();
+  await sleep(85000); //yikes, but needed
+
+  // Remove headers, banner ads, and footers from the page screenshot
+  let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard"];
+  for (let index in removalItems){
+    await page.evaluate((sel) => {
+      var elements = document.querySelectorAll(sel);
+      for (var i = 0; i < elements.length; i++) {
+        elements[i].parentNode.removeChild(elements[i]);
+      }
+    }, removalItems[index]);
+  }
+
+  // Take screenshot and save it
+  await page.screenshot({ path: `chartscreens/hmap.png` });
   await page.close();
   await browser.close();
 }
