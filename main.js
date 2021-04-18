@@ -1418,7 +1418,7 @@ async function getMexLongsShorts(channel, author) {
 
 function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB"];
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB", "INR"];
 
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
