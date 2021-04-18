@@ -1788,7 +1788,7 @@ function getEtherGas(chn, usr) {
   rp('https://www.gasnow.org/api/v3/gas/price?utm_source=:TsukiBot')
     .then(res => {
       let resJSON = JSON.parse(res);
-      let ethUSDPrice = 2291;
+      let ethUSDPrice = cgArrayDict.ETH.current_price;
       // Collecting values and converting from wei to gwei, then getting usd prices as well
       let rapid = resJSON.data.rapid / 1000000000;
       let rapidUSD = rapid / 1000000000 * 21000 * ethUSDPrice;
