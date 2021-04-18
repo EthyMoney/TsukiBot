@@ -1781,38 +1781,36 @@ function getEtherBalance(usr, address, chn, action = 'b') {
 //------------------------------------------
 
 // Collect Ethereum gas tracking stats
-// from Etherscan.
+// from GasNow.
 
 function getEtherGas(chn, usr) {
-  console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
-  rp('https://etherscan.io/gastracker')
-    .then(nice => {
-      //collect the data from fields on the webpage
-      const dom = new JSDOM(nice);
-      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 div.card.h-100 " +
-        "div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.h4.text-success.mb-1").textContent;
-      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.text-secondary")[0].textContent;
-      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h4.text-primary.mb-1").textContent;
-      let avg_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 "+
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[1].textContent;
-      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h3.mb-0 font").textContent;
-      let fast_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none div.text-secondary")[2].textContent;
+  console.log(chalk.green("Ethereum gas rates requested by " + chalk.yellow(usr.username)));
+  rp('https://www.gasnow.org/api/v3/gas/price?utm_source=:TsukiBot')
+    .then(res => {
+      let resJSON = JSON.parse(res);
+      let ethUSDPrice = 2291;
+      // Collecting values and converting from wei to gwei, then getting usd prices as well
+      let rapid = resJSON.data.rapid / 1000000000;
+      let rapidUSD = rapid / 1000000000 * 21000 * ethUSDPrice;
+      let fast = resJSON.data.fast / 1000000000;
+      let fastUSD = fast / 1000000000 * 21000 * ethUSDPrice;
+      let standard = resJSON.data.standard / 1000000000;
+      let standardUSD = standard / 1000000000 * 21000 * ethUSDPrice;
+      let slow = resJSON.data.slow / 1000000000;
+      let slowUSD = slow / 1000000000 * 21000 * ethUSDPrice;
 
-      //assemble the final message as message embed object
+      // Assemble the final message as message embed object
       let embed = new Discord.MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${slow_gwei}\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Average:", `${avg_gwei}\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Fast:", `${fast_gwei}\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Slow:", `${slow.toFixed(0)} gwei\n$${slowUSD.toFixed(2)}\n10+ minutes \u200B\u200B`, true)
+        .addField("Standard:", `${standard.toFixed(0)} gwei\n$${standardUSD.toFixed(2)}\n~ 3 minutes \u200B\u200B`, true)
+        //.addField("Fast:", `${fast.toFixed(0)} gwei\n$${fastUSD.toFixed(2)}\n1 minute \u200B\u200B`, true) //Skipped fast to save embed space
+        .addField("Rapid:", `${rapid.toFixed(0)} gwei\n$${rapidUSD.toFixed(2)}\n~ 15 seconds \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
-        .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
+        .setFooter('Powered by Gas Now', 'https://static-s.aa-cdn.net/img/mac/1532358105/cbcb05e8a75c15b31162e76f2be822a0?v=1');
 
-      //send it
+      // Send it
       try {
         chn.send({ embed });
       }
