@@ -2528,10 +2528,10 @@ function commands(message, botAdmin) {
 
   // Check for bot mention and reply with response ping latency
   let collection = message.mentions.members;
-  if (collection.has("506918730790600704")) {
+  if (collection.has("506918730790600704") && !message.reference) {
     let ping = new Date().getTime() - message.createdTimestamp;
     if (Math.sign(ping) === -1) { ping = ping * -1; }
-    channel.send('sup ' + "<@!" + message.author.id + ">" + ' (`' + ping + " ms`)");
+    channel.send('Sup! ' + "<@!" + message.author.id + ">" + ' (`' + ping + " ms`)");
     return;
   }
 
