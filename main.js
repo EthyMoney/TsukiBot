@@ -3316,15 +3316,19 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     page = await browser.newPage();
     await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
 
+    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
+    const frame = await elementHandle.contentFrame();
+    await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
+
+    await elementHandle.click({ button: 'right' });
+
     if (query.includes('log')) {
       await page.keyboard.down('Alt');
       await page.keyboard.press('KeyL');
       await page.keyboard.up('Alt');
     }
 
-    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
-    const frame = await elementHandle.contentFrame();
-    await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
+    await page.click('#tsukilogo');
 
     // Set the view area to be captured by the screenshot
     await page.setViewport({
