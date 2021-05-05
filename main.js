@@ -792,7 +792,13 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     }
   }
 
+  // Random invite notification message
   msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
+
+  // Check for confused people looking for help, and prompt them for the real help command
+  if (coins.length == 1 && coins.includes("HELP")) {
+    msg += "\nLooking for the help with using the bot? Use `.tb help`.";
+  }
 
   // Check for message being too long even after the 2-message split
   if (msg.length > 2000) {
