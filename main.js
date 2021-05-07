@@ -3278,20 +3278,26 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     let found = false;
     exchanges.forEach(exchange => {
       if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
-        if (exchange == "binance" && expandedPair && basePair != "eth" && basePair != "btc") {
-          args[1] = args[1] + "t"; // use tether if Binance
-        }
-        // Make sure this pair exists on Binance before attempting to call it
-        Object.keys(binancePairs).forEach(key => {
-          let cur = binancePairs[key];
-          if (cur.info.symbol.toLowerCase() == args[1]) {
-            found = true;
-            console.log("verified pair with binance");
-            console.log(args);
-            args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
-            exchangeProvided = true;
+        if (exchange == "binance") {
+          if (expandedPair && basePair != "eth" && basePair != "btc") {
+            args[1] = args[1] + "t"; // use tether if Binance
           }
-        });
+          // Make sure that the pair exists on Binance before attempting to call it
+          Object.keys(binancePairs).forEach(key => {
+            let cur = binancePairs[key];
+            if (cur.info.symbol.toLowerCase() == args[1] || cur.info.symbol.toLowerCase() == args[1] + "t" || (args[1] == "ethusd" || args[1] == "btcusd")) {
+              found = true;
+              console.log("verified pair with binance");
+              console.log(args);
+              args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
+              exchangeProvided = true;
+            }
+          });
+        }
+        else {
+          // If another exchange is found other than Binance, update the pair input to match selected exchange
+          args[1] = exchange + ":" + args[1];
+        }
       }
     });
 
@@ -3299,10 +3305,10 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     if (!exchangeProvided) {
       Object.keys(binancePairs).forEach(key => {
         let cur = binancePairs[key];
-        if (expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase() && basePair != "eth" && basePair != "btc") {
+        if (((expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase()) || (args[1] + "t" == cur.info.symbol.toLowerCase())) && basePair != "eth" && basePair != "btc") {
           args[1] = args[1] + "t";
         }
-        if (cur.info.symbol.toLowerCase() == args[1] || (expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase() && (basePair == "eth" || basePair == "btc"))) {
+        if (cur.info.symbol.toLowerCase() == args[1] || (args[1] == "ethusd" || args[1] == "btcusd")) {
           console.log("matched pair to binance");
           args[1] = "binance" + ':' + args[1];
           console.log(args);
@@ -3343,7 +3349,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     });
 
     // Wait a moment just to make sure that all elements are loaded up
-    await sleep(500);
+    await sleep(600);
 
     // Run pixel comparison between the received chart and a known failure
     await page.screenshot({ path: `chartscreens/chart.png` });
