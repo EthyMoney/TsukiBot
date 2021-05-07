@@ -1590,7 +1590,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       fs.writeFileSync('tags.json', json, 'utf8');
       tagsJSON = JSON.parse(fs.readFileSync("tags.json", "utf8")); //read and reload the tags cache
       console.log(chalk.blue("Tag " + "\"" + tagName + "\"" + " created!"));
-      channel.send("Tag " + "\"" + chalk.yellow(tagName) + "\"" + " created!");
+      channel.send("Tag " + "\"" + tagName + "\"" + " created!");
     }
 
   } else if (command === 'deletetag' && validTag) {
@@ -2196,7 +2196,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 // -------------------------------------------
 
 // Create a client and a token
-const client = new Discord.Client();
+const client = new Discord.Client({ shardCount: 3 });
 
 // Wait for the client to be ready, then load up.
 client.on('ready', () => {
@@ -2275,7 +2275,7 @@ client.on('guildCreate', guild => {
 
 // Log when a server removes the bot
 client.on('guildDelete', guild => {
-  if (guild) {
+  if (guild && guild.name) {
     console.log(chalk.redBright("A SERVER HAS LEFT THE FAMILY :(  Goodbye: " + chalk.cyan(guild.name)));
   }
 });
