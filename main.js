@@ -2048,7 +2048,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
   // .tbpa call (display action)
   if (coins === '') {
     query = conn.query("SELECT * FROM tsukibot.profiles where id = $1;", [id], (err, res) => {
-      if (err) { chalk.red.bold((err + "------TBPA query select error")); }
+      if (err) { console.log(chalk.red.bold((err + "------TBPA query select error"))); }
       else {
         //Check if current user array is empty or not and exit if it is
         if (res.rows[0] && res.rows[0].coins.replace(/\s+/g, '') !== '{}' && res.rows[0].coins.replace(/\s+/g, '') !== '{,}') {
@@ -2108,7 +2108,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
     if (action === '') {
       coins = `{${cleanedCoins}}`;
       query = conn.query(("INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;"), [id, coins.toLowerCase()], (err, res) => {
-        if (err) { chalk.red.bold((err + "------TB PA query insert error")); }
+        if (err) { console.log(chalk.red.bold((err + "------TB PA query insert error"))); }
         else { chn.send("Personal array set: `" + coins.toLowerCase() + "` for <@" + id + ">." + invalidCoinsMessage); }
         conn.end();
       });
