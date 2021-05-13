@@ -3406,6 +3406,13 @@ async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
 // Request a TradingView widget chart from the express server
 async function getTradingViewChart(message, chartID) {
   let args = message.content.toLowerCase().split(' ');
+  // Clean up input of things that new people forget to change from the help doc
+  await args.forEach((value, index) => {
+    if (value.includes('tradingview')) {
+      args.pop(index);
+    }
+    args[index] = value.replace(/[<>]+/g, '');
+  });
   let browser, page, chartMsg;
   console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${
     chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
