@@ -3688,7 +3688,7 @@ async function getCGData(status) {
 
   let coinIDs = [];
   let marketData = [];
-  let prog1, prog2, prog3 = false;
+  let level = 0.1;
 
   for (let i = 0; i < pairs_CG.length; i++) {
     coinIDs.push(pairs_CG[i].id);
@@ -3714,17 +3714,9 @@ async function getCGData(status) {
       coinIDs = []; // reset IDs array
       // progress report for first run
       if (status == 'firstrun') {
-        if (i >= pairs_CG.length * 0.25 && !prog1) {
-          console.log(chalk.blueBright(" ▶ 25%"));
-          prog1 = true;
-        }
-        else if (i >= pairs_CG.length * 0.50 && !prog2) {
-          console.log(chalk.blueBright(" ▶ 50%"));
-          prog2 = true;
-        }
-        else if (i >= pairs_CG.length * 0.75 && !prog3) {
-          console.log(chalk.blueBright(" ▶ 75%"));
-          prog3 = true;
+        if (i >= pairs_CG.length * level) {
+          console.log(chalk.blueBright(` ▶ ${Math.round(level*100)}%`));
+          level = level + 0.1;
         }
       }
       //await sleep(900); //wait to make next call (not needed with this implementation yet)
