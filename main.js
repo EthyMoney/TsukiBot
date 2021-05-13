@@ -3352,31 +3352,24 @@ async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
     // Wait a moment just to make sure that all elements are loaded up
     await sleep(600);
 
-    // Run pixel comparison between the received chart and a known failure
+    // Capture and save the chart from the browser window
     await page.screenshot({ path: `chartscreens/chart${chartID}.png` });
-    let diff = new PixelDiff({
-      imageAPath: `chartscreens/chart${chartID}.png`,
-      imageBPath: `chartscreens/failchart.png`,
-      thresholdType: PixelDiff.THRESHOLD_PERCENT,
-      threshold: 0.99, // 99% threshold
-      imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
-    });
 
-    // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
-    diff.run((error, result) => {
-      if (error) {
-        throw error;
-      } else {
-        let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
-        console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
-        console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
-        if (result.differences < 5000) {
-          msg.reply("Unable to generate chart with your provided pair. Check your pair or try another exchange!")
-            .then(() => {
-              chartMsg.delete(); // Remove the placeholder
-            });
-        }
-        else {
+    try {
+      // Run pixel comparison between the received chart and a known failure
+      let diff = new PixelDiff({
+        imageAPath: `chartscreens/chart${chartID}.png`,
+        imageBPath: `chartscreens/failchart.png`,
+        thresholdType: PixelDiff.THRESHOLD_PERCENT,
+        threshold: 0.99, // 99% threshold
+        imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
+      });
+
+      // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
+      diff.run((error, result) => {
+        if (error) {
+          console.error(error);
+          console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Pixel Diff chart comparison error was thrown. Skipping validation of this chart."));
           msg.channel.send({
             files: [{
               attachment: `chartscreens/chart${chartID}.png`,
@@ -3385,10 +3378,40 @@ async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
           }).then(() => {
             chartMsg.delete(); // Remove the placeholder
           });
+        } else {
+          let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
+          console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
+          console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
+          if (result.differences < 5000) {
+            msg.reply("Unable to generate chart with your provided pair. Check your pair or try another exchange!")
+              .then(() => {
+                chartMsg.delete(); // Remove the placeholder
+              });
+          }
+          else {
+            msg.channel.send({
+              files: [{
+                attachment: `chartscreens/chart${chartID}.png`,
+                name: 'tsukibotchart.png'
+              }]
+            }).then(() => {
+              chartMsg.delete(); // Remove the placeholder
+            });
+          }
         }
-      }
-    });
-
+      });
+    }
+    catch (pixelDiffErr) {
+      console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Cought Pixel Diff chart comparison error. Skipping validation of this chart."));
+      msg.channel.send({
+        files: [{
+          attachment: `chartscreens/chart${chartID}.png`,
+          name: 'tsukibotchart.png'
+        }]
+      }).then(() => {
+        chartMsg.delete(); // Remove the placeholder
+      });
+    }
     await browser.close();
   } catch (err) {
     console.log(chalk.blue(`ID:${chartID} `) + err);
