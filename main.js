@@ -1,28 +1,31 @@
 /* ------------------------------------------------------------------------
-
-                   _____          _    _ ____        _
-                  |_   ____ _   _| | _(_| __ )  ___ | |_
-                    | |/ __| | | | |/ | |  _ \ / _ \| __|
-                    | |\__ | |_| |   <| | |_) | (_) | |_
-                    |_||___/\__,_|_|\_|_|____/ \___/ \__|
-
-
-
- * Author:      Logan "EthyMoney"
- * Base:        Forked from "TsukiBot", written by Oscar "Cehhiro"
+ *
+ *                 _____          _    _ ____        _
+ *                |_   ____ _   _| | _(_| __ )  ___ | |_
+ *                  | |/ __| | | | |/ | |  _ \ / _ \| __|
+ *                  | |\__ | |_| |   <| | |_) | (_) | |_
+ *                  |_||___/\__,_|_|\_|_|____/ \___/ \__|
+ *
+ *
+ *
+ * Author:      Logan S. ~ EthyMoney#5000(Discord) ~ YoloSwagDogDiggity(GitHub)
+ * Base:        Forked from "TsukiBot", written by Oscar F. ~ Cehhiro(Discord)
  * Program:     TsukiBot
  * GitHub:      https://github.com/YoloSwagDogDiggity/TsukiBot
-
+ *
  * Discord bot that offers a wide range of services related to cryptocurrencies
-
+ *
  * No parameters on start
-
- * If you like this service, consider donating
- * ETH to my address: 0x169381506870283cbABC52034E4ECc123f3FAD02 
-
+ *
+ * If you like this service, consider donating to show support :)
+ * ETH address: 0x169381506870283cbABC52034E4ECc123f3FAD02
+ *
+ *
+ *                        Hello from Minnesota USA!
+ *                              ⋆⁺₊⋆ ☾ ⋆⁺₊⋆
+ *
  * ------------------------------------------------------------------------ */
 
-// Example usage of PGSQL DB connection string:  postgres://userName:password@serverName/ip:port/nameOfDatabase
 
 
 // -------------------------------------------
@@ -32,6 +35,7 @@
 // 1. Make sure you have node.js and npm installed and ready to use. Node version 14.x or newer is required.
 // 2. Open a terminal in the project directory and run the command "npm install" to install all required dependencies.
 // 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
+//    You can find the template keys.api file to reference in the "How to set up keys file" text file within the docs folder. Just fill in the blanks!
 // 4. Head down toward the bottom of this file and take note of the comment in the getChart function. You may need to comment out that executable path for 
 //    chromium depending on your environment. The commend there tells you whether you need to do it or not. (charts may not work if you don't check this!)
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
@@ -62,9 +66,6 @@ const schedule            = require('node-schedule');
 // Set the prefix
 const prefix              = ['-t', '.tb', '-T', '.TB', '.Tb', '.tB'];
 
-// Current CMC API key
-let cmcKey                = 1; 
-
 // Files allowed
 const extensions          = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
@@ -75,7 +76,7 @@ const chalk               = require('chalk');
 let keys, pairs, pairs_filtered, pairs_CG, pairs_CG_arr, metadata, admin, shortcutConfig, restricted, tagsJSON;
 initializeFiles();
 
-// Discord Bots List
+// Discord Bots List statistics (now top.gg)
 const DBL                 = require("dblapi.js");
 let dbl;                  // Will be initialized upon startup
 
@@ -111,7 +112,7 @@ const colorAverager       = require('fast-average-color-node');
 // Puppeteer for to interact with the headless server and manipulate charts
 const puppeteer           = require('puppeteer');
 
-// PNG image comparison tool (for finding bad charts)
+// PNG image comparison tool for validating charts images
 const PixelDiff           = require('pixel-diff');
 
 // Graviex key insertion
@@ -129,12 +130,6 @@ let auto                  = true;
 let selectedKey           = 0;
 let cacheUpdateRunning    = false;
 
-// Spam limit count
-let yeetLimit             = 0;
-
-// Translation log
-let getEmCoach            = false;
-
 // Spellcheck
 const didyoumean          = require("didyoumean");
 
@@ -149,10 +144,12 @@ const { JSDOM }           = jsdom;
 const conString           = "postgres://bigboi:" + keys.tsukibot + "@localhost:5432/tsukibot";
 let connp                 = pgp(conString);
 
-// Declare channels and message counter
-let channelName           = 'general';
+// Declare general global variables
 let messageCount          = 0;
 let referenceTime         = Date.now();
+let yeetLimit             = 0; // Spam limit count
+let getEmCoach            = false; // Translation logging
+let chartTagID            = 0;
 
 // Finnhub API client
 const finnhub             = require('finnhub');
@@ -2959,7 +2956,11 @@ function commands(message, botAdmin) {
 
       // Charts
     } else if (scommand === 'c') {
-      getTradingViewChart(message);
+      // Assigning an ID tag to each chart to keep track of them when there are several being called at a time
+      if (chartTagID >= 25){
+        chartTagID = 1;
+      }
+      getTradingViewChart(message, ++chartTagID);
 
       // Coin360 Heatmap
     } else if (scommand === 'hmap') {
@@ -3183,7 +3184,6 @@ function respectBracketsSpaceSplit(input) {
 
 // Check if string is a valid URL
 function validURL(str) {
-
   var pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
     '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
     '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
@@ -3202,7 +3202,6 @@ function sleep(ms) {
 
 // Send the session stats of the bot
 function postSessionStats(message) {
-
   console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
   let users = (client.guilds.cache.reduce(function (sum, guild) { return sum + guild.memberCount; }, 0));
   users = numberWithCommas(users);
@@ -3226,6 +3225,7 @@ function postSessionStats(message) {
   message.channel.send({ embed });
 }
 
+// Create new puppeteer browser instance
 async function loadPuppeteerBrowser() {
   return puppeteer.launch({
     headless: true,
@@ -3235,10 +3235,11 @@ async function loadPuppeteerBrowser() {
   });
 }
 
-async function getChart(msg, args, browser, page, chartMsg, attempt) {
+// Query, collect, validate, and send charts from TradingView
+async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
   try {
     if (args.length < 2) {
-      msg.reply('Insufficient amount of arguments provided');
+      msg.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
       return;
     }
 
@@ -3259,13 +3260,13 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken',
       'kucoin', 'okcoin', 'okex', 'poloniex'];
 
-    console.log("user input");
+    console.log(chalk.blue(`(ID:${chartID})`) + ` user input`);
     console.log(args);
 
     // Check for missing pair and replace it with usd for any coin found in the CG cache if only a ticker is provided
     for (let i = 0; i < 500; i++) {
       if (cgArrayDictParsed[i] && args.includes(cgArrayDictParsed[i].symbol)) {
-        console.log("matched symbol to cache");
+        console.log(chalk.blue(`(ID:${chartID})`) + ` matched symbol to cache`);
         let pos = args.indexOf(cgArrayDictParsed[i].symbol);
         args[pos] = cgArrayDictParsed[i].symbol + "usd";
         console.log(args);
@@ -3287,7 +3288,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
             let cur = binancePairs[key];
             if (cur.info.symbol.toLowerCase() == args[1] || cur.info.symbol.toLowerCase() == args[1] + "t" || (args[1] == "ethusd" || args[1] == "btcusd")) {
               found = true;
-              console.log("verified pair with binance");
+              console.log(chalk.blue(`(ID:${chartID})`) + ` verified pair with binance`);
               console.log(args);
               args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
               exchangeProvided = true;
@@ -3309,7 +3310,7 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
           args[1] = args[1] + "t";
         }
         if (cur.info.symbol.toLowerCase() == args[1] || (args[1] == "ethusd" || args[1] == "btcusd")) {
-          console.log("matched pair to binance");
+          console.log(chalk.blue(`(ID:${chartID})`) + ` matched pair to binance`);
           args[1] = "binance" + ':' + args[1];
           console.log(args);
         }
@@ -3352,13 +3353,13 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
     await sleep(600);
 
     // Run pixel comparison between the received chart and a known failure
-    await page.screenshot({ path: `chartscreens/chart.png` });
+    await page.screenshot({ path: `chartscreens/chart${chartID}.png` });
     let diff = new PixelDiff({
-      imageAPath: 'chartscreens/chart.png',
-      imageBPath: 'chartscreens/failchart.png',
+      imageAPath: `chartscreens/chart${chartID}.png`,
+      imageBPath: `chartscreens/failchart.png`,
       thresholdType: PixelDiff.THRESHOLD_PERCENT,
       threshold: 0.99, // 99% threshold
-      imageOutputPath: 'chartscreens/failchartdiff.png'
+      imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
     });
 
     // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
@@ -3367,10 +3368,10 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
         throw error;
       } else {
         let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
-        console.log('chart validation test ' + status);
-        console.log('found ' + result.differences + ' differences from failure');
+        console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
+        console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
         if (result.differences < 5000) {
-          msg.reply("Unable to generate chart with your provided input. Check spelling, pair, and other options to ensure they are valid.")
+          msg.reply("Unable to generate chart with your provided pair. Check your pair or try another exchange!")
             .then(() => {
               chartMsg.delete(); // Remove the placeholder
             });
@@ -3378,8 +3379,8 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
         else {
           msg.channel.send({
             files: [{
-              attachment: 'chartscreens/chart.png',
-              name: 'chart.png'
+              attachment: `chartscreens/chart${chartID}.png`,
+              name: 'tsukibotchart.png'
             }]
           }).then(() => {
             chartMsg.delete(); // Remove the placeholder
@@ -3390,11 +3391,11 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 
     await browser.close();
   } catch (err) {
-    console.log(err);
+    console.log(chalk.blue(`ID:${chartID} `) + err);
     if (browser) await browser.close();
     if (attempt < 3) {
       attempt++;
-      getChart(msg, args, browser, page, chartMsg, attempt);
+      getChart(msg, args, browser, page, chartMsg, attempt, chartID);
     }
     else {
       chartMsg.edit('```TradingView Widget threw error' + `, all re-attempts exhausted :(` + '```');
@@ -3403,12 +3404,12 @@ async function getChart(msg, args, browser, page, chartMsg, attempt) {
 }
 
 // Request a TradingView widget chart from the express server
-async function getTradingViewChart(message) {
+async function getTradingViewChart(message, chartID) {
   let args = message.content.toLowerCase().split(' ');
   let browser, page, chartMsg;
   console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${
     chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
-  getChart(message, args, browser, page, chartMsg, 1);
+  getChart(message, args, browser, page, chartMsg, 1, chartID);
 }
 
 // Collect and save Coin360 heatmap to cache
