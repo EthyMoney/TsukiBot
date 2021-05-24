@@ -1794,6 +1794,12 @@ function getEtherBalance(usr, address, chn, action = 'b') {
 // from GasNow.
 
 function getEtherGas(chn, usr) {
+  //don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
   console.log(chalk.green("Ethereum gas rates requested by " + chalk.yellow(usr.username)));
   rp('https://www.gasnow.org/api/v3/gas/price?utm_source=:TsukiBot')
     .then(res => {
@@ -1839,8 +1845,8 @@ function getEtherGas(chn, usr) {
 
 function getBiggestMovers(chn, usr){
 
-    //don't let command run if cache is still updating for the first time
-  if(cacheUpdateRunning){
+  //don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
     chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
@@ -3233,10 +3239,17 @@ function postSessionStats(message) {
 
 // Launches a puppeteer cluster and defines the job for grabbing tradingview charts
 async function chartsProcessingCluster() {
+  let puppeteerOpts = {
+    headless: true,
+    // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
+    //executablePath:'/usr/bin/chromium-browser',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  };
   // Start up a puppeteer cluster browser
   cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_PAGE,
     maxConcurrency: 8,
+    puppeteerOptions: puppeteerOpts
   });
 
   // Setting the charts task on the cluster
