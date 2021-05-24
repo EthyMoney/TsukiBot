@@ -109,8 +109,10 @@ chartServer();
 // Automatic color selector for embeds
 const colorAverager       = require('fast-average-color-node');
 
-// Puppeteer for to interact with the headless server and manipulate charts
-const puppeteer           = require('puppeteer');
+// Puppeteer for interacting with the headless server and manipulating charts
+const { Cluster }         = require('puppeteer-cluster');
+let cluster;
+chartsProcessingCluster();
 
 // PNG image comparison tool for validating charts images
 const PixelDiff           = require('pixel-diff');
@@ -715,6 +717,10 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     //console.log(selectedCoinObjects[0]);
 
     // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
+    if(!selectedCoinObjects[0]){
+      console.log(chalk.redBright(`ERR in CG price command: Selected coin object came up as undefined for: ${coins[i]}`));
+      return;
+    }
     let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
     let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
     let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
@@ -889,7 +895,7 @@ async function getPriceBitfinex(usr, coin1, coin2, chn, coin2Failover) {
       return;
     }
     //attempt re-calling with usd coin2 correction if failure occurs
-    getPriceBitfinex(msg.author, coin1, "USD", chn, true);
+    getPriceBitfinex(usr, coin1, "USD", chn, true);
     //Exit rest of loop for re-run
     return;
   });
@@ -2211,7 +2217,7 @@ client.on('ready', () => {
   console.log(chalk.yellow('------------------------------------------------------ ' + chalk.greenBright('Bot start') + ' ------------------------------------------------------'));
 
   // Display help command on bot's status
-  client.user.setActivity('.tb help');
+  client.user.setActivity('.tb help', { type: 'WATCHING' });
 
   // First run of scheduled executions
   updateCoins();
@@ -3225,170 +3231,154 @@ function postSessionStats(message) {
   message.channel.send({ embed });
 }
 
-// Create new puppeteer browser instance
-async function loadPuppeteerBrowser() {
-  return puppeteer.launch({
-    headless: true,
-    // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
-    //executablePath:'/usr/bin/chromium-browser',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+// Launches a puppeteer cluster and defines the job for grabbing tradingview charts
+async function chartsProcessingCluster() {
+  // Start up a puppeteer cluster browser
+  cluster = await Cluster.launch({
+    concurrency: Cluster.CONCURRENCY_PAGE,
+    maxConcurrency: 8,
   });
-}
 
-// Query, collect, validate, and send charts from TradingView
-async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
-  try {
-    if (args.length < 2) {
-      msg.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
-      return;
-    }
-
-    let query = args.slice(2);
-    if (attempt == 1) {
-      msg.channel.send('Fetching ``' + msg.content + '``')
-        .then(sentMsg => {
-          chartMsg = sentMsg;
-        });
-    } else {
-      chartMsg.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + msg.content + '``');
-    }
-
-    let binancePairs = await clientBinance.loadMarkets();
-    let expandedPair = false;
-    let basePair;
-    let exchangeProvided = false;
-    let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken',
-      'kucoin', 'okcoin', 'okex', 'poloniex'];
-
-    console.log(chalk.blue(`(ID:${chartID})`) + ` user input`);
-    console.log(args);
-
-    // Check for missing pair and replace it with usd for any coin found in the CG cache if only a ticker is provided
-    for (let i = 0; i < 500; i++) {
-      if (cgArrayDictParsed[i] && args.includes(cgArrayDictParsed[i].symbol)) {
-        console.log(chalk.blue(`(ID:${chartID})`) + ` matched symbol to cache`);
-        let pos = args.indexOf(cgArrayDictParsed[i].symbol);
-        args[pos] = cgArrayDictParsed[i].symbol + "usd";
-        console.log(args);
-        expandedPair = true;
-        basePair = cgArrayDictParsed[i].symbol;
-      }
-    }
-
-    // Check for provided exchange
-    let found = false;
-    exchanges.forEach(exchange => {
-      if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
-        if (exchange == "binance") {
-          if (expandedPair && basePair != "eth" && basePair != "btc") {
-            args[1] = args[1] + "t"; // use tether if Binance
-          }
-          // Make sure that the pair exists on Binance before attempting to call it
-          Object.keys(binancePairs).forEach(key => {
-            let cur = binancePairs[key];
-            if (cur.info.symbol.toLowerCase() == args[1] || cur.info.symbol.toLowerCase() == args[1] + "t" || (args[1] == "ethusd" || args[1] == "btcusd")) {
-              found = true;
-              console.log(chalk.blue(`(ID:${chartID})`) + ` verified pair with binance`);
-              console.log(args);
-              args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
-              exchangeProvided = true;
-            }
-          });
-        }
-        else {
-          // If another exchange is found other than Binance, update the pair input to match selected exchange
-          args[1] = exchange + ":" + args[1];
-        }
-      }
-    });
-
-    // Attempt to default exchange to Binance if no exchange was provided (for better accuracy on charts)
-    if (!exchangeProvided) {
-      Object.keys(binancePairs).forEach(key => {
-        let cur = binancePairs[key];
-        if (((expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase()) || (args[1] + "t" == cur.info.symbol.toLowerCase())) && basePair != "eth" && basePair != "btc") {
-          args[1] = args[1] + "t";
-        }
-        if (cur.info.symbol.toLowerCase() == args[1] || (args[1] == "ethusd" || args[1] == "btcusd")) {
-          console.log(chalk.blue(`(ID:${chartID})`) + ` matched pair to binance`);
-          args[1] = "binance" + ':' + args[1];
-          console.log(args);
-        }
-      });
-    }
-
-    // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
-    if (!found && args.includes("binance")) {
-      msg.channel.send("Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!");
-      await sleep(1500);
-      chartMsg.delete();
-      return;
-    }
-
-    browser = await loadPuppeteerBrowser();
-    page = await browser.newPage();
-    await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
-
-    const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
-    const frame = await elementHandle.contentFrame();
-    await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
-
-    await elementHandle.click({ button: 'right' });
-
-    if (query.includes('log')) {
-      await page.keyboard.down('Alt');
-      await page.keyboard.press('KeyL');
-      await page.keyboard.up('Alt');
-    }
-
-    await page.click('#tsukilogo');
-
-    // Set the view area to be captured by the screenshot
-    await page.setViewport({
-      width: query.includes('wide') ? 1275 : 715,
-      height: 557
-    });
-
-    // Wait a moment just to make sure that all elements are loaded up
-    await sleep(600);
-
-    // Capture and save the chart from the browser window
-    await page.screenshot({ path: `chartscreens/chart${chartID}.png` });
+  // Setting the charts task on the cluster
+  await cluster.task(async ({ page, data: data }) => {
+    var start = performance.now();
+    //Get all data from object
+    let msg = data.msg;
+    let args = data.args;
+    let chartMsg = data.chartMsg;
+    let attempt = data.attempt;
+    let chartID = data.chartID;
 
     try {
-      // Run pixel comparison between the received chart and a known failure
-      let diff = new PixelDiff({
-        imageAPath: `chartscreens/chart${chartID}.png`,
-        imageBPath: `chartscreens/failchart.png`,
-        thresholdType: PixelDiff.THRESHOLD_PERCENT,
-        threshold: 0.99, // 99% threshold
-        imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
-      });
-
-      // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
-      diff.run((error, result) => {
-        if (error) {
-          console.error(error);
-          console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Pixel Diff chart comparison error was thrown. Skipping validation of this chart."));
-          msg.channel.send({
-            files: [{
-              attachment: `chartscreens/chart${chartID}.png`,
-              name: 'tsukibotchart.png'
-            }]
-          }).then(() => {
-            chartMsg.delete(); // Remove the placeholder
+      if (args.length < 2) {
+        msg.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
+        return;
+      }
+      let query = args.slice(2);
+      if (attempt == 1) {
+        msg.channel.send('Fetching ``' + msg.content + '``')
+          .then(sentMsg => {
+            chartMsg = sentMsg;
           });
-        } else {
-          let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
-          console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
-          console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
-          if (result.differences < 5000) {
-            msg.reply("Unable to generate chart with your provided pair. Check your pair or try another exchange!")
-              .then(() => {
-                chartMsg.delete(); // Remove the placeholder
-              });
+      } else {
+        chartMsg.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + msg.content + '``');
+      }
+
+      let binancePairs = await clientBinance.loadMarkets();
+      let expandedPair = false;
+      let basePair;
+      let exchangeProvided = false;
+      let exchanges = ['binance', 'bitstamp', 'bitbay', 'bitfinex', 'bittrex', 'bybit', 'coinbase', 'ftx', 'gemini', 'hitbtc', 'kraken',
+        'kucoin', 'okcoin', 'okex', 'poloniex'];
+
+      console.log(chalk.blue(`(ID:${chartID})`) + ` user input`);
+      console.log(args);
+
+      // Check for missing pair and replace it with usd for any coin found in the CG cache if only a ticker is provided
+      for (let i = 0; i < 500; i++) {
+        if (cgArrayDictParsed[i] && args.includes(cgArrayDictParsed[i].symbol)) {
+          console.log(chalk.blue(`(ID:${chartID})`) + ` matched symbol to cache`);
+          let pos = args.indexOf(cgArrayDictParsed[i].symbol);
+          args[pos] = cgArrayDictParsed[i].symbol + "usd";
+          console.log(args);
+          expandedPair = true;
+          basePair = cgArrayDictParsed[i].symbol;
+        }
+      }
+
+      // Check for provided exchange
+      let found = false;
+      exchanges.forEach(exchange => {
+        if (args.includes(exchange) && !args[1].includes(exchange + ':')) {
+          if (exchange == "binance") {
+            if (expandedPair && basePair != "eth" && basePair != "btc") {
+              args[1] = args[1] + "t"; // use tether if Binance
+            }
+            // Make sure that the pair exists on Binance before attempting to call it
+            Object.keys(binancePairs).forEach(key => {
+              let cur = binancePairs[key];
+              if (cur.info.symbol.toLowerCase() == args[1] || cur.info.symbol.toLowerCase() == args[1] + "t" || (args[1] == "ethusd" || args[1] == "btcusd")) {
+                found = true;
+                console.log(chalk.blue(`(ID:${chartID})`) + ` verified pair with binance`);
+                console.log(args);
+                args[1] = exchange + ':' + cur.info.symbol.toLowerCase();
+                exchangeProvided = true;
+              }
+            });
           }
           else {
+            // If another exchange is found other than Binance, update the pair input to match selected exchange
+            args[1] = exchange + ":" + args[1];
+          }
+        }
+      });
+
+      // Attempt to default exchange to Binance if no exchange was provided (for better accuracy on charts)
+      if (!exchangeProvided) {
+        Object.keys(binancePairs).forEach(key => {
+          let cur = binancePairs[key];
+          if (((expandedPair && args[1] + "t" == cur.info.symbol.toLowerCase()) || (args[1] + "t" == cur.info.symbol.toLowerCase())) && basePair != "eth" && basePair != "btc") {
+            args[1] = args[1] + "t";
+          }
+          if (cur.info.symbol.toLowerCase() == args[1] || (args[1] == "ethusd" || args[1] == "btcusd")) {
+            console.log(chalk.blue(`(ID:${chartID})`) + ` matched pair to binance`);
+            args[1] = "binance" + ':' + args[1];
+            console.log(args);
+          }
+        });
+      }
+
+      // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
+      if (!found && args.includes("binance")) {
+        msg.channel.send("Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!");
+        await sleep(1500);
+        chartMsg.delete();
+        return;
+      }
+
+      await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: "networkidle0", timeout: 60000 });
+
+      const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
+      const frame = await elementHandle.contentFrame();
+      await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
+      await elementHandle.click({ button: 'right' });
+
+      if (query.includes('log')) {
+        await page.keyboard.down('Alt');
+        await page.keyboard.press('KeyL');
+        await page.keyboard.up('Alt');
+      }
+
+      // Clicking to remove focus dots on price line
+      await page.click('#tsukilogo');
+
+      // Set the view area to be captured by the screenshot
+      await page.setViewport({
+        width: query.includes('wide') ? 1275 : 715,
+        height: 557
+      });
+
+      // Wait a moment just to make sure that all elements are loaded up
+      await sleep(720);
+
+      // Capture and save the chart from the browser window
+      await page.screenshot({ path: `chartscreens/chart${chartID}.png` });
+
+      try {
+        // Run pixel comparison between the received chart and a known failure
+        let diff = new PixelDiff({
+          imageAPath: `chartscreens/chart${chartID}.png`,
+          imageBPath: `chartscreens/failchart.png`,
+          thresholdType: PixelDiff.THRESHOLD_PERCENT,
+          threshold: 0.99, // 99% threshold
+          imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
+        });
+
+        // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
+        diff.run((error, result) => {
+          if (error) {
+            console.error(error);
+            console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Pixel Diff chart comparison error was thrown. Skipping validation of this chart."));
             msg.channel.send({
               files: [{
                 attachment: `chartscreens/chart${chartID}.png`,
@@ -3397,33 +3387,65 @@ async function getChart(msg, args, browser, page, chartMsg, attempt, chartID) {
             }).then(() => {
               chartMsg.delete(); // Remove the placeholder
             });
+          } else {
+            let status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
+            console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
+            console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
+            if (result.differences < 5000) {
+              msg.reply("Unable to generate chart with your provided pair. Check your pair or try another exchange!")
+                .then(() => {
+                  chartMsg.delete(); // Remove the placeholder
+                });
+            }
+            else {
+              let end = performance.now();
+              console.log(chalk.blue(`(ID:${chartID})`) + ` Execution time: ` + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
+              msg.channel.send({
+                files: [{
+                  attachment: `chartscreens/chart${chartID}.png`,
+                  name: 'tsukibotchart.png'
+                }]
+              }).then(() => {
+                chartMsg.delete(); // Remove the placeholder
+              });
+            }
           }
-        }
-      });
+        });
+      }
+      catch (pixelDiffErr) {
+        console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Cought Pixel Diff chart comparison error. Skipping validation of this chart."));
+        let end = performance.now();
+        console.log(chalk.blue(`(ID:${chartID})`) + ` Execution time: ` + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
+        msg.channel.send({
+          files: [{
+            attachment: `chartscreens/chart${chartID}.png`,
+            name: 'tsukibotchart.png'
+          }]
+        }).then(() => {
+          chartMsg.delete(); // Remove the placeholder
+        });
+      }
+      // Free up resourcess, then close the page
+      await page.goto('about:blank');
+      await page.close();
+    } catch (err) {
+      console.log(chalk.blue(`(ID:${chartID}) `) + err);
+      if (attempt < 3) {
+        attempt++;
+        let data2 = {
+          'msg': msg,
+          'args': args,
+          'chartMsg': chartMsg,
+          'attempt': attempt,
+          'chartID': chartID
+        };
+        cluster.queue(data2);
+      }
+      else {
+        chartMsg.edit('```TradingView Widget threw error' + `, all re-attempts exhausted :(` + '```');
+      }
     }
-    catch (pixelDiffErr) {
-      console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Cought Pixel Diff chart comparison error. Skipping validation of this chart."));
-      msg.channel.send({
-        files: [{
-          attachment: `chartscreens/chart${chartID}.png`,
-          name: 'tsukibotchart.png'
-        }]
-      }).then(() => {
-        chartMsg.delete(); // Remove the placeholder
-      });
-    }
-    await browser.close();
-  } catch (err) {
-    console.log(chalk.blue(`ID:${chartID} `) + err);
-    if (browser) await browser.close();
-    if (attempt < 3) {
-      attempt++;
-      getChart(msg, args, browser, page, chartMsg, attempt, chartID);
-    }
-    else {
-      chartMsg.edit('```TradingView Widget threw error' + `, all re-attempts exhausted :(` + '```');
-    }
-  }
+  });
 }
 
 // Request a TradingView widget chart from the express server
@@ -3436,52 +3458,64 @@ async function getTradingViewChart(message, chartID) {
     }
     args[index] = value.replace(/[<>]+/g, '');
   });
-  let browser, page, chartMsg;
+  let chartMsg;
   console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${
     chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
-  getChart(message, args, browser, page, chartMsg, 1, chartID);
+
+  // Build data object for the cluster task
+  let data = {
+    'msg': message,
+    'args': args,
+    'chartMsg': chartMsg,
+    'attempt': 1,
+    'chartID': chartID
+  };
+  // Send the request to the cluster queue
+  cluster.queue(data);
 }
 
 // Collect and save Coin360 heatmap to cache
 async function getCoin360Heatmap() {
 
-  let browser = await loadPuppeteerBrowser();
-  let page = await browser.newPage();
   let fail = false;
 
-  // Open the page and wait for it to load up
-  await page.goto('https://coin360.com/').catch(err =>{
-    console.log(chalk.red("Navigation timeout while getting heatmap image. Will try again on next cycle."));
-    fail = true;
-  });
-  if(fail){
-    return;
-  }
+  const grabHmap = async ({ page, data: url }) => {
+    // Open the page and wait for it to load up
+    await page.goto(url).catch(err => {
+      console.log(chalk.red("Navigation timeout while getting heatmap image. Will try again on next cycle."));
+      fail = true;
+    });
+    if (fail) {
+      return;
+    }
 
-  // Set the view area to be captured by the screenshot
-  await page.setViewport({
-    width: 2680,
-    height: 2010
-  });
+    // Set the view area to be captured by the screenshot
+    await page.setViewport({
+      width: 2680,
+      height: 2010
+    });
 
-  await page.content();
-  await sleep(85000); //yikes, but needed
+    await page.content();
+    await sleep(85000); //yikes, but needed
 
-  // Remove headers, banner ads, and footers from the page screenshot
-  let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard"];
-  for (let index in removalItems){
-    await page.evaluate((sel) => {
-      var elements = document.querySelectorAll(sel);
-      for (var i = 0; i < elements.length; i++) {
-        elements[i].parentNode.removeChild(elements[i]);
-      }
-    }, removalItems[index]);
-  }
+    // Remove headers, banner ads, and footers from the page screenshot
+    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard"];
+    for (let index in removalItems) {
+      await page.evaluate((sel) => {
+        var elements = document.querySelectorAll(sel);
+        for (var i = 0; i < elements.length; i++) {
+          elements[i].parentNode.removeChild(elements[i]);
+        }
+      }, removalItems[index]);
+    }
 
-  // Take screenshot and save it
-  await page.screenshot({ path: `chartscreens/hmap.png` });
-  await page.close();
-  await browser.close();
+    // Take screenshot and save it
+    await page.screenshot({ path: `chartscreens/hmap.png` });
+    await page.close();
+    await browser.close();
+  };
+
+  cluster.queue('https://coin360.com/', grabHmap);
 }
 
 // Convert USD price to ETH value
@@ -3605,7 +3639,7 @@ function resetSpamLimit() {
 function publishDblStats() {
   if (keys.dbl == "yes") {
     dbl.postStats(client.guilds.cache.size, client.id);
-    console.log(chalk.green("Updated dbots.org stats!"));
+    console.log(chalk.green("Updated bot stats on top.gg!"));
   }
   else {
     return;
