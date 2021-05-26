@@ -3249,7 +3249,15 @@ async function chartsProcessingCluster() {
   cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_PAGE,
     maxConcurrency: 8,
-    puppeteerOptions: puppeteerOpts
+    puppeteerOptions: puppeteerOpts,
+    retryLimit: 2,
+    retryDelay: 100,
+    timeout: 60000,
+    workerCreationDelay: 100
+  });
+  // Event handler to be called in case of problems
+  cluster.on('taskerror', (err, data) => {
+    console.log(chalk.red(`Puppeteer cluster encountered error processing task: ${data}: ${err.message}`));
   });
 
   // Setting the charts task on the cluster
@@ -3455,7 +3463,7 @@ async function chartsProcessingCluster() {
         cluster.queue(data2);
       }
       else {
-        chartMsg.edit('```TradingView Widget threw error' + `, all re-attempts exhausted :(` + '```');
+        chartMsg.edit('```TradingView handler threw error' + `, all re-attempts exhausted :(` + '```');
       }
     }
   });
@@ -3495,7 +3503,7 @@ async function getCoin360Heatmap() {
   const grabHmap = async ({ page, data: url }) => {
     // Open the page and wait for it to load up
     await page.goto(url).catch(err => {
-      console.log(chalk.red("Navigation timeout while getting heatmap image. Will try again on next cycle."));
+      console.log(chalk.red("Navigation failure while getting heatmap image. Will try again on next cycle."));
       fail = true;
     });
     if (fail) {
@@ -3508,11 +3516,11 @@ async function getCoin360Heatmap() {
       height: 2010
     });
 
-    await page.content();
-    await sleep(85000); //yikes, but needed
+    // Wait for full hmap to be rendered by looking for BTC's tags
+    await page.waitForSelector('.AnimationBTC > div:nth-child(1)', { visible: true, timeout: 85000 });
 
-    // Remove headers, banner ads, and footers from the page screenshot
-    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard"];
+    // Remove headers, banner ads, footers, and zoom buttons from the page screenshot
+    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard", ".ZoomIcon"];
     for (let index in removalItems) {
       await page.evaluate((sel) => {
         var elements = document.querySelectorAll(sel);
@@ -3524,8 +3532,9 @@ async function getCoin360Heatmap() {
 
     // Take screenshot and save it
     await page.screenshot({ path: `chartscreens/hmap.png` });
+    // Free up resourcess, then close the page
+    await page.goto('about:blank');
     await page.close();
-    await browser.close();
   };
 
   cluster.queue('https://coin360.com/', grabHmap);
@@ -3797,7 +3806,7 @@ async function getCGData(status) {
     return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
   });
 
-  // clean up any potential duplicates duplicates
+  // clean up any potential duplicates
   let cleaned = [];
   let uniqueCoin = {};
   for (let i in marketDataFiltered) {
@@ -4013,7 +4022,7 @@ function initializeFiles() {
 
   chartServer()
 
-  Starts a server to how TradingView chart widgets
+  Starts a server to show TradingView chart widgets
   at http://localhost:${port}
 
   e.g. http://localhost:8080/ethbtc?query=sma,ema,macd,log,wide
