@@ -15,7 +15,7 @@
  *
  * Discord bot that offers a wide range of services related to cryptocurrencies
  *
- * No parameters on start
+ * No parameters on start except -d for developer mode (disables periodic caching)
  *
  * If you like this service, consider donating to show support :)
  * ETH address: 0x169381506870283cbABC52034E4ECc123f3FAD02
@@ -54,6 +54,9 @@
 //
 // -------------------------------------------
 // -------------------------------------------
+
+// Dev mode to disable unnecessary operations for testing
+let devMode               = false;
 
 // File read for JSON and PostgreSQL
 const fs                  = require('fs');
@@ -121,6 +124,9 @@ const PixelDiff           = require('pixel-diff');
 graviex.accessKey         = keys.graviexAccessKey;    
 graviex.secretKey         = keys.graviexSecretKey;
 
+// Unique ID generator
+let uniqid                = require('uniqid');
+
 // CMC/CG Cache
 let cmcArray              = {};
 let cmcArrayDict          = {};
@@ -180,17 +186,23 @@ const quote               = 'Enjoying TsukiBot? Tell your friends!';
 const botInviteAdd        = "\nAdd the bot to other servers by using  `.tb invite`  for the link  :)";
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
-// Scheduled Actions
-let cmcFetch      = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
-let cgFetch       = schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
-let yeetReset     = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
-let updateList    = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-let updateDBL     = schedule.scheduleJob('0 */3 * * *', publishDblStats);      // publish every 3 hours
-let hmapFetch     = schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
-let updateCMCKey  = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
-  updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
-});
+// Check for dev mode argument
+if (process.argv[2] === "-d") {
+  devMode = true;
+}
 
+// Scheduled Actions for normal operation
+if (!devMode) {
+  let cmcFetch            = schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
+  let cgFetch             = schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
+  let yeetReset           = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
+  let updateList          = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
+  let updateDBL           = schedule.scheduleJob('0 */3 * * *', publishDblStats);      // publish every 3 hours
+  let hmapFetch           = schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
+  let updateCMCKey        = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
+    updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
+  });
+}
 
 
 // -------------------------------------------
@@ -1375,7 +1387,7 @@ async function getMexLongsShorts(channel, author) {
   console.log(chalk.green("BitMEX longs/shorts requested by " + chalk.yellow(author.username)));
 
   // Grab the html
-  request('https://blockchainwhispers.com/bitmex-position-calculator/', function (error, response, body) {
+  request('http://blockchainwhispers.com/bitmex-position-calculator/', function (error, response, body) {
     // After collecting the html, pull out the data and send it
     const dom = new JSDOM(body);
 
@@ -1391,7 +1403,7 @@ async function getMexLongsShorts(channel, author) {
       // Grabbing all exchange data from selected class name
       let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
       // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
-      var title = block[1].querySelector('h6').textContent;
+      var title = block[1].querySelector('a:nth-child(1) > div:nth-child(1)').textContent;
       var longs = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
       var longsPercent = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > span:nth-child(2)').textContent;
       var shorts = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
@@ -1912,7 +1924,7 @@ function getMarketCap(message) {
 //------------------------------------------
 //------------------------------------------
 
-// Function for getting market cap data of a specific coin from CMC
+// Function for getting market cap data of a specific coin from CG
 
 function getMarketCapSpecific(message) {
 
@@ -2205,7 +2217,8 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 // -------------------------------------------
 
 // Create a client and a token
-const client = new Discord.Client({ shardCount: 3 });
+const client = new Discord.Client({ shards: 'auto' });
+const clientShardHelper = new Discord.ShardClientUtil(client);
 
 // Wait for the client to be ready, then load up.
 client.on('ready', () => {
@@ -2215,12 +2228,11 @@ client.on('ready', () => {
     dbl = new DBL(keys.dbots, client);
   }
 
-  // Check for dev mode argument
-  if (process.argv[2] === "-d") {
-    console.log(chalk.yellow('dev mode active!'));
-  }
+  console.log(chalk.yellow('------------------------------------------------------ ' + chalk.greenBright('Bot Start') + ' ------------------------------------------------------'));
+  console.log(chalk.green('                                                    Active Shards: ' + chalk.blue(clientShardHelper.count)));
 
-  console.log(chalk.yellow('------------------------------------------------------ ' + chalk.greenBright('Bot start') + ' ------------------------------------------------------'));
+  // Show dev mode active status
+  if (devMode) console.log(chalk.yellow('Dev mode active!'));
 
   // Display help command on bot's status
   client.user.setActivity('.tb help', { type: 'WATCHING' });
@@ -2233,15 +2245,6 @@ client.on('ready', () => {
   cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
   publishDblStats();
   getCoin360Heatmap();
-
-  // Notify bot operator when the bot starts up or restarts (Disabled because it's annoying when doing testing)
-  //    client.fetchUser("210259922888163329")
-  //    .then(u => {
-  //      u.send("TsukiBot online.")
-  //        .catch(console.log);
-  //    })
-  //    .catch(console.log);
-
 });
 
 // DM's the command list to the caller
@@ -2712,7 +2715,7 @@ function commands(message, botAdmin) {
         params.unshift('0');
         if (params.length > 1 || ['cg', 'coingecko', 'translate', 'trans', 't', 'shortcut', 'mc', 'stocks', 'stock', 'info',
           'gr', 'graviex', 'grav', 'pa', 'pa+', 'pa-', 'cmc', 'e', 'etherscan', 'binance', 'n', 'convert', 'cv', 'tag', 'createtag',
-          'tagcreate', 'deletetag', 'newtag'].indexOf(command) > -1) {
+          'tagcreate', 'deletetag', 'newtag', 'schedule'].indexOf(command) > -1) {
 
           // Coinbase call
           if (command === 'gdax' || command === 'g' || command === 'cb' || command === 'coinbase') {
@@ -2773,6 +2776,11 @@ function commands(message, botAdmin) {
           } else if (/pa[\+\-]?/.test(command)) {
             let action = command[2] || '';
             getCoinArray(message.author.id, channel, message, paramsUnfiltered, action);
+
+            // Scheduled actions
+          } else if (command === 'schedule') { 
+            //                             action    frequency    channel
+            //scheduledCommandsEngine(msg, code_in[1], code_in[2], code_in[3]);
 
             // Toggle shortcut
           } else if (command === 'shortcut') {
@@ -3069,6 +3077,43 @@ function commands(message, botAdmin) {
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+// Validate HH:MM time and 00:05 minimum
+function validateTime(s) {
+  let t = s.split(':');
+  let formatTest = /^\d\d:\d\d$/.test(s) &&
+    t[0] >= 0 && t[0] < 25 &&
+    t[1] >= 0 && t[1] < 60;
+  // Verify minimum
+  if(formatTest && t[0] == 0){
+    if(t[1] >= 5){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+  else{
+    return formatTest;
+  }
+}
+
+// Add function to the Number class for using to encode large ID to shorter one
+Number.prototype.toBase = function (base) {
+  let symbols =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  let decimal = this;
+  let conversion = "";
+  if (base > symbols.length || base <= 1) {
+    return false;
+  }
+  while (decimal >= 1) {
+    conversion = symbols[(decimal - (base * Math.floor(decimal / base)))] +
+      conversion;
+    decimal = Math.floor(decimal / base);
+  }
+  return (base < 11) ? parseInt(conversion) : conversion;
+};
 
 // Traslate message to english
 function translateEN(chn, msg, sneak) {
@@ -3723,7 +3768,8 @@ function updateCmcKey(override) {
 async function getCMCData() {
 
   //WARNING! This will pull ALL cmc coins and cost you up to 22 credits (limit/200) on your api account for each call. This is why I alternate keys!
-  let cmcJSON = await clientcmc.getTickers({ limit: 4400 }).then().catch(console.error);
+  let limit = devMode ? 100 : 4400;
+  let cmcJSON = await clientcmc.getTickers({ limit: limit }).then().catch(console.error);
   cmcArray = cmcJSON.data;
   cmcArrayDictParsed = cmcArray;
   cmcArrayDict = {};
@@ -3771,8 +3817,8 @@ async function getCGData(status) {
 
   for (let i = 0; i < pairs_CG.length; i++) {
     coinIDs.push(pairs_CG[i].id);
-    // break up API calls by groups of 450 IDs (request URI max size)
-    if (i % 450 === 0 || i === pairs_CG.length - 1) {
+    // break up API calls by groups of 435 IDs (request URI max size)
+    if (i % 435 === 0 || i === pairs_CG.length - 1) {
       let resJSON = await CoinGeckoClient.coins.markets({
         'vs_currency': 'usd',
         'ids': coinIDs.toString(),
@@ -3781,7 +3827,8 @@ async function getCGData(status) {
         'price_change_percentage': '1h,24h,7d,14d,30d,1y'
       }).catch((rej) => {
         cacheUpdateRunning = false; // allow for scheduler to call for next update cycle
-        console.log(chalk.redBright("Failed to complete CG cache update. Skipping this instance.... ") + chalk.cyanBright(rej));
+        console.log(chalk.redBright("Failed to complete CG cache update. Skipping this instance.... ") + chalk.cyanBright("Here is the trace:"));
+        console.error(rej);
       });
       if (!resJSON || !resJSON.data){
         return;
