@@ -1439,7 +1439,7 @@ async function getMexLongsShorts(channel, author) {
 
 function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB", "INR"];
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB", "INR", "PHP"];
 
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
@@ -3135,13 +3135,14 @@ function translateEN(chn, msg, sneak) {
     return;
   }
   // do the translation
-  translateHelper(message).then(function (res) {
+  translateHelper(message.replace(/\n/g, " ")).then(function (res) {
     if (!sneak) {
       if (!res.translation){
         chn.send("Your input text is too large or an error occured. Try shortening it if you have a lot of text!");
-        console.log(chalk.red("Translation command failed and was undefined. Sent notification to user."));
+        console.log(chalk.red("Translation command failed and was undefined. Sent notification to user. \n" + res));
         return;
       }
+      console.log(res.translation);
       chn.send(`Translation:  \`${res.translation}\``);
       console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
     }
