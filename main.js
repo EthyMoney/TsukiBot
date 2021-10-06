@@ -91,6 +91,7 @@ const WebSocket           = require('ws');
 
 // Include API things
 const Discord             = require('discord.js');
+const { DiscordAPIError } = require('discord.js');
 const api                 = require('etherscan-api').init(keys.etherscan);
 const cc                  = require('cryptocompare');
 const CoinMarketCap       = require('coinmarketcap-api');
@@ -4181,7 +4182,8 @@ client.on('error', (err) => {
 
 process.on('unhandledRejection', err => {
   console.log(chalk.redBright("----------------------------------UNHANDLED REJECTION DETECTED----------------------------------"));
-  console.error(err);
+  if (error instanceof DiscordAPIError) Error.captureStackTrace(error);
+  console.error(error);
   console.log(chalk.redBright("------------------------------------------------------------------------------------------------"));
 });
 
