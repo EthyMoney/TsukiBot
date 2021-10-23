@@ -88,10 +88,10 @@ const https               = require('https');
 const request             = require('request');
 const rp                  = require('request-promise');
 const WebSocket           = require('ws');
+const axios               = require('axios').default;
 
 // Include API things
 const Discord             = require('discord.js');
-const { DiscordAPIError } = require('discord.js');
 const api                 = require('etherscan-api').init(keys.etherscan);
 const cc                  = require('cryptocompare');
 const CoinMarketCap       = require('coinmarketcap-api');
@@ -1380,55 +1380,60 @@ async function getMexFunding(chn, message) {
 //------------------------------------------
 //------------------------------------------
 
-// Grabs the current data for Bitmex long and short positions
+// Grabs the current data for Binance long and short positions
 
-async function getMexLongsShorts(channel, author) {
+async function getBinanceLongsShorts(channel, author) {
 
-  console.log(chalk.green("BitMEX longs/shorts requested by " + chalk.yellow(author.username)));
+  // First, let's grab the data from the page, which includes the HTML we want
+  axios.get('http://blockchainwhispers.com/bitmex-position-calculator/')
+    .then(function (response) {
 
-  // Grab the html
-  request('http://blockchainwhispers.com/bitmex-position-calculator/', function (error, response, body) {
-    // After collecting the html, pull out the data and send it
-    const dom = new JSDOM(body);
+      // Grab the HTML of the page and make a new DOM object that we can navigate
+      const dom = new JSDOM(response.data);
 
-    // Check for response error code
-    if (error) {
+      // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
+      try {
+        // Grabbing all exchange data from selected class name
+        let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
+        // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
+        var title = block[2].querySelector('div:nth-child(1) > h6:nth-child(1)').textContent;
+        var longsPercent = block[2].querySelector('div:nth-child(1) > span:nth-child(2)').textContent.trim().split(" ")[0].trim();
+        var longs = block[2].querySelector('div:nth-child(2) > span:nth-child(1)').textContent;
+        var shorts = block[2].querySelector('div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
+        var shortsPercent = block[2].querySelector('div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
+      }
+      catch (err) {
+        // Check for errors during data parsing and report them
+        console.log(chalk.redBright("Longs/shorts command failed to process data! Error details: \n" + chalk.yellow(err.stack)));
+        channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.");
+        return;
+      }
+
+      // If all is good, assemble the embed object and send it off
+      let embed = new Discord.MessageEmbed()
+        .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+        .addField('Longs:', longs + " (" + longsPercent + ")")
+        .addField('Shorts:', shorts + " (" + shortsPercent + ")")
+        .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
+        .setColor('#1b51be')
+        .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
+
+      channel.send({ embeds: [embed] }).catch(function (rej) {
+        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+        console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
+      });
+    })
+    .catch(function (error) {
+      // handle error
+      console.log(error);
       console.log(chalk.redBright("Longs/shorts command failed to collect data! Response details: \n" + chalk.yellow(error)));
       channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.");
       return;
-    }
-
-    // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
-    try {
-      // Grabbing all exchange data from selected class name
-      let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
-      // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
-      var title = block[1].querySelector('a:nth-child(1) > div:nth-child(1)').textContent;
-      var longs = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
-      var longsPercent = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > span:nth-child(2)').textContent;
-      var shorts = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
-      var shortsPercent = block[1].querySelector('a:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
-    }
-    catch (err) {
-      // Check for errors during data parsing and report them
-      console.log(chalk.redBright("Longs/shorts command failed to process data! Error details: \n" + chalk.yellow(err.stack)));
-      channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.");
-      return;
-    }
-
-    let embed = new Discord.MessageEmbed()
-      .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
-      .addField('Longs:', longs + " (" + longsPercent + ")")
-      .addField('Shorts:', shorts + " (" + shortsPercent + ")")
-      .setThumbnail('https://firebounty.com/image/751-bitmex')
-      .setColor('#1b51be')
-      .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
-
-    channel.send({ embeds: [embed] }).catch(function (rej) {
-      channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-      console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
+    })
+    .then(function () {
+      // always executed
+      console.log(chalk.green("Binance longs/shorts requested by " + chalk.yellow(author.username)));
     });
-  });
 }
 
 
@@ -2628,9 +2633,9 @@ function commands(message, botAdmin) {
     } else if (command === 'fund' || command === 'funding') {
       getMexFunding(channel, message);
 
-      // Bitmex positions data
+      // Binance positions data
     } else if (command === 'ls' || command === 'longs' || command === 'shorts' || command === 'positions' || command === 'longs/shorts') {
-      getMexLongsShorts(channel, message.author);
+      getBinanceLongsShorts(channel, message.author);
 
       // Call the tag list for current server
     } else if (command === 'taglist' || command === 'tags' || command === 'listtags') {
