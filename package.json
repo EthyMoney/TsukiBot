@@ -9,6 +9,7 @@
   "dependencies": {
     "@stoqey/finnhub": "^0.3.4",
     "alphavantage": "^2.2.0",
+    "axios": "^0.23.0",
     "canvas": "^2.8.0",
     "ccxt": "^1.58.90",
     "chalk": "^4.1.2",
