@@ -79,9 +79,9 @@ const chalk               = require('chalk');
 let keys, pairs, pairs_filtered, pairs_CG, pairs_CG_arr, metadata, admin, shortcutConfig, restricted, tagsJSON;
 initializeFiles();
 
-// Discord Bots List statistics (now top.gg)
-const DBL                 = require("dblapi.js");
-let dbl;                  // Will be initialized upon startup
+// Top.gg bot statistics reporter
+const { AutoPoster }      = require('topgg-autoposter')
+let poster;               // Will be initialized upon startup
 
 // HTTP and websocket request
 const https               = require('https');
@@ -198,7 +198,6 @@ if (!devMode) {
   let cgFetch             = schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
   let yeetReset           = schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
   let updateList          = schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-  let updateDBL           = schedule.scheduleJob('0 */3 * * *', publishDblStats);      // publish every 3 hours
   let hmapFetch           = schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
   let updateCMCKey        = schedule.scheduleJob('1 */1 * * *', function (fireDate) {  // update cmc key on the first minute after every hour
     updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
@@ -1254,7 +1253,7 @@ async function getCoinDescription(coin1, chn, usr) {
           .setThumbnail(logos[index])
           .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
-        chn.send({ embed }).catch(function (rej) {
+        chn.send({ embeds: [embed] }).catch(function (rej) {
           chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
         });
@@ -1271,7 +1270,7 @@ async function getCoinDescription(coin1, chn, usr) {
             .setThumbnail(logos[index])
             .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
 
-          chn.send({ embed }).catch(function (rej) {
+          chn.send({ embeds: [embed] }).catch(function (rej) {
             chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
             console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(rej)));
           });
@@ -1316,7 +1315,7 @@ async function getFearGreedIndex(chn, usr) {
       .setColor(color)
       .setFooter("Next update: " + h + " hrs, " + m + " mins");
 
-    chn.send({ embed }).catch(function (rej) {
+    chn.send({ embeds: [embed] }).catch(function (rej) {
       chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
       console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
     });
@@ -1369,7 +1368,7 @@ async function getMexFunding(chn, message) {
         .setColor('#1b51be')
         .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex');
 
-      chn.send({ embed }).catch(function (rej) {
+      chn.send({ embeds: [embed] }).catch(function (rej) {
         chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
         console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(rej)));
       });
@@ -1425,7 +1424,7 @@ async function getMexLongsShorts(channel, author) {
       .setColor('#1b51be')
       .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
 
-    channel.send({ embed }).catch(function (rej) {
+    channel.send({ embeds: [embed] }).catch(function (rej) {
       channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
       console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
     });
@@ -1654,7 +1653,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           .setColor('#1b51be')
           .setFooter("To see a tag, use  .tb tag <tag name here>");
 
-        channel.send({ embed }).catch(function (rej) {
+        channel.send({ embeds: [embed] }).catch(function (rej) {
           channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
         });
@@ -1673,7 +1672,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
               .setColor('#1b51be')
               .setFooter("To see a tag, use  .tb tag <tag name here>");
 
-            channel.send({ embed }).catch(function (rej) {
+            channel.send({ embeds: [embed] }).catch(function (rej) {
               channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
               console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
             });
@@ -1686,7 +1685,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
               .setColor('#1b51be')
               .setFooter("To see a tag, use  .tb tag <tag name here>");
 
-            channel.send({ embed }).catch(function (rej) {
+            channel.send({ embeds: [embed] }).catch(function (rej) {
               channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
               console.log(chalk.red('Error sending taglist! : ' + chalk.cyan(rej)));
             });
@@ -1724,7 +1723,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       .setTimestamp(resultTimestamp)
       .setFooter(resultAuthorName, resultAuthorAvatar);
 
-    channel.send({ embed }).catch(function (rej) {
+    channel.send({ embeds: [embed] }).catch(function (rej) {
       channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
       console.log(chalk.red('Error sending tag! : ' + chalk.cyan(rej)));
     });
@@ -1766,7 +1765,7 @@ function getEtherBalance(usr, address, chn, action = 'b') {
           .setDescription("Want to make it yours?  " + `[${"CLICK HERE!"}](${addy})`)
           .setThumbnail("https://imgur.com/jUMEIgL.png")
           .setColor('#1b51be');
-        chn.send({ embed }).catch(function (rej) {
+        chn.send({ embeds: [embed] }).catch(function (rej) {
           chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
           console.log(chalk.red('Error sending etherscan command\'s ENS not found message embed! : ' + chalk.cyan(rej)));
         });
@@ -1804,44 +1803,38 @@ function getEtherBalance(usr, address, chn, action = 'b') {
 //------------------------------------------
 
 // Collect Ethereum gas tracking stats
-// from GasNow.
+// from Etherscan.
 
 function getEtherGas(chn, usr) {
-  //don't let command run if cache is still updating for the first time
-  if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
-    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
-    return;
-  }
-  console.log(chalk.green("Ethereum gas rates requested by " + chalk.yellow(usr.username)));
-  rp('https://www.gasnow.org/api/v3/gas/price?utm_source=:TsukiBot')
-    .then(res => {
-      let resJSON = JSON.parse(res);
-      let ethUSDPrice = cgArrayDict.ETH.current_price;
-      // Collecting values and converting from wei to gwei, then getting usd prices as well
-      let rapid = resJSON.data.rapid / 1000000000;
-      let rapidUSD = rapid / 1000000000 * 21000 * ethUSDPrice;
-      let fast = resJSON.data.fast / 1000000000;
-      let fastUSD = fast / 1000000000 * 21000 * ethUSDPrice;
-      let standard = resJSON.data.standard / 1000000000;
-      let standardUSD = standard / 1000000000 * 21000 * ethUSDPrice;
-      let slow = resJSON.data.slow / 1000000000;
-      let slowUSD = slow / 1000000000 * 21000 * ethUSDPrice;
+  console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
+  rp('https://etherscan.io/gastracker')
+    .then(nice => {
+      //collect the data from fields on the webpage
+      const dom = new JSDOM(nice);
+      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 div.card.h-100 " +
+        "div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.h4.text-success.mb-1").textContent;
+      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.text-secondary")[1].textContent;
+      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h4.text-primary.mb-1").textContent;
+      let avg_usd_time = dom.window.document.querySelector("#divAvgPrice > div:nth-child(3)").textContent;
+      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
+        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h3.mb-0 font").textContent;
+      let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent;
 
-      // Assemble the final message as message embed object
+      //assemble the final message as message embed object
       let embed = new Discord.MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${slow.toFixed(0)} gwei\n$${slowUSD.toFixed(2)}\n10+ minutes \u200B\u200B`, true)
-        .addField("Standard:", `${standard.toFixed(0)} gwei\n$${standardUSD.toFixed(2)}\n~ 3 minutes \u200B\u200B`, true)
-        //.addField("Fast:", `${fast.toFixed(0)} gwei\n$${fastUSD.toFixed(2)}\n1 minute \u200B\u200B`, true) //Skipped fast to save embed space
-        .addField("Rapid:", `${rapid.toFixed(0)} gwei\n$${rapidUSD.toFixed(2)}\n~ 15 seconds \u200B\u200B`, true)
+        .addField("Slow:", `${slow_gwei}\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Average:", `${avg_gwei}\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Fast:", `${fast_gwei}\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
-        .setFooter('Powered by Gas Now', 'https://static-s.aa-cdn.net/img/mac/1532358105/cbcb05e8a75c15b31162e76f2be822a0?v=1');
-
+        .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
       // Send it
+
       try {
-        chn.send({ embed });
+        chn.send({ embeds: [embed] });
       }
       catch (rej) {
         chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -2025,7 +2018,7 @@ function getMarketCapSpecific(message) {
 
         //send it
         try {
-          message.channel.send({ embed });
+          message.channel.send({ embeds: [embed] });
           success = true;
         }
         catch (rej) {
@@ -2050,8 +2043,6 @@ function getMarketCapSpecific(message) {
 // of lists is handled here.
 
 function getCoinArray(id, chn, msg, coins = '', action = '') {
-
-  const conString = "postgres://bigboi:" + keys.tsukibot + "@localhost:5432/tsukibot";
 
   let conn = new pg.Client(conString);
   conn.connect();
@@ -2217,16 +2208,22 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 // -------------------------------------------
 // -------------------------------------------
 
-// Create a client and a token
-const client = new Discord.Client({ shards: 'auto' });
-const clientShardHelper = new Discord.ShardClientUtil(client);
+// Create a client and set client parameters
+const { Client, Intents, ShardClientUtil} = require('discord.js');
+const client = new Client({ intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MESSAGES], shards: 'auto'});
+const clientShardHelper = new ShardClientUtil(client);
 
 // Wait for the client to be ready, then load up.
 client.on('ready', () => {
 
   if (keys.dbl == "yes") {
-    // Create DBL client and insert bot client
-    dbl = new DBL(keys.dbots, client);
+    // Create Top.gg posting process using the bot client
+    // Bot stats will be reported automatically every 30 minutes with this
+    poster = AutoPoster(keys.dbl, client);
+    poster.on('error', (err) => {
+      // Catch issues with Top.gg updater
+      console.log(chalk.yellow("Top.gg poster failed to update due to the following error:  " + chalk.cyan(err)));
+    });
   }
 
   console.log(chalk.yellow('------------------------------------------------------ ' + chalk.greenBright('Bot Start') + ' ------------------------------------------------------'));
@@ -2244,7 +2241,6 @@ client.on('ready', () => {
   getCMCData();
   getCGData('firstrun');
   cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
-  publishDblStats();
   getCoin360Heatmap();
 });
 
@@ -2305,7 +2301,7 @@ client.on('guildDelete', guild => {
 
 
 // This is triggered for every message that the bot sees
-client.on('message', message => {
+client.on('messageCreate', message => {
 
   // Developer mode
   if (process.argv[2] === "-d" && message.author.id !== "210259922888163329")
@@ -2383,7 +2379,7 @@ client.on('message', message => {
   }
 
   // Check for, and ignore DM channels (this is a safety precaution)
-  if (message.channel.type !== 'text') return;
+  if (message.channel.type !== 'GUILD_TEXT') return;
 
   // Internal bot admin controls (For official bot use only. You can ignore this.)
   if (message.author.id === '210259922888163329' && keys.dbl == "yes") {
@@ -3281,7 +3277,7 @@ function postSessionStats(message) {
     .setColor('BLUE')
     .setThumbnail('https://i.imgur.com/r6yCs2T.png')
     .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
-  message.channel.send({ embed });
+  message.channel.send({ embeds: [embed] });
 }
 
 // Launches a puppeteer cluster and defines the job for grabbing tradingview charts
@@ -3702,17 +3698,6 @@ function makeYeet() {
 // Reset the spam counter
 function resetSpamLimit() {
   yeetLimit = 0;
-}
-
-// Publish bot statistics to Discord Bots List <discordbots.org>
-function publishDblStats() {
-  if (keys.dbl == "yes") {
-    dbl.postStats(client.guilds.cache.size, client.id);
-    console.log(chalk.green("Updated bot stats on top.gg!"));
-  }
-  else {
-    return;
-  }
 }
 
 // I do a lot of CMC calls and I'm trying to keep the bot free to use, 
@@ -4181,10 +4166,9 @@ client.on('error', (err) => {
 });
 
 process.on('unhandledRejection', err => {
-  console.log(chalk.redBright("----------------------------------UNHANDLED REJECTION DETECTED----------------------------------"));
-  if (error instanceof DiscordAPIError) Error.captureStackTrace(error);
-  console.error(error);
-  console.log(chalk.redBright("------------------------------------------------------------------------------------------------"));
+  console.error(chalk.redBright("----------------------------------UNHANDLED REJECTION DETECTED----------------------------------"));
+  console.error(err);
+  console.error(chalk.redBright("------------------------------------------------------------------------------------------------"));
 });
 
 
