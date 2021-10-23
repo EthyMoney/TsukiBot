@@ -1816,23 +1816,19 @@ function getEtherGas(chn, usr) {
     .then(nice => {
       //collect the data from fields on the webpage
       const dom = new JSDOM(nice);
-      let slow_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 div.card.h-100 " +
-        "div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.h4.text-success.mb-1").textContent;
-      let slow_usd_time = dom.window.document.querySelectorAll("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4.mb-1.mb-md-0 div.card.h-100.p-3.shadow-none div.text-secondary")[1].textContent;
-      let avg_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h4.text-primary.mb-1").textContent;
+      let slow_gwei = dom.window.document.querySelector("#spanLowPrice").textContent;
+      let slow_usd_time = dom.window.document.querySelectorAll("#divLowPrice > div:nth-child(3)")[0].textContent;
+      let avg_gwei = dom.window.document.querySelector("#spanAvgPrice").textContent;
       let avg_usd_time = dom.window.document.querySelector("#divAvgPrice > div:nth-child(3)").textContent;
-      let fast_gwei = dom.window.document.querySelector("html body#body div.wrapper main#content div.container.mb-4 div.row div.col-lg-6.mb-3.mb-sm-0 " +
-        "div.card.h-100 div.card-body div.row.text-center.mb-3 div.col-md-4 div.card.h-100.p-3.shadow-none span.h3.mb-0 font").textContent;
+      let fast_gwei = dom.window.document.querySelector("#spanHighPrice").textContent;
       let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent;
 
       //assemble the final message as message embed object
       let embed = new Discord.MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${slow_gwei}\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Average:", `${avg_gwei}\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Fast:", `${fast_gwei}\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Slow:", `${slow_gwei} gwei${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Average:", `${avg_gwei} gwei${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Fast:", `${fast_gwei} gwei${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
         .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
