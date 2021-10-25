@@ -91,7 +91,7 @@ const WebSocket           = require('ws');
 const axios               = require('axios').default;
 
 // Include API things
-const Discord             = require('discord.js');
+const { Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
 const api                 = require('etherscan-api').init(keys.etherscan);
 const cc                  = require('cryptocompare');
 const CoinMarketCap       = require('coinmarketcap-api');
@@ -2210,8 +2210,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
 // -------------------------------------------
 
 // Create a client and set client parameters
-const { Client, Intents, ShardClientUtil} = require('discord.js');
-const client = new Client({ intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MESSAGES], shards: 'auto'});
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES], shards: 'auto'});
 const clientShardHelper = new ShardClientUtil(client);
 
 // Wait for the client to be ready, then load up.
@@ -2782,7 +2781,7 @@ function commands(message, botAdmin) {
 
             // Toggle shortcut
           } else if (command === 'shortcut') {
-            if (message.member.hasPermission("ADMINISTRATOR")) {
+            if (message.member.permissions.has(Permissions.FLAGS.ADMINISTRATOR)) {
               toggleShortcut(message.guild.id, code_in[1], channel, false, channel.guild.name, msg.author);
             }
             else {
