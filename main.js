@@ -91,7 +91,7 @@ const WebSocket           = require('ws');
 const axios               = require('axios').default;
 
 // Include API things
-const { Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
+const { MessageEmbed, Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
 const api                 = require('etherscan-api').init(keys.etherscan);
 const cc                  = require('cryptocompare');
 const CoinMarketCap       = require('coinmarketcap-api');
@@ -1246,7 +1246,7 @@ async function getCoinDescription(coin1, chn, usr) {
 
       // check against discord's embed feild size limit and cleanly split if necessary
       if (descriptions[index].length <= 2048) {
-        let embed = new Discord.MessageEmbed()
+        let embed = new MessageEmbed()
           .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + "):")
           .setDescription(descriptions[index])
           .setColor(logoColors[index])
@@ -1263,7 +1263,7 @@ async function getCoinDescription(coin1, chn, usr) {
         let blockCursor = 1;
 
         pages.forEach(function (element) {
-          let embed = new Discord.MessageEmbed()
+          let embed = new MessageEmbed()
             .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + ")  (PAGE " + blockCursor + "):")
             .setDescription(element)
             .setColor(logoColors[index])
@@ -1309,7 +1309,7 @@ async function getFearGreedIndex(chn, usr) {
     let h = Math.floor(d / 3600);
     let m = Math.floor(d % 3600 / 60);
     //create embed and insert data 
-    let embed = new Discord.MessageEmbed()
+    let embed = new MessageEmbed()
       .setAuthor("Fear/Greed Index", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
       .addField("Current Value:", resJSON.data[0].value + " (" + tier + ")")
       .setColor(color)
@@ -1360,7 +1360,7 @@ async function getMexFunding(chn, message) {
       let text2 = 'Current Rate: `' + parseFloat(eth.fundingRate * 100).toFixed(4) + "%` \n" +
         'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate * 100).toFixed(4) + '%`';
 
-      let embed = new Discord.MessageEmbed()
+      let embed = new MessageEmbed()
         .setAuthor("BitMEX Perpetual Swap Contract Funding Stats")
         .addField("XBT/USD:", text)
         .addField("ETH/USD:", text2)
@@ -1410,7 +1410,7 @@ async function getBinanceLongsShorts(channel, author) {
       }
 
       // If all is good, assemble the embed object and send it off
-      let embed = new Discord.MessageEmbed()
+      let embed = new MessageEmbed()
         .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
         .addField('Longs:', longs + " (" + longsPercent + ")")
         .addField('Shorts:', shorts + " (" + shortsPercent + ")")
@@ -1476,6 +1476,8 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
   // Remove potential commas in amount
   amount = amount.replace(/,/g, '');
 
+  console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
+
   // Collect our forex pairs and then proceed with that data
   finnhubClient.forexRates({ "base": "USD" }, async (error, data, response) => {
     if (error) { console.error(error); return; }
@@ -1487,8 +1489,6 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
     if (fiatPairs.includes(coin2)) {
       isForexPairingCoin2 = true;
     }
-
-    console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
 
     // Look up IDs for coins requested (if cryptos)
     let found1 = (isForexPairingCoin1) ? true : false;
@@ -1652,7 +1652,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       // check against discord's embed feild size limit and split if necessary
       if (msg.length <= 1024) {
 
-        let embed = new Discord.MessageEmbed()
+        let embed = new MessageEmbed()
           .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
           .addField("Available tags in this server: ", msg.substring(0, msg.length - 2))
           .setColor('#1b51be')
@@ -1671,7 +1671,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         pages.forEach(function (element) {
           // special case for the final page. This one will remove the trailing the commas in the list.
           if (blockMax === blockCursor) {
-            let embed = new Discord.MessageEmbed()
+            let embed = new MessageEmbed()
               .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element.substring(0, element.length - 2))
               .setColor('#1b51be')
@@ -1684,7 +1684,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           }
 
           else {
-            let embed = new Discord.MessageEmbed()
+            let embed = new MessageEmbed()
               .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element)
               .setColor('#1b51be')
@@ -1720,7 +1720,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       return;
     }
 
-    let embed = new Discord.MessageEmbed()
+    let embed = new MessageEmbed()
       .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
       .addField("Tag: \"" + resultName + "\"", resultTag)
       .setImage(resultTag)
@@ -1765,7 +1765,7 @@ function getEtherBalance(usr, address, chn, action = 'b') {
       if (owner == '0x0000000000000000000000000000000000000000'){
         console.log(chalk.green("Etherscan ENS registration sent for " + chalk.yellow(address) + " in " + chalk.cyan(chn.guild.name)));
         let addy = "https://app.ens.domains/name/" + address;
-        let embed = new Discord.MessageEmbed()
+        let embed = new MessageEmbed()
           .setTitle("That ENS name is not yet registered!")
           .setDescription("Want to make it yours?  " + `[${"CLICK HERE!"}](${addy})`)
           .setThumbnail("https://imgur.com/jUMEIgL.png")
@@ -1824,7 +1824,7 @@ function getEtherGas(chn, usr) {
       let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent;
 
       //assemble the final message as message embed object
-      let embed = new Discord.MessageEmbed()
+      let embed = new MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
         .addField("Slow:", `${slow_gwei} gwei${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
         .addField("Average:", `${avg_gwei} gwei${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
@@ -2009,7 +2009,7 @@ function getMarketCapSpecific(message) {
         }
 
         //assemble the final message as message embed object
-        let embed = new Discord.MessageEmbed()
+        let embed = new MessageEmbed()
           .addField(name + " (" + symbol + ")", l1 + l2 + l3 + l4 + l5 + l6, false)
           .addField("Current Prices:", l71 + l75 + l76, true)
           .addField("Price Changes:", l81 + l82 + l83 + l84 + l85, true)
@@ -3272,7 +3272,7 @@ function postSessionStats(message) {
     "⇒ Join the support server! (https://discord.gg/VWNUbR5)\n" +
     "`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02`");
 
-  let embed = new Discord.MessageEmbed()
+  let embed = new MessageEmbed()
     .addField("TsukiBot Stats", msgh)
     .setColor('BLUE')
     .setThumbnail('https://i.imgur.com/r6yCs2T.png')
