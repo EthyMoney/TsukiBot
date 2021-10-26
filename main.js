@@ -80,7 +80,7 @@ let keys, pairs, pairs_filtered, pairs_CG, pairs_CG_arr, metadata, admin, shortc
 initializeFiles();
 
 // Top.gg bot statistics reporter
-const { AutoPoster }      = require('topgg-autoposter')
+const { AutoPoster }      = require('topgg-autoposter');
 let poster;               // Will be initialized upon startup
 
 // HTTP and websocket request
@@ -98,6 +98,8 @@ const CoinMarketCap       = require('coinmarketcap-api');
 const ccxt                = require('ccxt');
 const graviex             = require("graviex");
 const CoinGecko           = require('coingecko-api');
+const NodeExr             = require("currencyexchanges");
+const ExchangeRate        = new NodeExr({ primaryCurrency: "USD" });
 
 // Import web3
 const Web3                = require('web3');
@@ -1444,7 +1446,9 @@ async function getBinanceLongsShorts(channel, author) {
 
 function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
-  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB", "INR", "PHP"];
+  let fiatPairs = ["USD", "CAD", "EUR", "AED", "JPY", "CHF", "CNY", "GBP", "AUD", "NOK", "KRW", "JMD", "RUB", "INR", "PHP",
+    "HKD", "TWD", "BRL", "THB", "MXN", "SAR", "SGD", "SEK", "IDR", "ILS", "MYR", "VND", "PLN", "TRY", "CLP", "EGP", "ZAR", "NZD",
+    "DKK", "CZK", "COP", "MAD", "QAR", "PKR", "LBP", "KWD"];
 
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
@@ -1479,10 +1483,8 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
   console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
 
   // Collect our forex pairs and then proceed with that data
-  finnhubClient.forexRates({ "base": "USD" }, async (error, data, response) => {
-    if (error) { console.error(error); return; }
-    forexRates = data.quote;
-
+  ExchangeRate.getBulkExchangeRates(fiatPairs).then(async rates => {
+    forexRates = rates;
     if (fiatPairs.includes(coin1)) {
       isForexPairingCoin1 = true;
     }
@@ -1546,6 +1548,9 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
     else {
       chn.send("One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!" + "\nIf you need help, just use `.tb cv` to see the guide for this command.");
     }
+  }).catch(err => {
+    console.error("Issue with currency conversion command! Details: " + err);
+    return;
   });
 }
 
@@ -1817,18 +1822,18 @@ function getEtherGas(chn, usr) {
       //collect the data from fields on the webpage
       const dom = new JSDOM(nice);
       let slow_gwei = dom.window.document.querySelector("#spanLowPrice").textContent;
-      let slow_usd_time = dom.window.document.querySelectorAll("#divLowPrice > div:nth-child(3)")[0].textContent;
+      let slow_usd_time = dom.window.document.querySelectorAll("#divLowPrice > div:nth-child(3)")[0].textContent.trim();
       let avg_gwei = dom.window.document.querySelector("#spanAvgPrice").textContent;
-      let avg_usd_time = dom.window.document.querySelector("#divAvgPrice > div:nth-child(3)").textContent;
+      let avg_usd_time = dom.window.document.querySelector("#divAvgPrice > div:nth-child(3)").textContent.trim();
       let fast_gwei = dom.window.document.querySelector("#spanHighPrice").textContent;
-      let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent;
+      let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent.trim();
 
       //assemble the final message as message embed object
       let embed = new MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${slow_gwei} gwei${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Average:", `${avg_gwei} gwei${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Fast:", `${fast_gwei} gwei${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Slow:", `${slow_gwei} gwei\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Average:", `${avg_gwei} gwei\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Fast:", `${fast_gwei} gwei\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
         .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
