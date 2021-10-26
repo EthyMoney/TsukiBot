@@ -1450,6 +1450,9 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
     "HKD", "TWD", "BRL", "THB", "MXN", "SAR", "SGD", "SEK", "IDR", "ILS", "MYR", "VND", "PLN", "TRY", "CLP", "EGP", "ZAR", "NZD",
     "DKK", "CZK", "COP", "MAD", "QAR", "PKR", "LBP", "KWD"];
 
+  // Remove potential commas in amount
+  amount = amount.replace(/,/g, '');
+
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
       chn.send("Invalid amount entered.");
@@ -1476,9 +1479,6 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
   let isForexPairingCoin1 = false;
   let isForexPairingCoin2 = false;
   let forexRates = null; // will hold our rates if needed to be collected below
-
-  // Remove potential commas in amount
-  amount = amount.replace(/,/g, '');
 
   console.log(chalk.green("Currency conversion tool requested by " + chalk.yellow(usr.username) + " for " + chalk.cyan(coin1) + " --> " + chalk.cyan(coin2)));
 
