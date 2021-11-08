@@ -1461,8 +1461,9 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
     "DKK", "CZK", "COP", "MAD", "QAR", "PKR", "LBP", "KWD"];
 
   // Remove potential commas in amount
-  amount = amount.replace(/,/g, '');
+  if (amount) amount = amount.replace(/,/g, '');
 
+  // Validate user input
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
       chn.send("Invalid amount entered.");
