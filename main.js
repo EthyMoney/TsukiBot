@@ -583,80 +583,90 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
   let msg = '';
   let ep, bp, up; //pricing values (usd, btc, eth)
 
-  for (let i = 0; i < coins.length; i++) {
-    if (!cmcArrayDict[coins[i].toUpperCase()]) {
-      let g = didyoumean(coins[i].toUpperCase(), Object.keys(cmcArrayDict));
-      if (!g)
-        continue;
-      else
-        coins[i] = g;
+  try {
+    for (let i = 0; i < coins.length; i++) {
+      if (!cmcArrayDict[coins[i].toUpperCase()]) {
+        let g = didyoumean(coins[i].toUpperCase(), Object.keys(cmcArrayDict));
+        if (!g)
+          continue;
+        else
+          coins[i] = g;
+      }
+
+      // Special case for a specific badly formatted coin from the API
+      if (coins[i].toLowerCase() == "lyxe") {
+        coins[i] = "LYXe";
+      }
+
+      //log the json entry for selected coin
+      //console.log(cmcArrayDict[coins[i].toUpperCase()]);
+
+      // Get the price data from cache and format it accordingly
+      let plainPriceUSD = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6));
+      let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
+      let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
+      let upchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100;
+      // unused due to api key limits
+      //let bpchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.BTC.percent_change_24h) * 100) / 100;
+      //let epchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.ETH.percent_change_24h) * 100) / 100;
+
+      // Assembling the text lines for response message
+      up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+      bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
+      ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
+
+      coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
+      switch (action) {
+        case '-':
+          msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
+
+        case '+':
+          msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+            bp + "\n");
+          break;
+
+        case '*':
+          msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
+            up + '\n`|        ⇒` `' +
+            bp + "\n");
+          break;
+
+        case 'e':
+          msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+            ep + "\n");
+          break;
+
+        case '%':
+          if (cmcArrayDict[coins[i].toUpperCase()])
+            ordered[cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h] =
+              ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
+
+        default:
+          msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
+      }
     }
 
-    // Special case for a specific badly formatted coin from the API
-    if (coins[i].toLowerCase() == "lyxe") {
-      coins[i] = "LYXe";
-    }
-
-    //log the json entry for selected coin
-    //console.log(cmcArrayDict[coins[i].toUpperCase()]);
-
-    // Get the price data from cache and format it accordingly
-    let plainPriceUSD = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6));
-    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
-    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price)).toFixed(8));
-    let upchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100;
-    // unused due to api key limits
-    //let bpchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.BTC.percent_change_24h) * 100) / 100;
-    //let epchg = Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.ETH.percent_change_24h) * 100) / 100;
-
-    // Assembling the text lines for response message
-    up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
-    bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
-    ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
-
-    coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
-    switch (action) {
-      case '-':
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
-
-      case '+':
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          bp + "\n");
-        break;
-
-      case '*':
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
-          up + '\n`|        ⇒` `' +
-          bp + "\n");
-        break;
-
-      case 'e':
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          ep + "\n");
-        break;
-
-      case '%':
-        if (cmcArrayDict[coins[i].toUpperCase()])
-          ordered[cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h] =
-            ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
-
-      default:
-        msg += ("`• " + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+    if (action === '%') {
+      let k = Object.keys(ordered).sort(function (a, b) { return parseFloat(b) - parseFloat(a); });
+      for (let k0 in k)
+        msg += ordered[k[k0]];
     }
   }
-
-  if (action === '%') {
-    let k = Object.keys(ordered).sort(function (a, b) { return parseFloat(b) - parseFloat(a); });
-    for (let k0 in k)
-      msg += ordered[k[k0]];
+  catch (err) {
+    console.log(chalk.redBright("Error in CMC price command processing. ") + chalk.cyanBright("Here is the trace:"));
+    console.error(err);
+    return;
   }
 
   msg += (Math.random() > 0.99) ? "\n" + quote + " " + botInviteAdd : "";
   if (msg !== '')
-    chn.send(msgh + msg);
+    chn.send(msgh + msg).catch((rej) => {
+      console.log(chalk.redBright("Error sending response message in CMC price command...") + chalk.cyanBright("Here is the trace:"));
+      console.error(err);
+    });
 }
 
 
@@ -2224,7 +2234,7 @@ client.on('ready', () => {
   if (keys.dbl == "yes") {
     // Create Top.gg posting process using the bot client
     // Bot stats will be reported automatically every 30 minutes with this
-    poster = AutoPoster(keys.dbl, client);
+    poster = AutoPoster(keys.dbots, client);
     poster.on('error', (err) => {
       // Catch issues with Top.gg updater
       console.log(chalk.yellow("Top.gg poster failed to update due to the following error:  " + chalk.cyan(err)));
@@ -2387,7 +2397,7 @@ client.on('messageCreate', message => {
   if (message.channel.type !== 'GUILD_TEXT') return;
 
   // Internal bot admin controls (For official bot use only. You can ignore this.)
-  if (message.author.id === '210259922888163329' && keys.dbl == "yes") {
+  if (message.author.id === '210259922888163329' && (keys.dbl == "yes" || process.argv[2] === "-d")) {
     adminMessage = message.content.toLowerCase();
     if (adminMessage.includes(admin['1'])) {
       if (auto) {
@@ -2431,8 +2441,10 @@ client.on('messageCreate', message => {
     }
   }
 
-  // Forward message to the commands processor
-  commands(message, false);
+  // Forward message to the commands processor (but only if send message perms are allowed to the bot)
+  if (message.guild.me.permissionsIn(message.channel).has(Permissions.FLAGS.SEND_MESSAGES)) {
+    commands(message, false);
+  }
 });
 
 
@@ -4167,7 +4179,8 @@ function chartServer() {
 
 // Error event logging
 client.on('error', (err) => {
-  console.log(chalk.red.bold("General bot client Error. " + chalk.cyan("(Likely a connection interuption, check network connection)")));
+  console.log(chalk.red.bold("General bot client Error. " + chalk.cyan("(Likely a connection interuption, check network connection) Here is the details:")));
+  console.error(err);
 });
 
 process.on('unhandledRejection', err => {
