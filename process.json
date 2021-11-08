@@ -1,0 +1,26 @@
+{
+  "apps": [
+    {
+      "name": "tsuki",
+      "script": "main.js",
+      "log_date_format": "YYYY-MM-DD HH:mm",
+      "ignoreWatch": [
+        "node_modules",
+        "common",
+        "public",
+        "chartscreens",
+        "stuff"
+      ],
+      "watch": true,
+      "args": [
+        "--color"
+      ],
+      "env": {
+        "DEBUG_COLORS": true
+      },
+      "node-args": [
+        "--max-old-space-size=6144"
+      ]
+    }
+  ]
+}
