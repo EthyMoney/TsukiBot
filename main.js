@@ -4200,6 +4200,12 @@ client.on('error', (err) => {
 });
 
 process.on('unhandledRejection', err => {
+  // If the error is a chromium restart failure from within puppeteer, we will restart the whole bot process because puppeteer will stop working if we don't.
+  // This is really rare to happen, but if it does, this will keep the bot working normally without manual intervention.
+  if (err.includes("Unable to restart chrome.")) {
+    console.log(chalk.yellowBright("CHROMIUM RESTART FAILURE DETECTED!  RESTARTING BOT PROCESS TO FIX..."));
+    process.kill(process.pid, 'SIGTERM'); //graceful exit, then pm2 will detect this and restart again
+  }
   console.error(chalk.redBright("----------------------------------UNHANDLED REJECTION DETECTED----------------------------------"));
   console.error(err);
   console.error(chalk.redBright("------------------------------------------------------------------------------------------------"));
