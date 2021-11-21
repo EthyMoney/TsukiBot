@@ -140,6 +140,7 @@ let fails                 = 0;
 let auto                  = true;
 let selectedKey           = 0;
 let cacheUpdateRunning    = false;
+let startupProgress       = 0;
 
 // Spellcheck
 const didyoumean          = require("didyoumean");
@@ -365,7 +366,7 @@ async function getPriceCoinGecko(coin, coin2, chn, action, usr) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -565,7 +566,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -681,7 +682,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -750,7 +751,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
       return;
     }
     // check if the number with 6 decimal places still only shows zeros, switch to 10 places if needed for more resolution
-    let plainPriceUSD = ((selectedCoinObjects[0].current_price).toFixed(6) == 0) ?
+    let plainPriceUSD = (parseFloat(selectedCoinObjects[0].current_price).toFixed(6) == 0) ?
       trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(10)) :
       trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
     let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
@@ -1494,7 +1495,7 @@ function priceConversionTool(coin1, coin2, amount, chn, usr) {
 
   // Don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -1885,7 +1886,7 @@ function getBiggestMovers(chn, usr){
 
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    chn.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -1956,7 +1957,7 @@ function getMarketCapSpecific(message) {
 
   //don't let command run if cache is still updating for the first time
   if(cacheUpdateRunning){
-    message.channel.send("I'm still completing my initial startup procedures. Try again in about 30 seconds!");
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -3862,6 +3863,7 @@ async function getCGData(status) {
       if (status == 'firstrun') {
         if (i >= pairs_CG.length * level) {
           console.log(chalk.blueBright(` ▶ ${Math.round(level*100)}%`));
+          startupProgress = Math.round(level*100);
           level = level + 0.1;
         }
       }
@@ -3909,6 +3911,7 @@ async function getCGData(status) {
   if(cacheUpdateRunning){
     console.log(chalk.greenBright(" ▶ 100%\n" + "CoinGecko data cache initialization complete. Commands are now active."));
     cacheUpdateRunning = false;
+    startupProgress = null;
   }
 }
 
@@ -4202,7 +4205,7 @@ client.on('error', (err) => {
 process.on('unhandledRejection', err => {
   // If the error is a chromium restart failure from within puppeteer, we will restart the whole bot process because puppeteer will stop working if we don't.
   // This is really rare to happen, but if it does, this will keep the bot working normally without manual intervention.
-  if (err.includes("Unable to restart chrome.")) {
+  if (err.toString().includes("Unable to restart chrome.")) {
     console.log(chalk.yellowBright("CHROMIUM RESTART FAILURE DETECTED!  RESTARTING BOT PROCESS TO FIX..."));
     process.kill(process.pid, 'SIGTERM'); //graceful exit, then pm2 will detect this and restart again
   }
