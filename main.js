@@ -740,12 +740,18 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
 
     //console.log(selectedCoinObjects[0]);
 
+    // set price string lengths
+    let usdLength = 8, btcEthLength = 10;
+
     // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
-    if(!selectedCoinObjects[0]){
+    if (!selectedCoinObjects[0]) {
       console.log(chalk.redBright(`ERR in CG price command: Selected coin object came up as undefined for: ${coins[i]}`));
       return;
     }
-    let plainPriceUSD = trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
+    // check if the number with 6 decimal places still only shows zeros, switch to 10 places if needed for more resolution
+    let plainPriceUSD = ((selectedCoinObjects[0].current_price).toFixed(6) == 0) ?
+      trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(10)) :
+      trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
     let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
     let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
     let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
@@ -759,15 +765,23 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
     //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
 
     // assembling the text lines for response message
-    if (8 - plainPriceUSD.length < 0) {
-      // special case for huge numbers (will skip formatting)
+    if (usdLength - plainPriceUSD.length < 0) {
+      // special case for bigger numbers (will skip formatting)
       up = plainPriceUSD + ' USD` (`' + upchg + '%`)';
     }
     else {
-      up = plainPriceUSD + ' '.repeat(8 - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+      up = plainPriceUSD + ' '.repeat(usdLength - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
     }
-    bp = plainPriceBTC + ' '.repeat(10 - plainPriceBTC.length) + ' BTC` ';//(`' + bpchg + '%`)';
-    ep = plainPriceETH + ' '.repeat(10 - plainPriceETH.length) + ' ETH` ';//(`'// + epchg + '%`)';
+    if (btcEthLength - plainPriceBTC.length < 0 || btcEthLength - plainPriceETH.length < 0) {
+      // special case for bigger numbers (will skip formatting)
+      bp = plainPriceBTC + ' BTC` ';
+      ep = plainPriceETH + ' ETH` ';
+    }
+    else {
+      bp = plainPriceBTC + ' '.repeat(btcEthLength - plainPriceBTC.length) + ' BTC` '; //(`' + bpchg + '%`)';
+      ep = plainPriceETH + ' '.repeat(btcEthLength - plainPriceETH.length) + ' ETH` '; //(`'// + epchg + '%`)';
+    }
+
     // TODO: add eur price and chg as well. (will need to get additional pair data from api to do this)
 
     coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
