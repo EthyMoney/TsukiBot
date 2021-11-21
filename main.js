@@ -178,7 +178,8 @@ const clientBittrex       = new ccxt.bittrex();
 const clientBitfinex      = new ccxt.bitfinex2();
 const clientCoinbase      = new ccxt.coinbasepro();
 const clientStex          = new ccxt.stex();
-let clientcmc;            // Will be initialized upon bot bootup
+let clientcmc             = new CoinMarketCap(keys.coinmarketcapfailover); 
+//clientcmc will be re-initialized upon bot startup, key selection will be automatic and this selected key here is temporary
 
 // Reload Coins
 const reloader            = require('./getCoins');
