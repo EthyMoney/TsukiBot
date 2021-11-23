@@ -3325,12 +3325,12 @@ async function chartsProcessingCluster() {
   // Start up a puppeteer cluster browser
   cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 8,
+    maxConcurrency: 10,
     puppeteerOptions: puppeteerOpts,
-    retryLimit: 2,
-    retryDelay: 100,
-    timeout: 60000,
-    workerCreationDelay: 100
+    retryLimit: 3,
+    retryDelay: 200,
+    timeout: 85000,
+    workerCreationDelay: 200
   });
   // Event handler to be called in case of problems
   cluster.on('taskerror', (err, data) => {
@@ -3589,15 +3589,16 @@ async function getCoin360Heatmap() {
 
     // Set the view area to be captured by the screenshot
     await page.setViewport({
-      width: 2680,
+      width: 2900,
       height: 2010
     });
 
     // Wait for full hmap to be rendered by looking for BTC's tags
     await page.waitForSelector('.AnimationBTC > div:nth-child(1)', { visible: true, timeout: 85000 });
+    sleep(1000);
 
     // Remove headers, banner ads, footers, and zoom buttons from the page screenshot
-    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard", ".ZoomIcon"];
+    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard", ".ZoomIcon", ".StickyCorner"];
     for (let index in removalItems) {
       await page.evaluate((sel) => {
         var elements = document.querySelectorAll(sel);
