@@ -2077,6 +2077,13 @@ function getMarketCapSpecific(message) {
 
 function getCoinArray(id, chn, msg, coins = '', action = '') {
 
+  // don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    console.log(chalk.magentaBright("Attempted use of tbpa command prior to initialization. Notification sent to user."));
+    return;
+  }
+
   let conn = new pg.Client(conString);
   conn.connect();
 
