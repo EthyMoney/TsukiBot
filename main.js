@@ -2148,14 +2148,12 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
         " For any further questions, use `.tb help` to see the more detailed commands guide and examples.");
       return;
     }
-    // filter out any invalid cg coins and notify user of them accordingly
-    let cleanedCoins = coins.filter(function (value) {
-      return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1 && isAlphaNumeric(value);
-    });
-    let invalidCoins = coins.filter(e => !pairs_CG_arr.includes(e.toUpperCase()) || !isAlphaNumeric(e));
+    // filter out any invalid cg coins and other input and notify user of them accordingly
+    let cleanedCoins = coins.filter(e => e && isAlphaNumeric(e) && pairs_CG_arr.includes(e.toUpperCase()) && !Web3.utils.isAddress(e));
+    let invalidCoins = coins.filter(e => !e || !isAlphaNumeric(e) || !pairs_CG_arr.includes(e.toUpperCase()) || Web3.utils.isAddress(e));
     let invalidCoinsMessage = '';
     if (invalidCoins.length > 0) {
-      invalidCoinsMessage = "\nNOTE: The following coins were invalid or not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
+      invalidCoinsMessage = "\nNOTE: The following coins were invalid tickers or not found on CoinGecko and have been automatically excluded: `" + invalidCoins.toString() + "`";
     }
 
     if (action === '') {
