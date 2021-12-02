@@ -1957,7 +1957,7 @@ function getMarketCapSpecific(message) {
 
   //don't let command run if cache is still updating for the first time
   if(cacheUpdateRunning){
-    chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
     return;
   }
@@ -3868,7 +3868,7 @@ async function getCGData(status) {
           level = level + 0.1;
         }
       }
-      //await sleep(900); //wait to make next call (not needed with this implementation yet)
+      await sleep(250); //wait to make next call (protection from rate limits when using other external scripts as well)
     }
   }
   // sort by MC rank ascending order with nulls placed at the end
