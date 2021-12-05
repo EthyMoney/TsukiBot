@@ -573,6 +573,11 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 
   if (!cmcArrayDict.BTC) return;
 
+  // check for no input
+  if (coins.length == 0) {
+    return;
+  }
+
   let ordered = {};
   let msgh;
 
@@ -684,6 +689,11 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   if (cacheUpdateRunning) {
     chn.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
+  // check for no input
+  if (coins.length == 0){
     return;
   }
 
