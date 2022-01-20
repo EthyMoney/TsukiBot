@@ -683,7 +683,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 // Function for CoinGecko prices 
 // (in similar format the list-style cmc command above)
 
-function getPriceCG(coins, chn, action = '-', ext = 'd') {
+function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
@@ -693,7 +693,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   }
 
   // check for no input
-  if (coins.length == 0){
+  if (coins.length == 0) {
     return;
   }
 
@@ -721,12 +721,17 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
   for (let i = 0; i < coins.length; i++) {
     // for getting coin by ID (biggest movers action call)
     if (action === 'm') {
-      // look through cache and get each matching coin
-      cgArrayDictParsed.forEach((value) => {
-        if (value.id.toUpperCase() == coins[i]) {
-          selectedCoinObjects.push(value);
-          // replace the id in the coins array with the symbol (for readability)
-          coins[i] = value.symbol.toUpperCase();
+      // look through cache and get each matching coin, but skip those damn worthless peg coins!
+      cgArrayDictParsed.forEach((coinObject) => {
+        if (coinObject.id.toUpperCase() == coins[i]) {
+          if (coinObject.name.includes("Binance-Peg")) {
+            return; //skip adding this peg coin
+          }
+          else {
+            selectedCoinObjects.push(coinObject);
+            // replace the id in the coins array with the symbol (for readability)
+            coins[i] = coinObject.symbol.toUpperCase();
+          }
         }
       });
     }
@@ -741,89 +746,113 @@ function getPriceCG(coins, chn, action = '-', ext = 'd') {
         }
       }
       let found = false;
-      // look through cache and get each matching coin
-      cgArrayDictParsed.forEach((value) => {
-        if (value.symbol.toUpperCase() == coins[i] && !found) {
-          selectedCoinObjects.push(value);
-          found = true; // make sure we only grab the higher MC ranked coin
+      // look through cache and get each matching coin, but skip those damn worthless peg coins!
+      cgArrayDictParsed.forEach((coinObject) => {
+        if (coinObject.symbol.toUpperCase() == coins[i]) {
+          if (coinObject.name.includes("Binance-Peg")) {
+            return; //skip adding this peg coin
+          }
+          else {
+            selectedCoinObjects.push(coinObject);
+          }
         }
       });
     }
 
     //console.log(selectedCoinObjects[0]);
 
-    // set price string lengths
-    let usdLength = 8, btcEthLength = 10;
+    // iterate through all instances of an identical ticker if applicable
+    let coinIdentifier = "";
+    let tbpaIterator = 0;
+    selectedCoinObjects.forEach((coinObject, index) => {
+      if (selectedCoinObjects.length > 1 && !tbpaIgnoreMultiTickers) {
+        coinIdentifier = ` (${coinObject.name})`;
+      }
 
-    // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
-    if (!selectedCoinObjects[0]) {
-      console.log(chalk.redBright(`ERR in CG price command: Selected coin object came up as undefined for: ${coins[i]}`));
-      return;
-    }
-    // check if the number with 6 decimal places still only shows zeros, switch to 10 places if needed for more resolution
-    let plainPriceUSD = (parseFloat(selectedCoinObjects[0].current_price).toFixed(6) == 0) ?
-      trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(10)) :
-      trimDecimalPlaces(parseFloat(selectedCoinObjects[0].current_price).toFixed(6));
-    let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(selectedCoinObjects[0].current_price)).toFixed(8));
-    let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(selectedCoinObjects[0].current_price)).toFixed(8));
-    let upchg = Math.round(parseFloat(selectedCoinObjects[0].price_change_percentage_24h_in_currency) * 100) / 100;
+      // don't iterate through all if tbpa display is active
+      if (tbpaIgnoreMultiTickers) {
+        tbpaIterator++;
+      }
 
-    // ignore percent in cases where it's a new coin and 24hr percent is not yet available
-    if (!upchg && upchg != 0) {
-      upchg = "n/a ";
-    }
-    // unused due to api limits
-    //let bpchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.BTC.percent_change_24h) * 100) / 100;
-    //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
+      if (tbpaIterator > 1) {
+        return; //ignore tickers after first one if this is a tbpa call (will be updated later, but this is to prevent tbpa's from suddenly getting all messy)
+      }
 
-    // assembling the text lines for response message
-    if (usdLength - plainPriceUSD.length < 0) {
-      // special case for bigger numbers (will skip formatting)
-      up = plainPriceUSD + ' USD` (`' + upchg + '%`)';
-    }
-    else {
-      up = plainPriceUSD + ' '.repeat(usdLength - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
-    }
-    if (btcEthLength - plainPriceBTC.length < 0 || btcEthLength - plainPriceETH.length < 0) {
-      // special case for bigger numbers (will skip formatting)
-      bp = plainPriceBTC + ' BTC` ';
-      ep = plainPriceETH + ' ETH` ';
-    }
-    else {
-      bp = plainPriceBTC + ' '.repeat(btcEthLength - plainPriceBTC.length) + ' BTC` '; //(`' + bpchg + '%`)';
-      ep = plainPriceETH + ' '.repeat(btcEthLength - plainPriceETH.length) + ' ETH` '; //(`'// + epchg + '%`)';
-    }
+      // set price string lengths
+      let usdLength = 8, btcEthLength = 10;
 
-    // TODO: add eur price and chg as well. (will need to get additional pair data from api to do this)
+      // get the price data from cache and format it accordingly (grabs the coin with the highest MC)
+      if (!coinObject) {
+        console.log(chalk.redBright(`ERR in CG price command: Selected coin object came up as undefined for: ${coins[i]}`));
+        return;
+      }
+      // check if the number with 6 decimal places still only shows zeros, switch to 10 places if needed for more resolution
+      let plainPriceUSD = (parseFloat(coinObject.current_price).toFixed(6) == 0) ?
+        trimDecimalPlaces(parseFloat(coinObject.current_price).toFixed(10)) :
+        trimDecimalPlaces(parseFloat(coinObject.current_price).toFixed(6));
+      let plainPriceETH = trimDecimalPlaces(parseFloat(convertToETHPrice(coinObject.current_price)).toFixed(8));
+      let plainPriceBTC = trimDecimalPlaces(parseFloat(convertToBTCPrice(coinObject.current_price)).toFixed(8));
+      let upchg = Math.round(parseFloat(coinObject.price_change_percentage_24h_in_currency) * 100) / 100;
 
-    coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
-    switch (action) {
-      case '-':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+      // ignore percent in cases where it's a new coin and 24hr percent is not yet available
+      if (!upchg && upchg != 0) {
+        upchg = "n/a ";
+      }
+      // unused due to api limits
+      //let bpchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.BTC.percent_change_24h) * 100) / 100;
+      //let epchg = Math.round(parseFloat(cgArrayDict[coins[i]].quote.ETH.percent_change_24h) * 100) / 100;
 
-      case '+':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + bp + "\n");
-        break;
+      // assembling the text lines for response message
+      if (usdLength - plainPriceUSD.length < 0) {
+        // special case for bigger numbers (will skip formatting)
+        up = plainPriceUSD + ' USD` (`' + upchg + '%`)';
+      }
+      else {
+        up = plainPriceUSD + ' '.repeat(usdLength - plainPriceUSD.length) + ' USD` (`' + upchg + '%`)';
+      }
+      if (btcEthLength - plainPriceBTC.length < 0 || btcEthLength - plainPriceETH.length < 0) {
+        // special case for bigger numbers (will skip formatting)
+        bp = plainPriceBTC + ' BTC` ';
+        ep = plainPriceETH + ' ETH` ';
+      }
+      else {
+        bp = plainPriceBTC + ' '.repeat(btcEthLength - plainPriceBTC.length) + ' BTC` '; //(`' + bpchg + '%`)';
+        ep = plainPriceETH + ' '.repeat(btcEthLength - plainPriceETH.length) + ' ETH` '; //(`'// + epchg + '%`)';
+      }
 
-      case '*':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' + up + '\n`|        ⇒` `' + bp + "\n");
-        break;
+      // TODO: add eur price and chg as well. (will need to get additional pair data from api to do this)
 
-      case 'e':
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + ep + "\n");
-        break;
+      coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
+      switch (action) {
+        case '-':
+          msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
+          break;
 
-      case '%':
-        if (selectedCoinObjects[0])
-          ordered[selectedCoinObjects[0].price_change_percentage_24h_in_currency] =
-            ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+        case '+':
+          msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + bp + coinIdentifier + "\n");
+          break;
 
-      default:
-        msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
-    }
+        case '*':
+          msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' + up + '\n`|        ⇒` `' + bp + coinIdentifier + "\n");
+          break;
+
+        case 'e':
+          msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + ep + coinIdentifier + "\n");
+          break;
+
+        case '%':
+          if (coinObject)
+            ordered[coinObject.price_change_percentage_24h_in_currency] =
+              ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
+          break;
+
+        default:
+          msg += ("`• " + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
+          break;
+      }
+    });//end of looping through same-ticker coins
+
+    coinIdentifier = ""; // clear coin id
     selectedCoinObjects = []; // clear array for next coin
     // see if we need to overflow into a second message (for really long lists of coins)
     let lineLimit = (action == '*') ? 75 : 40;
@@ -2134,7 +2163,7 @@ function getCoinArray(id, chn, msg, coins = '', action = '') {
           let coins = inStr.split(',').filter(function (value) {
             return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
           });
-          getPriceCG(coins, chn, action);
+          getPriceCG(coins, chn, action, 'd', true);
         } else {
           console.log(chalk.green("Sent missing tbpa notice to ") + chalk.blue(msg.member.user.tag));
           chn.send('Looks like you don\'t currently have a saved list. You can set one up with `.tb pa <coins list>`. Example usage: `.tb pa btc eth xrp glm .....`');
