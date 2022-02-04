@@ -3664,7 +3664,13 @@ async function getCoin360Heatmap() {
 
 // Convert USD price to ETH value
 function convertToETHPrice(priceUSD) {
-  let ETHPrice = cgArrayDict.ETH.current_price;
+  let ETHPrice;
+  for (let i = 0; i < cgArrayDictParsed.length; i++) {
+    if (cgArrayDictParsed[i].id == "ethereum") {
+      ETHPrice = cgArrayDictParsed[i].current_price;
+      break;
+    }
+  }
   return priceUSD / ETHPrice;
 }
 
