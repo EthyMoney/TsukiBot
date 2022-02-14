@@ -3936,9 +3936,9 @@ async function getCGData(status) {
   for (let i in uniqueCoin) {
     cleaned.push(uniqueCoin[i]);
   } 
-  marketDataFiltered = cleaned;
-
-  cgArrayDictParsed = marketDataFiltered; // plain array copy
+  
+  marketDataFiltered = [...cleaned];
+  cgArrayDictParsed = [...marketDataFiltered];
 
   // build cache with the coin symbols as keys
   marketDataFiltered.forEach(function (coinObject) {
