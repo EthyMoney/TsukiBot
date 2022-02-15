@@ -86,7 +86,6 @@ let poster;               // Will be initialized upon startup
 // HTTP and websocket request
 const https               = require('https');
 const request             = require('request');
-const rp                  = require('request-promise');
 const WebSocket           = require('ws');
 const axios               = require('axios').default;
 

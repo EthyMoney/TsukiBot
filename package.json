@@ -7,7 +7,6 @@
   "repository": "https://github.com/YoloSwagDogDiggity/TsukiBot",
   "license": "MIT",
   "dependencies": {
-    "@stoqey/finnhub": "^0.3.4",
     "axios": "^0.25.0",
     "canvas": "^2.9.0",
     "ccxt": "^1.68.65",
@@ -16,7 +15,6 @@
     "coinmarketcap-api": "^3.1.1",
     "cryptocompare": "^1.0.0",
     "currencyexchanges": "^1.1.1",
-    "dblapi.js": "^2.4.1",
     "didyoumean": "^1.2.2",
     "discord.js": "^13.6.0",
     "etherscan-api": "^10.0.5",
@@ -33,7 +31,6 @@
     "puppeteer": "^13.1.1",
     "puppeteer-cluster": "^0.22.0",
     "request": "^2.88.2",
-    "request-promise": "^4.2.6",
     "string": "^3.3.3",
     "topgg-autoposter": "^2.0.1",
     "uniqid": "^5.4.0",
