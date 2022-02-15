@@ -765,9 +765,12 @@ function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers 
     let coinIdentifier = "";
     let tbpaIterator = 0;
     selectedCoinObjects.forEach((coinObject, index) => {
-      if (selectedCoinObjects.length > 1 && !tbpaIgnoreMultiTickers) {
-        coinIdentifier = ` (${coinObject.name})`;
-      }
+
+      //! This segement is commented since we are not showing the multi tickers for right now
+      // if (selectedCoinObjects.length > 1 && !tbpaIgnoreMultiTickers) {
+      //   // grab coin name to display next to price in order to differenciate betwee the other same ticker coins
+      //   coinIdentifier = ` (${coinObject.name})`;
+      // }
 
 
       //!
@@ -1326,7 +1329,7 @@ async function getCoinDescription(coin1, chn, usr) {
           .setDescription(descriptions[index])
           .setColor(logoColors[index])
           .setThumbnail(logos[index])
-          .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
+          .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
         chn.send({ embeds: [embed] }).catch(function (rej) {
           chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1343,7 +1346,7 @@ async function getCoinDescription(coin1, chn, usr) {
             .setDescription(element)
             .setColor(logoColors[index])
             .setThumbnail(logos[index])
-            .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
+            .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
           chn.send({ embeds: [embed] }).catch(function (rej) {
             chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1385,10 +1388,10 @@ async function getFearGreedIndex(chn, usr) {
     let m = Math.floor(d % 3600 / 60);
     //create embed and insert data 
     let embed = new MessageEmbed()
-      .setAuthor("Fear/Greed Index", 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+      .setAuthor({ name: 'Fear/Greed Index', iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
       .addField("Current Value:", resJSON.data[0].value + " (" + tier + ")")
       .setColor(color)
-      .setFooter("Next update: " + h + " hrs, " + m + " mins");
+      .setFooter({ text: `Next update: ${h} hrs, ${m} mins`} );
 
     chn.send({ embeds: [embed] }).catch(function (rej) {
       chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1436,12 +1439,12 @@ async function getMexFunding(chn, message) {
         'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate * 100).toFixed(4) + '%`';
 
       let embed = new MessageEmbed()
-        .setAuthor("BitMEX Perpetual Swap Contract Funding Stats")
+        .setAuthor({ name: 'BitMEX Perpetual Swap Contract Funding Stats' })
         .addField("XBT/USD:", text)
         .addField("ETH/USD:", text2)
         .setThumbnail('https://firebounty.com/image/751-bitmex')
         .setColor('#1b51be')
-        .setFooter("BitMEX Real-Time", 'https://firebounty.com/image/751-bitmex');
+        .setFooter({ text: 'BitMEX Real-Time', iconURL: 'https://firebounty.com/image/751-bitmex' });
 
       chn.send({ embeds: [embed] }).catch(function (rej) {
         chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1486,12 +1489,12 @@ async function getBinanceLongsShorts(channel, author) {
 
       // If all is good, assemble the embed object and send it off
       let embed = new MessageEmbed()
-        .setAuthor(title, 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png')
+        .setAuthor({ name: title, iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
         .addField('Longs:', longs + " (" + longsPercent + ")")
         .addField('Shorts:', shorts + " (" + shortsPercent + ")")
         .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
         .setColor('#1b51be')
-        .setFooter('BlockchainWhispers Real-Time', 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg');
+        .setFooter({ text: 'BlockchainWhispers Real-Time', iconURL: 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg' });
 
       channel.send({ embeds: [embed] }).catch(function (rej) {
         channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1732,10 +1735,10 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       if (msg.length <= 1024) {
 
         let embed = new MessageEmbed()
-          .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+          .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
           .addField("Available tags in this server: ", msg.substring(0, msg.length - 2))
           .setColor('#1b51be')
-          .setFooter("To see a tag, use  .tb tag <tag name here>");
+          .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
         channel.send({ embeds: [embed] }).catch(function (rej) {
           channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1751,10 +1754,10 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           // special case for the final page. This one will remove the trailing the commas in the list.
           if (blockMax === blockCursor) {
             let embed = new MessageEmbed()
-              .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+              .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element.substring(0, element.length - 2))
               .setColor('#1b51be')
-              .setFooter("To see a tag, use  .tb tag <tag name here>");
+              .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
             channel.send({ embeds: [embed] }).catch(function (rej) {
               channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1764,10 +1767,10 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 
           else {
             let embed = new MessageEmbed()
-              .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+              .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
               .addField("Available tags in this server (PAGE " + blockCursor + "): ", element)
               .setColor('#1b51be')
-              .setFooter("To see a tag, use  .tb tag <tag name here>");
+              .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
             channel.send({ embeds: [embed] }).catch(function (rej) {
               channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1800,12 +1803,12 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     }
 
     let embed = new MessageEmbed()
-      .setAuthor("Tsuki Tags", 'http://happybirthdayworld.net/wp-content/uploads/2018/05/filthy-frank-happy-birthday-1.jpg')
+      .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
       .addField("Tag: \"" + resultName + "\"", resultTag)
       .setImage(resultTag)
       .setColor('#1b51be')
       .setTimestamp(resultTimestamp)
-      .setFooter(resultAuthorName, resultAuthorAvatar);
+      .setFooter({ text: resultAuthorName, iconURL: resultAuthorAvatar });
 
     channel.send({ embeds: [embed] }).catch(function (rej) {
       channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
@@ -1893,12 +1896,9 @@ function getEtherBalance(usr, address, chn, action = 'b') {
 async function getEtherGas(chn, usr) {
 
   console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
-  // Make a request for a user with a given ID
   axios.get(`https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${keys.etherscan}`)
     .then(function (res) {
-      // handle success
-      console.log(res.data);
-      //assemble the final message as message embed object
+      // assemble the final message as message embed object
       let embed = new MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
         .addField("Slow:", `${res.data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, true)
@@ -1906,7 +1906,7 @@ async function getEtherGas(chn, usr) {
         .addField("Fast:", `${res.data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
-        .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
+        .setFooter({ text: 'Powered by Etherscan', iconURL: 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png' });
 
       // Send it
       try {
@@ -2095,7 +2095,7 @@ function getMarketCapSpecific(message) {
           .addField("Price Changes:", l81 + l82 + l83 + l84 + l85, true)
           .setColor(logoColor)
           .setThumbnail(logo)
-          .setFooter('Powered by CoinGecko', 'https://i.imgur.com/EnWbbrN.png');
+          .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
         //send it
         try {
@@ -3363,7 +3363,7 @@ function postSessionStats(message) {
     .addField("TsukiBot Stats", msgh)
     .setColor('BLUE')
     .setThumbnail('https://i.imgur.com/r6yCs2T.png')
-    .setFooter('Part of CehhNet', 'https://imgur.com/OG77bXa.png');
+    .setFooter({ text: 'The original cryptobot since 2017', iconURL: 'https://imgur.com/OG77bXa.png' });
   message.channel.send({ embeds: [embed] });
 }
 
