@@ -683,7 +683,7 @@ function getPriceCMC(coins, chn, action = '-', ext = 'd') {
 // Function for CoinGecko prices 
 // (in similar format the list-style cmc command above)
 
-function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers) {
+function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
@@ -769,8 +769,16 @@ function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers)
         coinIdentifier = ` (${coinObject.name})`;
       }
 
+
+      //!
+      //!!! NOTICE, IMPORTANT!
+      //! This disables the recently added feature of showing all instances of coins with the same tickers in standard price calls!
+      //? After deploying this update to the bot I realized it's very messy and just not a great way to handle the issue. I'm putting this 
+      //? feature on pause for now until the user preferences stuff is set up and this feature can be a customizable and cnfigurable option.
+      const DISABLED_MULTI_TICKER_SUPPORT = true;
+
       // don't iterate through all if tbpa display is active
-      if (tbpaIgnoreMultiTickers) {
+      if (tbpaIgnoreMultiTickers || DISABLED_MULTI_TICKER_SUPPORT) {
         tbpaIterator++;
       }
 
@@ -1881,30 +1889,26 @@ function getEtherBalance(usr, address, chn, action = 'b') {
 // Collect Ethereum gas tracking stats
 // from Etherscan.
 
-function getEtherGas(chn, usr) {
-  console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
-  rp('https://etherscan.io/gastracker')
-    .then(nice => {
-      //collect the data from fields on the webpage
-      const dom = new JSDOM(nice);
-      let slow_gwei = dom.window.document.querySelector("#spanLowPrice").textContent;
-      let slow_usd_time = dom.window.document.querySelectorAll("#divLowPrice > div:nth-child(3)")[0].textContent.trim();
-      let avg_gwei = dom.window.document.querySelector("#spanAvgPrice").textContent;
-      let avg_usd_time = dom.window.document.querySelector("#divAvgPrice > div:nth-child(3)").textContent.trim();
-      let fast_gwei = dom.window.document.querySelector("#spanHighPrice").textContent;
-      let fast_usd_time = dom.window.document.querySelector("#divHighPrice > div:nth-child(3)").textContent.trim();
 
+async function getEtherGas(chn, usr) {
+
+  console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
+  // Make a request for a user with a given ID
+  axios.get(`https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${keys.etherscan}`)
+    .then(function (res) {
+      // handle success
+      console.log(res.data);
       //assemble the final message as message embed object
       let embed = new MessageEmbed()
         .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${slow_gwei} gwei\n${slow_usd_time.split("|")[0]}\n${slow_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Average:", `${avg_gwei} gwei\n${avg_usd_time.split("|")[0]}\n${avg_usd_time.split("|")[1]} \u200B\u200B`, true)
-        .addField("Fast:", `${fast_gwei} gwei\n${fast_usd_time.split("|")[0]}\n${fast_usd_time.split("|")[1]} \u200B\u200B`, true)
+        .addField("Slow:", `${res.data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, true)
+        .addField("Average:", `${res.data.result.ProposeGasPrice} gwei\n~ 3 minutes \u200B\u200B`, true)
+        .addField("Fast:", `${res.data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, true)
         .setColor('#1b51be')
         .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
         .setFooter('Powered by Etherscan', 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png');
-      // Send it
 
+      // Send it
       try {
         chn.send({ embeds: [embed] });
       }
@@ -1912,6 +1916,11 @@ function getEtherGas(chn, usr) {
         chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
         console.log(chalk.red('Error sending eth gas response embed: ' + chalk.cyan(rej)));
       }
+    })
+    .catch(function (error) {
+      // handle error
+      console.log(error);
+      chn.send("Sorry, there is temporarily an issue with the gas command. Try again later!");
     });
 }
 
