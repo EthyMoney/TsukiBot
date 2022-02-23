@@ -1981,18 +1981,26 @@ function sendCoin360Heatmap(msg){
 //------------------------------------------
 //------------------------------------------
 
-// Function for getting total market cap data and BTC dominance from CMC
+// Function for getting total market cap data and BTC dominance from CG
 
-function getMarketCap(message) {
+async function getMarketCap(message) {
 
-  (async () => {
-    console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
-    let global_market = await clientcmc.getGlobal();
-    let mcap = numberWithCommas(global_market.data.quote.USD.total_market_cap);
-    let btcdom = global_market.data.btc_dominance;
-    message.channel.send("**[all]** `$" + mcap + "` BTC dominance: `" + (Math.round(btcdom * 100) / 100) + "%`");
-  })();
+  console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
+  
+  //don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    console.log(chalk.magentaBright("Attempted use of CG command prior to initialization. Notification sent to user."));
+    return;
+  }
+
+  await CoinGeckoClient.global().then((data) => {
+    let mcTotalUSD = data.data.data.total_market_cap.usd;
+    let btcDominance = parseFloat((cgArrayDict['BTC'].market_cap / mcTotalUSD)*100).toFixed(2);
+    message.channel.send("**[all]** `$" + numberWithCommas(mcTotalUSD) + "` BTC dominance: `" + btcDominance + "%`");
+  });
 }
+
 
 
 //------------------------------------------
