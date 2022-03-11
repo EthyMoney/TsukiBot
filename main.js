@@ -3658,7 +3658,7 @@ async function getCoin360Heatmap() {
     sleep(1000);
 
     // Remove headers, banner ads, footers, and zoom buttons from the page screenshot
-    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard", ".ZoomIcon", ".StickyCorner"];
+    let removalItems = [".Header", ".MapFiltersContainer", ".NewsFeed", ".TopLeaderboard", ".ZoomIcon", ".StickyCorner", ".CookiesBanner"];
     for (let index in removalItems) {
       await page.evaluate((sel) => {
         var elements = document.querySelectorAll(sel);
