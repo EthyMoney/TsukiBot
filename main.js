@@ -1981,12 +1981,12 @@ function sendCoin360Heatmap(msg){
 //------------------------------------------
 //------------------------------------------
 
-// Function for getting total market cap data and BTC dominance from CG
+// Function for getting total market cap data and BTC/ETH dominance from CG
 
 async function getMarketCap(message) {
 
   console.log(chalk.yellow(message.author.username) + chalk.green(" requested global market cap data"));
-  
+
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
     message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
@@ -1996,8 +1996,11 @@ async function getMarketCap(message) {
 
   await CoinGeckoClient.global().then((data) => {
     let mcTotalUSD = data.data.data.total_market_cap.usd;
-    let btcDominance = parseFloat((cgArrayDict['BTC'].market_cap / mcTotalUSD)*100).toFixed(2);
-    message.channel.send("**[all]** `$" + numberWithCommas(mcTotalUSD) + "` BTC dominance: `" + btcDominance + "%`");
+    let ethMarketCap;
+    for (let i = 0; i < cgArrayDictParsed.length; i++) { if (cgArrayDictParsed[i].id == 'ethereum') { ethMarketCap = cgArrayDictParsed[i].market_cap; break; } }
+    let btcDominance = parseFloat((cgArrayDict['BTC'].market_cap / mcTotalUSD) * 100).toFixed(2);
+    let ethDominance = parseFloat((ethMarketCap / mcTotalUSD) * 100).toFixed(2);
+    message.channel.send(`**[all]** \`$ ${numberWithCommas(mcTotalUSD)} \` BTC dominance: \`${btcDominance}%\`,  ETH dominance: \`${ethDominance}%\``);
   });
 }
 
