@@ -1082,12 +1082,12 @@ async function getPriceMex(coin1, coin2, chn, usr) {
   if (coin1) {
     switch (coin1.toUpperCase()) {
       case 'BTC':
-        pair = 'BTC/USD';
+        pair = 'XBTUSD';
         coin2 = 'usd';
         break;
       case 'ETH':
         if (!coin2 || coin2 !== 'btc') {
-          pair = 'ETH/USD';
+          pair = 'ETHUSD';
           coin2 = 'usd';
           break;
         }
