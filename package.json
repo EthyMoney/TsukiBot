@@ -17,7 +17,7 @@
     "currencyexchanges": "^1.1.1",
     "didyoumean": "^1.2.2",
     "discord.js": "^13.6.0",
-    "etherscan-api": "^10.0.5",
+    "etherscan-api": "^100.0.0",
     "express": "^4.17.3",
     "fast-average-color-node": "^1.0.3",
     "finnhub": "^1.2.12",
