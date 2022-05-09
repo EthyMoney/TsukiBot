@@ -107,7 +107,7 @@ These are commands that didn't cleanly fit into the other catagories, so they ar
 + `mc <coin>`: Market cap, supply, and volume data for the provided coin. (accepts ticker, name, or MC rank number and does not require the ".tb" prefix)
 + `e <addy or tx>`: Etherscan ETH balance details of ethereum address or transaction (accepts both 0x addresses, and ENS (name.eth) addresses!
 + `t <text>`: Translate provided text to English using Google Translate
-+ `.tbmyavatar` : Display and provide a link to your current avatar
++ `myavatar` : Display and provide a link to your current avatar
 + `stock <stock ticker>`: NSADAQ/NYSE Averaged price for a stock
 + `info <coin>`: Description about a given coin (accepts ticker, name, or MC rank number)
 + `id` :  Get your unique Discord ID number DM'd to you
