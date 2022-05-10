@@ -3071,7 +3071,7 @@ function commands(message, botAdmin) {
       // Charts
     } else if (scommand === 'c') {
       // Assigning an ID tag to each chart to keep track of them when there are several being called at a time
-      if (chartTagID >= 25){
+      if (chartTagID > 25){
         chartTagID = 1;
       }
       getTradingViewChart(message, ++chartTagID);
@@ -3388,12 +3388,12 @@ async function chartsProcessingCluster() {
   // Start up a puppeteer cluster browser
   cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 10,
+    maxConcurrency: 20,
     puppeteerOptions: puppeteerOpts,
     retryLimit: 3,
     retryDelay: 200,
     timeout: 85000,
-    workerCreationDelay: 200
+    workerCreationDelay: 100
   });
   // Event handler to be called in case of problems
   cluster.on('taskerror', (err, data) => {
@@ -3520,19 +3520,18 @@ async function chartsProcessingCluster() {
       });
 
       // Wait a moment just to make sure that all elements are loaded up
-      await sleep(720);
+      //await sleep(720);
 
       // Capture and save the chart from the browser window
-      await page.screenshot({ path: `chartscreens/chart${chartID}.png` });
+      const chartScreenshot = await page.screenshot();
 
       try {
         // Run pixel comparison between the received chart and a known failure
         let diff = new PixelDiff({
-          imageAPath: `chartscreens/chart${chartID}.png`,
+          imageA: chartScreenshot,
           imageBPath: `chartscreens/failchart.png`,
           thresholdType: PixelDiff.THRESHOLD_PERCENT,
-          threshold: 0.99, // 99% threshold
-          imageOutputPath: `chartscreens/failchartdiff${chartID}.png`
+          threshold: 0.99 // 99% threshold
         });
 
         // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
@@ -3542,7 +3541,7 @@ async function chartsProcessingCluster() {
             console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Pixel Diff chart comparison error was thrown. Skipping validation of this chart."));
             msg.channel.send({
               files: [{
-                attachment: `chartscreens/chart${chartID}.png`,
+                attachment: chartScreenshot,
                 name: 'tsukibotchart.png'
               }]
             }).then(() => {
@@ -3563,7 +3562,7 @@ async function chartsProcessingCluster() {
               console.log(chalk.blue(`(ID:${chartID})`) + ` Execution time: ` + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
               msg.channel.send({
                 files: [{
-                  attachment: `chartscreens/chart${chartID}.png`,
+                  attachment: chartScreenshot,
                   name: 'tsukibotchart.png'
                 }]
               }).then(() => {
@@ -3579,7 +3578,7 @@ async function chartsProcessingCluster() {
         console.log(chalk.blue(`(ID:${chartID})`) + ` Execution time: ` + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
         msg.channel.send({
           files: [{
-            attachment: `chartscreens/chart${chartID}.png`,
+            attachment: chartScreenshot,
             name: 'tsukibotchart.png'
           }]
         }).then(() => {
