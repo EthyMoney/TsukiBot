@@ -4211,7 +4211,14 @@ function chartServer() {
       if (intervalKeys.indexOf(i) >= 0) {
         intervalKey = i;
       }
-
+      // checking if the user put something like "4hr" instead of just "4h"
+      else if (intervalKeys.indexOf(i.substring(0, i.length - 1)) >= 0){
+        intervalKey = i.substring(0, i.length - 1);
+      }
+      // checking if the user put something like "5min" instead of just "5m" or "5"
+      else if (intervalKeys.indexOf(i.substring(0, i.length - 2)) >= 0) {
+        intervalKey = i.substring(0, i.length - 2);
+      }
       if (studiesKeys.indexOf(i) >= 0) {
         selectedStudies.push('"' + studiesMap[i] + '"');
       }
