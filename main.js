@@ -91,7 +91,6 @@ const axios               = require('axios').default;
 
 // Include API things
 const { MessageEmbed, Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
-const api                 = require('etherscan-api').init(keys.etherscan);
 const cc                  = require('cryptocompare');
 const CoinMarketCap       = require('coinmarketcap-api');
 const ccxt                = require('ccxt');
@@ -1832,55 +1831,64 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 // for a given ethereum address. The balance is returned
 // in weis.
 
-function getEtherBalance(usr, address, chn, action = 'b') {
+async function getEtherBalance(usr, address, chn, action = 'b') {
 
   if (action === 'b') {
-    let balance = api.account.balance(address);
-    balance.then(function (res) {
-      chn.send('The total ether registered for `' + address + '` is: `' + trimDecimalPlaces(res.result / 1000000000000000000) + ' ETH`.');
-    });
-    console.log(chalk.green("Etherscan balance lookup called in: " + chalk.cyan(chn.guild.name) + " by " + chalk.yellow(usr.username)));
+    console.log(chalk.green(`Etherscan balance lookup called in: ${chalk.cyan(chn.guild.name)} by ${chalk.yellow(usr.username)}`));
+    const res = await fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest&apikey=${keys.etherscan}`);
+    if (res.ok) {
+      const balance = await res.json();
+      chn.send(`The total ether registered for ${address} is: \`${balance.result / 1000000000000000000} ETH\`.`);
+    }
+    else {
+      console.log(chalk.red('Issue fetching account balance from etherscan:'), res.status);
+      chn.send("There's an issue with fetching account balance from etherscan. Please try again later.");
+      return;
+    }
   } else if (action === 'ens') {
     web3eth.eth.ens.getOwner(address).then(function (owner) {
       // check for unregistered ENS name, and then send not found notification and ENS link to potentially register that name
-      if (owner == '0x0000000000000000000000000000000000000000'){
-        console.log(chalk.green("Etherscan ENS registration sent for " + chalk.yellow(address) + " in " + chalk.cyan(chn.guild.name)));
+      if (owner == '0x0000000000000000000000000000000000000000') {
+        console.log(chalk.green(`Etherscan ENS registration sent for ${chalk.yellow(address)} in ${chalk.cyan(chn.guild.name)}`));
         let addy = "https://app.ens.domains/name/" + address;
         let embed = new MessageEmbed()
-          .setTitle("That ENS name is not yet registered!")
-          .setDescription("Want to make it yours?  " + `[${"CLICK HERE!"}](${addy})`)
-          .setThumbnail("https://imgur.com/jUMEIgL.png")
-          .setColor('#1b51be');
+          .setTitle(`That ENS name is not yet registered!`)
+          .setDescription(`Want to make it yours?  [CLICK HERE!](${addy})`)
+          .setThumbnail(`https://imgur.com/jUMEIgL.png`)
+          .setColor(`#1b51be`);
         chn.send({ embeds: [embed] }).catch(function (rej) {
           chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-          console.log(chalk.red('Error sending etherscan command\'s ENS not found message embed! : ' + chalk.cyan(rej)));
+          console.log(chalk.red(`Error sending etherscan command\'s ENS not found message embed! : ${chalk.cyan(rej)}`));
         });
       }
-      else{
+      else {
         getEtherBalance(usr, owner, chn);
       }
     });
   }
   else {
-    let block = api.proxy.eth_blockNumber();
-    let tx = api.proxy.eth_getTransactionByHash(address);
-    tx.then(function (res) {
-      if (res.result !== null) {
-        if (res.result.blockNumber !== null) {
-          block.then(function (blockres) {
-            chn.send('Transaction included in block `' + Web3.utils.hexToNumber(res.result.blockNumber) + '`.' +
-              (blockres.result ? ' Confirmations: `' + (1 + Web3.utils.hexToNumber(blockres.result) - Web3.utils.hexToNumber(res.result.blockNumber)) + '`' : ''));
-          }).catch(() => {
-            chn.send('Transaction included in block `' + Web3.utils.hexToNumber(res.result.blockNumber) + '`.');
-          });
+    console.log(chalk.green(`Etherscan txn lookup called in: ${chalk.cyan(chn.guild.name)} by ${chalk.yellow(usr.username)}`));
+    const res = await fetch(`https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=${keys.etherscan}`);
+    const res2 = await fetch(`https://api.etherscan.io/api?module=proxy&action=eth_getTransactionByHash&txhash=${address}&apikey=${keys.etherscan}`);
+    if (res.ok && res2.ok) {
+      const block = await res.json();
+      const tx = await res2.json();
+      if (tx.result !== null) {
+        if (tx.result.blockNumber !== null) {
+          chn.send('Transaction included in block `' + Web3.utils.hexToNumber(tx.result.blockNumber) + '`.' +
+            (block.result ? ' Confirmations: `' + (1 + Web3.utils.hexToNumber(block.result) - Web3.utils.hexToNumber(tx.result.blockNumber)) + '`' : ''));
         } else {
-          chn.send('Transaction still not mined.');
+          chn.send('Transaction not yet mined.');
         }
       } else {
         chn.send('Transaction not found. (Neither mined nor broadcasted.)');
       }
-    });
-    console.log(chalk.green("Etherscan txn lookup called in: ") + chalk.cyan(chn.guild.name));
+    }
+    else {
+      console.log(chalk.red('Issue fetching transaction details from etherscan:'), res.status, res2.status);
+      chn.send("There's an issue with fetching transaction details from etherscan. Please try again later.");
+      return;
+    }
   }
 }
 
