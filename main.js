@@ -143,9 +143,6 @@ let startupProgress       = 0;
 // Spellcheck
 const didyoumean          = require("didyoumean");
 
-// CryptoCompare requires global fetch
-global.fetch              = require('node-fetch');
-
 // JS DOM Selections
 const jsdom               = require("jsdom");
 const { JSDOM }           = jsdom;
