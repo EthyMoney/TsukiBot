@@ -99,6 +99,18 @@ const CoinGecko           = require('coingecko-api');
 const NodeExr             = require("currencyexchanges");
 const ExchangeRate        = new NodeExr({ primaryCurrency: "USD" });
 
+// Google Cloud language translations
+const googleProjectID     = keys.googleCloudProjectID; 
+const googleProjectApiKeyPath = keys.googleCloudProjectKeyPath;
+const { Translate }       = require('@google-cloud/translate').v2;
+// Instantiates a client
+const translate = new Translate(
+  {
+    projectId: googleProjectID,
+    keyFilename: googleProjectApiKeyPath
+  }
+); 
+
 // Import web3
 const Web3                = require('web3');
 let web3eth               = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
@@ -2431,7 +2443,7 @@ client.on('messageCreate', message => {
       else { getEmCoach = true; }
     }
     if (getEmCoach) {
-      translateEN(message.channel, message, true);
+      translateEN(message.channel, message);
     }
     let yeet = message.content + "";
     let found = false;
@@ -2946,7 +2958,7 @@ function commands(message, botAdmin) {
             }
 
           } else if (command === 'translate' || command === 't' || command === 'trans') {
-            translateEN(channel, message, false);
+            translateEN(channel, message);
 
             // Catch-all help
           } else {
@@ -3069,7 +3081,7 @@ function commands(message, botAdmin) {
 
       // Message Translation
     } else if (scommand === 't') {
-      translateEN(channel, message, false);
+      translateEN(channel, message);
 
       // Statistics
     } else if (scommand === 'stat') {
@@ -3199,7 +3211,7 @@ function validateTime(s) {
   }
 }
 
-// Add function to the Number class for using to encode large ID to shorter one
+// Add function to the Number prototype for using to encode large ID to shorter one
 Number.prototype.toBase = function (base) {
   let symbols =
     "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -3216,8 +3228,8 @@ Number.prototype.toBase = function (base) {
   return (base < 11) ? parseInt(conversion) : conversion;
 };
 
-// Traslate message to english
-function translateEN(chn, msg, sneak) {
+// Traslate message to english using google cloud
+async function translateEN(chn, msg) {
   let message = msg.content + "";
   // strip out mentions, emojis, and command prefixes
   message = message.replace(/<.*>/, '');
@@ -3232,64 +3244,24 @@ function translateEN(chn, msg, sneak) {
   // check for empty input and send help response
   if (message.length == 0) {
     chn.send("Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.");
-    console.log(chalk.green("Translation command help sent to: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
+    console.log(chalk.green(`Translation command help sent to: ${chalk.yellow(msg.author.username)} in ${chalk.cyan(msg.guild.name)}`));
     return;
   }
   // do the translation
-  translateHelper(message.replace(/\n/g, " ")).then(function (res) {
-    if (!sneak) {
-      if (!res.translation){
-        chn.send("Your input text is too large or an error occured. Try shortening it if you have a lot of text!");
-        console.log(chalk.red("Translation command failed and was undefined. Sent notification to user. \n" + res));
-        return;
-      }
-      console.log(res.translation);
-      chn.send(`Translation:  \`${res.translation}\``);
-      console.log(chalk.green("Translation command called by: " + chalk.yellow(msg.author.username) + " in " + chalk.cyan(msg.guild.name)));
-    }
-    else {
-      console.log(chalk.yellow(msg.author.username) + ": " + chalk.cyan(res));
-    }
-  }).catch(err => {
-    console.error(chalk.red("Translation command error! : ") + chalk.cyan(err));
-    chn.send("Translation failed at this time. Try again later!");
+  const target = 'en';
+  const [translation] = await translate.translate(message, target).catch((err) => {
+    chn.send(`Translation failed. Try again later.`);
+    console.log(chalk.red(`Translation command failed and was rejected at client side: \n ${err}`));
+    return;
   });
-}
-
-// Helper function for the translation command
-function translateHelper(originalText, cb) {
-  let text = encodeURIComponent(originalText);
-  let promise = new Promise((resolve, reject) => {
-    request({
-      url: `https://www.google.com/async/translate?vet=12ahUKEwjV8_i2iMbuAhUdSxUIHW_IBL8QqDgwAHoECAEQJg..i&ei=M5QWYJWOHJ2W1fAP75CT-As&rlz=1C1CHBF_enUS919FR919&yv=3`,
-      method: "POST",
-      form: {
-        "async": `translate,sl:auto,tl:en,st:${text},id:1612089740280,qc:true,ac:true,_id:tw-async-translate,_pms:s,_fmt:pc`
-      }
-    }, function (err, response, body) {
-      if (err)
-        return reject(err);
-      if (response.statusCode != 200) {
-        return reject(response.statusCode + " " + response.body);
-      }
-      let matchLang = body.match(/<span id="tw-answ-detected-sl">(.+?)<\/span>/i);
-      let matchTranslation = body.match(/<span id="tw-answ-target-text">(.+?)<\/span>/i);
-      let lang, translation;
-      if (matchLang) {
-        let [full, language] = matchLang;
-        lang = language;
-      }
-      if (matchTranslation) {
-        let [full, text] = matchTranslation;
-        translation = text;
-      }
-      resolve({ original: originalText, lang: lang, translation: translation });
-    });
-  });
-  if (cb && typeof cb == 'function')
-    promise.then(res => cb(null, res)).catch((err) => { cb(err); });
-  else
-    return promise;
+  console.log(chalk.magenta(`Translation: ${chalk.cyan(translation)}`));
+  if (!translation) {
+    chn.send(`Translation failed. Try shortening your input, otherwise try again later.`);
+    console.log(chalk.red(`Translation command failed and was undefined. Sent notification to user. \n ${res}`));
+    return;
+  }
+  console.log(chalk.green(`Translation command called by: ${chalk.yellow(msg.author.username)} in ${chalk.cyan(msg.guild.name)}`));
+  chn.send(`Translation:  \`${translation.trimStart()}\``);
 }
 
 // Split up large strings by length provided without breaking words or links within them
