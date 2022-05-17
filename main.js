@@ -83,9 +83,7 @@ initializeFiles();
 const { AutoPoster }      = require('topgg-autoposter');
 let poster;               // Will be initialized upon startup
 
-// HTTP and websocket request
-const https               = require('https');
-const request             = require('request');
+// HTTP stuff
 const WebSocket           = require('ws');
 const axios               = require('axios').default;
 
@@ -1471,56 +1469,49 @@ async function getMexFunding(chn, message) {
 
 async function getBinanceLongsShorts(channel, author) {
 
+  console.log(chalk.green("Binance longs/shorts requested by " + chalk.yellow(author.username)));
+
   // First, let's grab the data from the page, which includes the HTML we want
-  axios.get('http://blockchainwhispers.com/bitmex-position-calculator/')
-    .then(function (response) {
-
-      // Grab the HTML of the page and make a new DOM object that we can navigate
-      const dom = new JSDOM(response.data);
-
-      // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
-      try {
-        // Grabbing all exchange data from selected class name
-        let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
-        // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
-        var title = block[2].querySelector('div:nth-child(1) > h6:nth-child(1)').textContent;
-        var longsPercent = block[2].querySelector('div:nth-child(1) > span:nth-child(2)').textContent.trim().split(" ")[0].trim();
-        var longs = block[2].querySelector('div:nth-child(2) > span:nth-child(1)').textContent;
-        var shorts = block[2].querySelector('div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
-        var shortsPercent = block[2].querySelector('div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
-      }
-      catch (err) {
-        // Check for errors during data parsing and report them
-        console.log(chalk.redBright("Longs/shorts command failed to process data! Error details: \n" + chalk.yellow(err.stack)));
-        channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.");
-        return;
-      }
-
-      // If all is good, assemble the embed object and send it off
-      let embed = new MessageEmbed()
-        .setAuthor({ name: title, iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
-        .addField('Longs:', longs + " (" + longsPercent + ")")
-        .addField('Shorts:', shorts + " (" + shortsPercent + ")")
-        .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
-        .setColor('#1b51be')
-        .setFooter({ text: 'BlockchainWhispers Real-Time', iconURL: 'https://pbs.twimg.com/profile_images/1050791280886861826/6ui6Ugt1_400x400.jpg' });
-
-      channel.send({ embeds: [embed] }).catch(function (rej) {
-        channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-        console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
-      });
-    })
-    .catch(function (error) {
-      // handle error
-      console.log(error);
-      console.log(chalk.redBright("Longs/shorts command failed to collect data! Response details: \n" + chalk.yellow(error)));
+  const res = await fetch('http://blockchainwhispers.com/bitmex-position-calculator').catch(function (error) {
+    // handle error
+    console.log(chalk.redBright("Longs/shorts command failed to collect data! Response details: \n" + chalk.yellow(error)));
+    channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into. Try again later!");
+    return;
+  });
+  if (res.ok) {
+    const data = await res.text();
+    // Using the HTML of the page, make a new DOM object that we can navigate
+    const dom = new JSDOM(data);
+    // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
+    try {
+      // Grabbing all exchange data from selected class name
+      let block = dom.window.document.getElementsByClassName("col-lg-3 col-sm-6 col-12 hover-up-block");
+      // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
+      var title = block[2].querySelector('div:nth-child(1) > h6:nth-child(1)').textContent;
+      var longsPercent = block[2].querySelector('div:nth-child(1) > span:nth-child(2)').textContent.trim().split(" ")[0].trim();
+      var longs = block[2].querySelector('div:nth-child(2) > span:nth-child(1)').textContent;
+      var shorts = block[2].querySelector('div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(" ")[0].trim();
+      var shortsPercent = block[2].querySelector('div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
+    }
+    catch (err) {
+      // Check for errors during data parsing and report them
+      console.log(chalk.redBright("Longs/shorts command failed to process data! Error details: \n" + chalk.yellow(err.stack)));
       channel.send("The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.");
       return;
-    })
-    .then(function () {
-      // always executed
-      console.log(chalk.green("Binance longs/shorts requested by " + chalk.yellow(author.username)));
+    }
+    // If all is good, assemble the embed object and send it off
+    let embed = new MessageEmbed()
+      .setAuthor({ name: title, iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
+      .addField('Longs:', longs + " (" + longsPercent + ")")
+      .addField('Shorts:', shorts + " (" + shortsPercent + ")")
+      .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
+      .setColor('#1b51be')
+      .setFooter({ text: 'BlockchainWhispers Real-Time', iconURL: 'https://blockchainwhispers.com/images/bw.png' });
+    channel.send({ embeds: [embed] }).catch(function (rej) {
+      channel.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+      console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(rej)));
     });
+  }
 }
 
 
