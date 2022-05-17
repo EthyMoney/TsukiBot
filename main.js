@@ -165,7 +165,6 @@ let connp                 = pgp(conString);
 let messageCount          = 0;
 let referenceTime         = Date.now();
 let yeetLimit             = 0; // Spam limit count
-let getEmCoach            = false; // Translation logging
 let chartTagID            = 0;
 
 // Finnhub API client
@@ -771,9 +770,9 @@ function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers 
     let tbpaIterator = 0;
     selectedCoinObjects.forEach((coinObject, index) => {
 
-      //! This segement is commented since we are not showing the multi tickers for right now
+      //! This segment is commented since we are not showing the multi tickers for right now
       // if (selectedCoinObjects.length > 1 && !tbpaIgnoreMultiTickers) {
-      //   // grab coin name to display next to price in order to differenciate betwee the other same ticker coins
+      //   // grab coin name to display next to price in order to differentiate between the other same ticker coins
       //   coinIdentifier = ` (${coinObject.name})`;
       // }
 
@@ -782,7 +781,7 @@ function getPriceCG(coins, chn, action = '-', ext = 'd', tbpaIgnoreMultiTickers 
       //!!! NOTICE, IMPORTANT!
       //! This disables the recently added feature of showing all instances of coins with the same tickers in standard price calls!
       //? After deploying this update to the bot I realized it's very messy and just not a great way to handle the issue. I'm putting this 
-      //? feature on pause for now until the user preferences stuff is set up and this feature can be a customizable and cnfigurable option.
+      //? feature on pause for now until the user preferences stuff is set up and this feature can be a customizable and configurable option.
       const DISABLED_MULTI_TICKER_SUPPORT = true;
 
       // don't iterate through all if tbpa display is active
@@ -949,7 +948,7 @@ function getPriceCC(coins, chn, action = '-', ext = 'd', usr) {
             up = trimDecimalPlaces(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.price).toFixed(6)) + ' USD` (`' +
               Math.round(parseFloat(cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h) * 100) / 100 + '%`)';
           } else {
-            bp = 'unvavilable`';
+            bp = 'unavailable`';
             up = 'unavailable`';
           }
         }
@@ -1321,13 +1320,13 @@ async function getCoinDescription(coin1, chn, usr) {
         }
       }
 
-      // for if coin was found in the tickers cache, but not the metadate cache yet (for brand new coins)
+      // for if coin was found in the tickers cache, but not the metadata cache yet (for brand new coins)
       if(!descriptions[index]){
         logos.push('https://i.imgur.com/EnWbbrN.png');
         descriptions.push("*Data for this coin has not been cached yet. Check again later!*");
       }
 
-      // check against discord's embed feild size limit and cleanly split if necessary
+      // check against discord's embed field size limit and cleanly split if necessary
       if (descriptions[index].length <= 2048) {
         let embed = new MessageEmbed()
           .setTitle("About " + capitalizeFirstLetter(foundCoins[index].name) + " (" + foundCoins[index].symbol.toUpperCase() + "):")
@@ -1731,7 +1730,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         msg += item + ", ";
       });
 
-      // check against discord's embed feild size limit and split if necessary
+      // check against discord's embed field size limit and split if necessary
       if (msg.length <= 1024) {
 
         let embed = new MessageEmbed()
@@ -2429,19 +2428,7 @@ client.on('messageCreate', message => {
 
   // Special features for Spacestation server. Don't worry about these, they are only for the official bot to use.
   if (message.guild && message.guild.id === '290891518829658112') {
-    if (message.author.id === '210259922888163329' && message.content.includes("sneektime")) {
-      if (getEmCoach) { getEmCoach = false; }
-      else { getEmCoach = true; }
-    }
-    if (getEmCoach) {
-      translateEN(message.channel, message);
-    }
-    let yeet = message.content + "";
     let found = false;
-    yeet = yeet.replace(/\s+/g, '');
-    yeet = yeet.replace(/[^a-zA-Z ]/g, "");
-    yeet = yeet.toLowerCase();
-
     for (var i = 0, len = restricted.length; i < len; i++) {
       if (message.content.includes(restricted[i])) { found = true; }
     }
@@ -2709,7 +2696,7 @@ function commands(message, botAdmin) {
 
     //
     //
-    // * SECTION 1: Check commands that don't require paramers
+    // * SECTION 1: Check commands that don't require parameters
     //
     //
 
@@ -3202,24 +3189,7 @@ function validateTime(s) {
   }
 }
 
-// Add function to the Number prototype for using to encode large ID to shorter one
-Number.prototype.toBase = function (base) {
-  let symbols =
-    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  let decimal = this;
-  let conversion = "";
-  if (base > symbols.length || base <= 1) {
-    return false;
-  }
-  while (decimal >= 1) {
-    conversion = symbols[(decimal - (base * Math.floor(decimal / base)))] +
-      conversion;
-    decimal = Math.floor(decimal / base);
-  }
-  return (base < 11) ? parseInt(conversion) : conversion;
-};
-
-// Traslate message to english using google cloud
+// Translate message to english using google cloud
 async function translateEN(chn, msg) {
   let message = msg.content + "";
   // strip out mentions, emojis, and command prefixes
@@ -3543,7 +3513,7 @@ async function chartsProcessingCluster() {
         });
       }
       catch (pixelDiffErr) {
-        console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Cought Pixel Diff chart comparison error. Skipping validation of this chart."));
+        console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(" Caught Pixel Diff chart comparison error. Skipping validation of this chart."));
         let end = performance.now();
         console.log(chalk.blue(`(ID:${chartID})`) + ` Execution time: ` + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
         msg.channel.send({
@@ -3555,7 +3525,7 @@ async function chartsProcessingCluster() {
           chartMsg.delete(); // Remove the placeholder
         });
       }
-      // Free up resourcess, then close the page
+      // Free up resources, then close the page
       await page.goto('about:blank');
       await page.close();
     } catch (err) {
@@ -3642,7 +3612,7 @@ async function getCoin360Heatmap() {
 
     // Take screenshot and save it
     await page.screenshot({ path: `chartscreens/hmap.png` });
-    // Free up resourcess, then close the page
+    // Free up resources, then close the page
     await page.goto('about:blank');
     await page.close();
   };
@@ -4114,7 +4084,7 @@ function initializeFiles() {
     try {
       keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
     } catch (err) {
-      console.log(chalk.red('Error reading keys.api during initialization. Check the file for problems and verifiy its structure.'));
+      console.log(chalk.red('Error reading keys.api during initialization. Check the file for problems and verify its structure.'));
       console.log(chalk.blue('See step 3 in the first run steps at the top of main.js for how to setup this file with the needed keys'));
       process.exit();
     }
@@ -4244,7 +4214,7 @@ function chartServer() {
 
 // Error event logging
 client.on('error', (err) => {
-  console.log(chalk.red.bold("General bot client Error. " + chalk.cyan("(Likely a connection interuption, check network connection) Here is the details:")));
+  console.log(chalk.red.bold("General bot client Error. " + chalk.cyan("(Likely a connection interruption, check network connection) Here is the details:")));
   console.error(err);
 });
 
