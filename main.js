@@ -1366,33 +1366,35 @@ async function getCoinDescription(coin1, chn, usr) {
 async function getFearGreedIndex(chn, usr) {
 
   console.log(chalk.green("Fear/greed index requested by " + chalk.yellow(usr.username)));
-
-  request('https://api.alternative.me/fng/?limit=1&format=json', function (error, response, body) {
+  
+  const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
+  if (res.ok) {
     let color = '#ea0215';
-    //parse response data
-    let resJSON = JSON.parse(body);
-    let tier = resJSON.data[0].value_classification;
+    const data = await res.json();
+    let tier = data.data[0].value_classification;
     //calculate embed color based on value
-    if (resJSON.data[0].value >= 40 && resJSON.data[0].value <= 60) { color = '#f2f207'; }
-    else if (resJSON.data[0].value > 60) { color = '#0eed11'; }
-    else if (resJSON.data[0].value < 25) { tier = "Despair"; }
-
+    if (data.data[0].value >= 40 && data.data[0].value <= 60) { color = '#f2f207'; }
+    else if (data.data[0].value > 60) { color = '#0eed11'; }
+    else if (data.data[0].value < 25) { tier = "Despair"; }
     //calculate next update countdown
-    let d = resJSON.data[0].time_until_update;
-    let h = Math.floor(d / 3600);
-    let m = Math.floor(d % 3600 / 60);
+    const d = data.data[0].time_until_update;
+    const h = Math.floor(d / 3600);
+    const m = Math.floor(d % 3600 / 60);
     //create embed and insert data 
-    let embed = new MessageEmbed()
+    const embed = new MessageEmbed()
       .setAuthor({ name: 'Fear/Greed Index', iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
-      .addField("Current Value:", resJSON.data[0].value + " (" + tier + ")")
+      .addField("Current Value:", data.data[0].value + " (" + tier + ")")
       .setColor(color)
-      .setFooter({ text: `Next update: ${h} hrs, ${m} mins`} );
-
+      .setFooter({ text: `Next update: ${h} hrs, ${m} mins` });
     chn.send({ embeds: [embed] }).catch(function (rej) {
       chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
       console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(rej)));
     });
-  });
+  }
+  else{
+    console.log(chalk.red("Issue fetching fear/greed index: " + res.status));
+    chn.send("Sorry, there is an issue processing the fear/greed command at this time. Try again later!");
+  }
 }
 
 
