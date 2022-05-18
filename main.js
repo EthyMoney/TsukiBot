@@ -85,7 +85,6 @@ let poster;               // Will be initialized upon startup
 
 // HTTP stuff
 const WebSocket           = require('ws');
-const axios               = require('axios').default;
 
 // Include API things
 const { MessageEmbed, Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
@@ -1903,33 +1902,35 @@ async function getEtherBalance(usr, address, chn, action = 'b') {
 
 async function getEtherGas(chn, usr) {
 
-  console.log(chalk.green("Etherscan gas requested by " + chalk.yellow(usr.username)));
-  axios.get(`https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${keys.etherscan}`)
-    .then(function (res) {
-      // assemble the final message as message embed object
-      let embed = new MessageEmbed()
-        .setTitle(`Ethereum Gas Tracker`)
-        .addField("Slow:", `${res.data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, true)
-        .addField("Average:", `${res.data.result.ProposeGasPrice} gwei\n~ 3 minutes \u200B\u200B`, true)
-        .addField("Fast:", `${res.data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, true)
-        .setColor('#1b51be')
-        .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
-        .setFooter({ text: 'Powered by Etherscan', iconURL: 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png' });
+  console.log(chalk.green("Etherscan gas data requested by " + chalk.yellow(usr.username)));
 
-      // Send it
-      try {
-        chn.send({ embeds: [embed] });
-      }
-      catch (rej) {
-        chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
-        console.log(chalk.red('Error sending eth gas response embed: ' + chalk.cyan(rej)));
-      }
-    })
+  const res = await fetch(`https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${keys.etherscan}`)
     .catch(function (error) {
-      // handle error
-      console.log(error);
-      chn.send("Sorry, there is temporarily an issue with the gas command. Try again later!");
+      // handle fetch error
+      console.log(chalk.red("Error encountered during fetch for Etherscan gas command:", error));
+      chn.send("Sorry, there is temporarily an issue with the gas command. Try again later.");
     });
+  if (res.ok) {
+    const data = await res.json();
+    // assemble the final message as message embed object
+    let embed = new MessageEmbed()
+      .setTitle(`Ethereum Gas Tracker`)
+      .addField("Slow:", `${data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, true)
+      .addField("Average:", `${data.result.ProposeGasPrice} gwei\n~ 3 minutes \u200B\u200B`, true)
+      .addField("Fast:", `${data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, true)
+      .setColor('#1b51be')
+      .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
+      .setFooter({ text: 'Powered by Etherscan', iconURL: 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png' });
+
+    // Send it
+    try {
+      chn.send({ embeds: [embed] });
+    }
+    catch (rej) {
+      chn.send("Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!");
+      console.log(chalk.red('Error sending eth gas response embed: ' + chalk.cyan(rej)));
+    }
+  }
 }
 
 //------------------------------------------
