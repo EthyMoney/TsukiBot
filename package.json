@@ -32,5 +32,8 @@
     "uniqid": "^5.4.0",
     "web3": "^1.7.3",
     "ws": "^8.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.16.0"
   }
 }
