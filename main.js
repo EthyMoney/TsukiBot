@@ -375,7 +375,7 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
   }
   coin2 = coin2.toLowerCase();
 
-  if(!noSend) console.log(chalk.green('CoinGecko price requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin) + '/' + chalk.cyan(coin2)));
+  if (!noSend) console.log(chalk.green('CoinGecko price requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin) + '/' + chalk.cyan(coin2)));
 
   // find out the ID for coin requested and also get IDs for any possible duplicate tickers
   let foundCount = 0;
@@ -617,25 +617,25 @@ function getPriceCMC(coins, channel, action = '-', ext = 'd') {
         break;
 
       case '+':
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-            bp + '\n');
+        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + 
+          bp + '\n');
         break;
 
       case '*':
         message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
-            up + '\n`|        ⇒` `' +
-            bp + '\n');
+          up + '\n`|        ⇒` `' +
+          bp + '\n');
         break;
 
       case 'e':
         message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-            ep + '\n');
+          ep + '\n');
         break;
 
       case '%':
         if (cmcArrayDict[coins[i].toUpperCase()])
           ordered[cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h] =
-              ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+            ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
         break;
 
       default:
@@ -954,7 +954,7 @@ async function getPriceBitfinex(author, coin1, coin2, channel, coin2Failover) {
   if (!coin2) {
     coin2 = 'BTC';
   }
-  if(!coin2Failover){
+  if (!coin2Failover) {
     if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp' && !coin2Failover &&
       coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase() !== 'jpy' && coin2.toLowerCase() !== 'eos')) {
       coin2 = 'USDT';
@@ -1237,11 +1237,11 @@ async function getStocks(coin1, channel, author) {
   console.log(chalk.green('Finnhub stocks requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1)));
 
   finnhubClient.quote(coin1.toUpperCase(), (error, data) => {
-    if(error || (data.o == 0 && data.c == 0)){
+    if (error || (data.o == 0 && data.c == 0)) {
       channel.send(`Error: Ticker **${coin1.toUpperCase()}** not found or API failed to respond.`);
       console.log(`${chalk.red('Finnhub API call error for ticker:')} ${chalk.cyan(coin1.toUpperCase())}`);
-    } else{
-      channel.send(`Market price for **$${coin1.toUpperCase()}** is: \`${trimDecimalPlaces(data.c)}\` (\`${(((data.c/data.o)*100)-100).toFixed(2)}%\`).`);
+    } else {
+      channel.send(`Market price for **$${coin1.toUpperCase()}** is: \`${trimDecimalPlaces(data.c)}\` (\`${(((data.c / data.o) * 100) - 100).toFixed(2)}%\`).`);
     }
   });
 }
@@ -1295,7 +1295,7 @@ async function getCoinDescription(coin1, channel, author) {
       }
 
       // for if coin was found in the tickers cache, but not the metadata cache yet (for brand new coins)
-      if(!descriptions[index]){
+      if (!descriptions[index]) {
         logos.push('https://i.imgur.com/EnWbbrN.png');
         descriptions.push('*Data for this coin has not been cached yet. Check again later!*');
       }
@@ -1348,7 +1348,7 @@ async function getCoinDescription(coin1, channel, author) {
 async function getFearGreedIndex(channel, author) {
 
   console.log(chalk.green('Fear/greed index requested by ' + chalk.yellow(author.username)));
-  
+
   const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
   if (res.ok) {
     let color = '#ea0215';
@@ -1373,7 +1373,7 @@ async function getFearGreedIndex(channel, author) {
       console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(reject)));
     });
   }
-  else{
+  else {
     console.log(chalk.red('Issue fetching fear/greed index: ' + res.status));
     channel.send('Sorry, there is an issue processing the fear/greed command at this time. Try again later!');
   }
@@ -1913,7 +1913,7 @@ async function getEtherGas(channel, author) {
 // Send top 5 biggest gainer and loser
 // coins of the past 24hrs
 
-function getBiggestMovers(channel, author){
+function getBiggestMovers(channel, author) {
 
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
@@ -1923,7 +1923,7 @@ function getBiggestMovers(channel, author){
   }
 
   // filter out coins that don't have BOTH a valid mc rank AND 24h % change
-  const cgdatatemp = cgArrayDictParsed.filter(function(value){ 
+  const cgdatatemp = cgArrayDictParsed.filter(function (value) {
     return value.market_cap_rank !== null && value.price_change_percentage !== null && value.total_volume >= 10000;
   });
   // now sort the result by 24 % change in descending order
@@ -1948,8 +1948,8 @@ function getBiggestMovers(channel, author){
 //------------------------------------------
 
 // Send Coin360 coins heatmap
-function sendCoin360Heatmap(message){
-  
+function sendCoin360Heatmap(message) {
+
   console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(message.member.user.tag)}`);
 
   // Hmap image is cached in 30 min cycles by scheduler, we just need to send it here
@@ -2001,7 +2001,7 @@ async function getMarketCap(message) {
 function getMarketCapSpecific(message) {
 
   //don't let command run if cache is still updating for the first time
-  if(cacheUpdateRunning){
+  if (cacheUpdateRunning) {
     message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
     return;
@@ -2009,7 +2009,7 @@ function getMarketCapSpecific(message) {
 
   let cur = '';
   //cut the command prefixes and any leading/trailing spaces
-  cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc','').trimStart().trimEnd();
+  cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc', '').trimStart().trimEnd();
   cur = cur.toUpperCase();
 
   if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
@@ -2049,7 +2049,7 @@ function getMarketCapSpecific(message) {
         if (symbol == 'BTC') { priceBTC = 1; } else { priceBTC = convertToBTCPrice(price).toFixed(8); }
 
         // TODO: Need to add these commented data fields to the message still, but need to figure out a way to make it look pretty first
-        
+
         //checking for missing data and generating the text lines that will be used in the final response message
         const l1 = (rank)         ?  `MC Rank: #${rank}\n`                                                     : 'MC Rank: n/a\n';
         const l2 = (marketcap)    ?  `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n`           : 'Market Cap: n/a\n';
@@ -2248,7 +2248,7 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
               conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(chalk.red.bold(err + '------TB PA remove insert query error')); }
-                else { channel.send('Personal array modified successfully.'); } 
+                else { channel.send('Personal array modified successfully.'); }
                 conn.end();
               });
             }
@@ -2269,8 +2269,10 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
               conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(chalk.red.bold(err + '------TB PA add insert query error')); }
-                else { if(coins.length > 0) {channel.send('Personal array modified. Added: `' + cleanedCoins.toString() + '`' + invalidCoinsMessage);} 
-                else{channel.send('Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!');}}
+                else {
+                  if (coins.length > 0) { channel.send('Personal array modified. Added: `' + cleanedCoins.toString() + '`' + invalidCoinsMessage); }
+                  else { channel.send('Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!'); }
+                }
                 conn.end();
               });
             }
@@ -2292,7 +2294,7 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
 // -------------------------------------------
 
 // Create a client and set client parameters
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES], shards: 'auto'});
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES], shards: 'auto' });
 const clientShardHelper = new ShardClientUtil(client);
 
 // Wait for the client to be ready, then load up.
@@ -2481,10 +2483,10 @@ client.on('messageCreate', message => {
       getCMCData();
     }
     if (adminMessage.includes(admin['5'])) {
-      if(cmcArrayDictParsed.length){
+      if (cmcArrayDictParsed.length) {
         message.channel.send(admin['55'] + cmcArrayDictParsed.length);
       }
-      else{
+      else {
         message.channel.send('Error: CMC cache is empty. There is likely an issue with the current CMC key!');
       }
       if (cgArrayDictParsed.length) {
@@ -2703,7 +2705,7 @@ function commands(message) {
 
       // Call the tag list for current server
     } else if (command === 'taglist' || command === 'tags' || command === 'listtags') {
-      if(command == 'tags' || command == 'listtags'){
+      if (command == 'tags' || command == 'listtags') {
         command = 'taglist';
       }
       tagsEngine(message.channel, message.author, message.createdTimestamp, message.guild, command.toString().toLowerCase(), code_in[1]);
@@ -2844,7 +2846,7 @@ function commands(message) {
             getCoinArray(message.author.id, channel, message, paramsUnfiltered, action);
 
             // Scheduled actions
-          } else if (command === 'schedule') { 
+          } else if (command === 'schedule') {
             //                             action    frequency    channel
             //scheduledCommandsEngine(message, code_in[1], code_in[2], code_in[3]);
 
@@ -2903,7 +2905,7 @@ function commands(message) {
               getEtherBalance(message.author, code_in[1], channel);
             } else if (code_in[1].length === 66) {
               getEtherBalance(message.author, code_in[1], channel, 'tx');
-            } else if (code_in[1].toLowerCase().includes('.eth')){
+            } else if (code_in[1].toLowerCase().includes('.eth')) {
               getEtherBalance(message.author, code_in[1], channel, 'ens');
             }
             else {
@@ -2935,11 +2937,11 @@ function commands(message) {
         const potentialCoins = code_in.filter(function (value) {
           return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
         });
-        if(potentialCoins.length > 0){
+        if (potentialCoins.length > 0) {
           console.log(chalk.green('CG base command-less call on: ' + chalk.cyan(code_in) + ' by ' + chalk.yellow(message.author.username)));
           getPriceCG(potentialCoins, channel, '-');
         }
-        else{
+        else {
           postHelp(message, message.author, command);
         }
       }
@@ -3006,7 +3008,7 @@ function commands(message) {
       let cursor = 0;
       // there are a lot fo null values, so lets find the first actual value and move from there
       cgArrayDictParsed.forEach((coin, index) => {
-        if (coin.market_cap_rank && coin.market_cap_rank == 1){
+        if (coin.market_cap_rank && coin.market_cap_rank == 1) {
           cursor = index;
         }
       });
@@ -3043,7 +3045,7 @@ function commands(message) {
       // Charts
     } else if (scommand === 'c') {
       // Assigning an ID tag to each chart to keep track of them when there are several being called at a time
-      if (chartTagID > 25){
+      if (chartTagID > 25) {
         chartTagID = 1;
       }
       getTradingViewChart(message, ++chartTagID);
@@ -3224,8 +3226,8 @@ function isAlphaNumeric(str) {
   for (i = 0, len = str.length; i < len; i++) {
     code = str.charCodeAt(i);
     if (!(code > 47 && code < 58) && // numeric (0-9)
-        !(code > 64 && code < 91) && // upper alpha (A-Z)
-        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      !(code > 64 && code < 91) && // upper alpha (A-Z)
+      !(code > 96 && code < 123)) { // lower alpha (a-z)
       return false;
     }
   }
@@ -3535,8 +3537,7 @@ async function getTradingViewChart(message, chartID) {
     args[index] = value.replace(/[<>]+/g, '');
   });
   let chartMessage;
-  console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${
-    chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
+  console.log(`${chalk.green('TradingView chart command called by:')} ${chalk.yellow(message.member.user.tag)} ${chalk.green('for:')} ${chalk.cyan(message.content.toLowerCase().replace('.tbc', '').trim())}`);
 
   // Build data object for the cluster task
   const data = {
@@ -3748,12 +3749,12 @@ function updateCmcKey(override) {
     }
   }
   //Update client to operate with new key
-  if (selectedKey.toString().length <= 2){
+  if (selectedKey.toString().length <= 2) {
     clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
     //console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) +
     //" and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
   }
-  else{
+  else {
     clientcmc = new CoinMarketCap(keys[selectedKey]);
   }
 
@@ -3808,10 +3809,10 @@ async function getCMCData() {
 
 async function getCGData(status) {
 
-  if(cacheUpdateRunning){
+  if (cacheUpdateRunning) {
     return;
   }
-  if(status == 'firstrun'){
+  if (status == 'firstrun') {
     console.log(chalk.yellowBright('Initializing CoinGecko data cache...\n' +
       chalk.cyan(' ▶ This will take up to 30 seconds. CoinGecko commands will be unavailable until this is complete.')));
   }
@@ -3835,7 +3836,7 @@ async function getCGData(status) {
         console.log(chalk.redBright('Failed to complete CG cache update. Skipping this instance.... ') + chalk.cyanBright('Here is the trace:'));
         console.error(reject);
       });
-      if (!resJSON || !resJSON.data){
+      if (!resJSON || !resJSON.data) {
         return;
       }
       // add this new chunk to the rest
@@ -3846,8 +3847,8 @@ async function getCGData(status) {
       // progress report for first run
       if (status == 'firstrun') {
         if (i >= pairs_CG.length * level) {
-          console.log(chalk.blueBright(` ▶ ${Math.round(level*100)}%`));
-          startupProgress = Math.round(level*100);
+          console.log(chalk.blueBright(` ▶ ${Math.round(level * 100)}%`));
+          startupProgress = Math.round(level * 100);
           level = level + 0.1;
         }
       }
@@ -3868,8 +3869,8 @@ async function getCGData(status) {
   }
   for (let i in uniqueCoin) {
     cleaned.push(uniqueCoin[i]);
-  } 
-  
+  }
+
   marketDataFiltered = [...cleaned];
   cgArrayDictParsed = [...marketDataFiltered];
 
@@ -3892,7 +3893,7 @@ async function getCGData(status) {
     }
   });
 
-  if(cacheUpdateRunning){
+  if (cacheUpdateRunning) {
     console.log(chalk.greenBright(' ▶ 100%\n' + 'CoinGecko data cache initialization complete. Commands are now active.'));
     cacheUpdateRunning = false;
     startupProgress = null;
@@ -4086,7 +4087,7 @@ function initializeFiles() {
 function chartServer() {
   const port = 8080;
   app.use(express.static(dir));
-  app.get('/:ticker', function(req, res) {
+  app.get('/:ticker', function (req, res) {
     let query = [];
     if (req.query.query) {
       query = req.query.query.split(',');
@@ -4094,9 +4095,11 @@ function chartServer() {
 
     const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd',
       'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly'];
-    const intervalMap = { '1m':'1', '1':'1', '3m':'3', '3':'3', '5m':'5', '5':'5', '15m':'15', '15':'15', '30m':'30', '30':'30', '1h':'60',
-      '60':'60', '2h':'120', '120':'120', '3h':'180', '180':'180', '4h':'240', '240':'240', '1d':'D', 'd':'D', 'day':'D', 'daily':'D', '1w':'W',
-      'w':'W', 'week':'W', 'weekly':'W', '1mo':'M', 'm':'M', 'mo':'M', 'month':'M', 'monthly':'M' };
+    const intervalMap = {
+      '1m': '1', '1': '1', '3m': '3', '3': '3', '5m': '5', '5': '5', '15m': '15', '15': '15', '30m': '30', '30': '30', '1h': '60',
+      '60': '60', '2h': '120', '120': '120', '3h': '180', '180': '180', '4h': '240', '240': '240', '1d': 'D', 'd': 'D', 'day': 'D', 'daily': 'D', '1w': 'W',
+      'w': 'W', 'week': 'W', 'weekly': 'W', '1mo': 'M', 'm': 'M', 'mo': 'M', 'month': 'M', 'monthly': 'M'
+    };
     const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl',
       'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr'];
     const studiesMap = {
@@ -4127,7 +4130,7 @@ function chartServer() {
         intervalKey = i;
       }
       // checking if the user put something like "4hr" instead of just "4h"
-      else if (intervalKeys.indexOf(i.substring(0, i.length - 1)) >= 0){
+      else if (intervalKeys.indexOf(i.substring(0, i.length - 1)) >= 0) {
         intervalKey = i.substring(0, i.length - 1);
       }
       // checking if the user put something like "5min" instead of just "5m" or "5"
