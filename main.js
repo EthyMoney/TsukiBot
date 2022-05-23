@@ -55,16 +55,16 @@
 // -------------------------------------------
 // -------------------------------------------
 
+// Node stuff
+const process             = require('node:process');
+
 // Dev mode to disable unnecessary operations for testing
-let devMode               = false;
+const devMode             = (process.argv[2] === '-d') ? true : false;
 
 // File read for JSON and PostgreSQL
 const fs                  = require('fs');
 const pg                  = require('pg');
 //const pgp                 = require('pg-promise')(); // TODO: switch non-promise implementation to use this promise based one
-
-// Node stuff
-const process             = require('node:process');
 
 // Scheduler
 const schedule            = require('node-schedule');
@@ -184,11 +184,6 @@ const reloaderCG          = require('./getCoinsCG');
 const quote               = 'Enjoying TsukiBot? Tell your friends!';
 const botInviteAdd        = '\nAdd the bot to other servers by using  `.tb invite`  for the link  :)';
 const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
-
-// Check for dev mode argument
-if (process.argv[2] === '-d') {
-  devMode = true;
-}
 
 // Scheduled Actions for normal operation
 if (!devMode) {
