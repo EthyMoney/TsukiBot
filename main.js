@@ -2404,7 +2404,7 @@ client.on('messageCreate', message => {
   // Special features for Spacestation server. Don't worry about these, they are only for the official bot to use.
   if (message.guild && message.guild.id === '290891518829658112') {
     let found = false;
-    for (var i = 0, len = restricted.length; i < len; i++) {
+    for (let i = 0, len = restricted.length; i < len; i++) {
       if (message.content.includes(restricted[i])) { found = true; }
     }
 
@@ -3164,26 +3164,26 @@ function capitalizeFirstLetter(string) {
 
 // Translate message to english using google cloud
 async function translateEN(channel, message) {
-  message = message.content + '';
+  let messageText = message.content + '';
   // strip out mentions, emojis, and command prefixes
-  message = message.replace(/<.*>/, '');
-  message = message.replace(RegExp('.tb translate', 'gi'), '');
-  message = message.replace(RegExp('-t translate', 'gi'), '');
-  message = message.replace(RegExp('.tb trans', 'gi'), '');
-  message = message.replace(RegExp('-t trans', 'gi'), '');
-  message = message.replace(RegExp('.tb t', 'gi'), '');
-  message = message.replace(RegExp('-t t', 'gi'), '');
-  message = message.replace(RegExp('.tbt', 'gi'), '');
-  message = message.replace(RegExp('-tt', 'gi'), '');
+  messageText = messageText.replace(/<.*>/, '');
+  messageText = messageText.replace(RegExp('.tb translate', 'gi'), '');
+  messageText = messageText.replace(RegExp('-t translate', 'gi'), '');
+  messageText = messageText.replace(RegExp('.tb trans', 'gi'), '');
+  messageText = messageText.replace(RegExp('-t trans', 'gi'), '');
+  messageText = messageText.replace(RegExp('.tb t', 'gi'), '');
+  messageText = messageText.replace(RegExp('-t t', 'gi'), '');
+  messageText = messageText.replace(RegExp('.tbt', 'gi'), '');
+  messageText = messageText.replace(RegExp('-tt', 'gi'), '');
   // check for empty input and send help response
-  if (message.length == 0) {
+  if (messageText.length == 0) {
     channel.send('Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.');
     console.log(chalk.green(`Translation command help sent to: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
     return;
   }
   // do the translation
   const target = 'en';
-  const [translation] = await translate.translate(message, target).catch((err) => {
+  const [translation] = await translate.translate(messageText, target).catch((err) => {
     channel.send('Translation failed. Try again later.');
     console.log(chalk.red(`Translation command failed and was rejected at client side: \n ${err}`));
     return;
@@ -3574,8 +3574,8 @@ async function getCoin360Heatmap() {
     const removalItems = ['.Header', '.MapFiltersContainer', '.NewsFeed', '.TopLeaderboard', '.ZoomIcon', '.StickyCorner', '.CookiesBanner'];
     for (let index in removalItems) {
       await page.evaluate((sel) => {
-        var elements = document.querySelectorAll(sel);
-        for (var i = 0; i < elements.length; i++) {
+        const elements = document.querySelectorAll(sel);
+        for (let i = 0; i < elements.length; i++) {
           elements[i].parentNode.removeChild(elements[i]);
         }
       }, removalItems[index]);
