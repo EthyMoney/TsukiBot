@@ -9,14 +9,14 @@
   "dependencies": {
     "@google-cloud/translate": "^6.3.1",
     "canvas": "^2.9.1",
-    "ccxt": "^1.82.62",
+    "ccxt": "^1.88.18",
     "chalk": "^4.1.2",
     "coingecko-api": "^1.0.10",
     "coinmarketcap-api": "^3.1.1",
     "cryptocompare": "^1.0.0",
     "currencyexchanges": "^1.1.1",
     "didyoumean": "^1.2.2",
-    "discord.js": "^13.7.0",
+    "discord.js": "^13.8.0",
     "express": "^4.18.1",
     "fast-average-color-node": "^1.0.3",
     "finnhub": "^1.2.14",
@@ -31,9 +31,9 @@
     "topgg-autoposter": "^2.0.1",
     "uniqid": "^5.4.0",
     "web3": "^1.7.3",
-    "ws": "^8.6.0"
+    "ws": "^8.8.0"
   },
   "devDependencies": {
-    "eslint": "^8.16.0"
+    "eslint": "^8.18.0"
   }
 }
