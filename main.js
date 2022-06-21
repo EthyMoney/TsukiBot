@@ -8,10 +8,10 @@
  *
  *
  *
- * Author:      Logan S. ~ EthyMoney#5000(Discord) ~ YoloSwagDogDiggity(GitHub)
+ * Author:      Logan S. ~ EthyMoney#5000(Discord) ~ EthyMoney(GitHub)
  * Base:        Forked from "TsukiBot", written by Oscar F. ~ Cehhiro(Discord)
  * Program:     TsukiBot
- * GitHub:      https://github.com/YoloSwagDogDiggity/TsukiBot
+ * GitHub:      https://github.com/EthyMoney/TsukiBot
  *
  * Discord bot that offers a wide range of services related to cryptocurrencies
  *
@@ -2328,7 +2328,7 @@ function postHelp(message, author, code) {
 
   code = code || 'none';
   let fail = false;
-  const link = 'https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md';
+  const link = 'https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md';
   if (code === 'ask') {
     author.send('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link).catch(function () {
       console.log(chalk.yellow('Failed to send help text to ' + author.username + ' via DM, sent link in server instead.'));
@@ -2722,7 +2722,7 @@ function commands(message) {
       // Send link to bot's source code repo on github
     } else if (command === 'github') {
       console.log(chalk.green('Github link requested by ' + chalk.yellow(message.author.username)));
-      message.channel.send('Hi there! Here\'s a direct link to stalk my repo on Github: \n' + 'https://github.com/YoloSwagDogDiggity/TsukiBot');
+      message.channel.send('Hi there! Here\'s a direct link to stalk my repo on Github: \n' + 'https://github.com/EthyMoney/TsukiBot');
 
       // Send donation ETH address
     } else if (command === 'donate') {
