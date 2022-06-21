@@ -9,7 +9,7 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 ##### Founded in 2017 and widely used in the earliest crypto Discord servers, TsukiBot is one of the oldest and most featured bots around with a proven reputation. TsukiBot is still in very active development with new features and enhancements being added regularly. So, what are you waiting for? Add TsukiBot to your server today and transform your community into a cryptocurrency powerhouse!
 
 <br></br>
-### The full detailed list of commands and their usage can be found in the commands document [right here in the repo.](https://github.com/YoloSwagDogDiggity/TsukiBot/blob/master/common/commands.md)
+### The full detailed list of commands and their usage can be found in the commands document [right here in the repo.](https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md)
 
 
 
@@ -51,7 +51,7 @@ ETH & ERC20 donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are great
 ---
 
 Let's keep in touch! Join our support Discord server where you can get help, report problems, and make suggestions for future updates and features!<br>
-Join the support server here: [discordapp.com/TsukiBot](https://discord.gg/VWNUbR5)
+Join the support server here: [discord.gg/TsukiBot](https://discord.gg/VWNUbR5)
 <br><br>
 
 
