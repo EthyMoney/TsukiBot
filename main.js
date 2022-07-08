@@ -2425,7 +2425,7 @@ client.on('messageCreate', message => {
   // Check for unsafe files and delete them if author doesn't have the File Perms role
   if (message.guild) {
     message.guild.members.fetch(message.author).then(function (member) {
-      if (member && member.roles.some(r => ['File Perms', 'File Perm', 'File perm', 'file perms'].includes(r.name))) {
+      if (member && member.roles.cache.some(r => ['File Perms', 'File Perm', 'File perm', 'file perms'].includes(r.name))) {
         // file perms found, skipping file extension check.
       }
       else {
