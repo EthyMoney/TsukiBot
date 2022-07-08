@@ -3567,11 +3567,11 @@ async function getCoin360Heatmap() {
     });
 
     // Wait for full hmap to be rendered by looking for BTC's tags
-    await page.waitForSelector('.AnimationBTC > div:nth-child(1)', { visible: true, timeout: 85000 });
+    await page.waitForSelector('#SHA256 > a:nth-child(2) > div:nth-child(1) > div:nth-child(1)', { visible: true, timeout: 85000 });
     sleep(1000);
 
     // Remove headers, banner ads, footers, and zoom buttons from the page screenshot
-    const removalItems = ['.Header', '.MapFiltersContainer', '.NewsFeed', '.TopLeaderboard', '.ZoomIcon', '.StickyCorner', '.CookiesBanner'];
+    const removalItems = ['.styles_zoomControls__YlWVe', 'styles_closer___Gbhu', '.ad_wrapper', '.styles_header__AHV_y', '.styles_cookiesBanner__Dd7rR', '.Header', '.MapFiltersContainer', '.styles_newsFeed__Ep1gS', '.TopLeaderboard', '.StickyCorner', '.styles_filters__AtA4G', '.styles_filters__yxiC0'];
     for (let index in removalItems) {
       await page.evaluate((sel) => {
         const elements = document.querySelectorAll(sel);
