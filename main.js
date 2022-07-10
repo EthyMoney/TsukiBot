@@ -2380,7 +2380,7 @@ client.on('guildDelete', guild => {
 
 
 // This is triggered for every message that the bot sees
-client.on('messageCreate', message => {
+client.on('messageCreate', async message => {
 
   // Developer mode
   if (process.argv[2] === '-d' && message.author.id !== '210259922888163329')
@@ -2403,23 +2403,31 @@ client.on('messageCreate', message => {
 
   // Special features for Spacestation server. Don't worry about these, they are only for the official bot to use.
   if (message.guild && message.guild.id === '290891518829658112') {
+    // bad words cleanup
     let found = false;
     for (let i = 0, len = restricted.length; i < len; i++) {
       if (message.content.includes(restricted[i])) { found = true; }
     }
-
     if (found) {
       message.delete({ timeout: 0, reason: 'Naughty words' }).catch(function (reject) {
         console.log(chalk.red('Failed to delete banned word from user: ' + chalk.yellow(message.author.username) + ' in server: ' + chalk.cyan(message.guild.name) + ' Due to rejection: ' + chalk.cyan(reject)));
       });
       console.log(chalk.cyan('deleted banned word from ' + chalk.yellow(message.author.username)));
     }
-
+    // frostwalker welcome message cleanup
     if (message.channel.name === 'rules-and-information' && message.author.id === '205190545914462208') {
       message.delete({ timeout: 5000, reason: 'Cleanup' }).catch(function (err) {
         console.log(chalk.red('Failed to delete frostwalker user mention in new users channel of SS due to the following: ' + err));
       });
     }
+    // ignore commands from new users
+    await message.guild.members.fetch(message.author).then(function (member) {
+      if (member && false === (member.roles.cache.some(r => r.name == 'Node +2') && member.joinedTimestamp < (Date.now() - 7200000))) {
+        console.log(chalk.blue('Ignoring command from new user in SS: ') + chalk.yellow(message.author.username));
+        message.content = 'skipped';
+        return;
+      }
+    });
   }
 
   // Check for unsafe files and delete them if author doesn't have the File Perms role
@@ -2494,7 +2502,7 @@ client.on('messageCreate', message => {
   }
 
   // Forward message to the commands processor (but only if send message perms are allowed to the bot)
-  if (message.guild.me.permissionsIn(message.channel).has(Permissions.FLAGS.SEND_MESSAGES)) {
+  if (message.guild.me.permissionsIn(message.channel).has(Permissions.FLAGS.SEND_MESSAGES) && message.content !== 'skipped') {
     commands(message);
   }
 });
