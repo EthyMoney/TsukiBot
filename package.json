@@ -1,11 +1,37 @@
 {
   "name": "tsukibot",
   "version": "1.0.0",
-  "description": "Discord bot with cryptocurrency functionalities and more",
+  "description": "Discord bot for cryptocurrency prices, charts, coin details, market statistics, personalized tracking tools, and so much more!",
   "main": "main.js",
-  "author": "Logan (EthyMoney)",
-  "repository": "https://github.com/YoloSwagDogDiggity/TsukiBot",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no tests available yet!\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EthyMoney/TsukiBot.git"
+  },
+  "keywords": [
+    "discord",
+    "cryptocurrency",
+    "crypto",
+    "trading",
+    "stocks",
+    "bitcoin",
+    "ethereum",
+    "eth",
+    "btc",
+    "tsuki",
+    "tsukibot"
+  ],
+  "author": "Logan S. (EthyMoney)",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/EthyMoney/TsukiBot/issues"
+  },
+  "homepage": "https://github.com/EthyMoney/TsukiBot#readme",
   "dependencies": {
     "@google-cloud/translate": "^6.3.1",
     "canvas": "^2.9.1",
@@ -35,5 +61,9 @@
   },
   "devDependencies": {
     "eslint": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=16.9.0",
+    "npm": ">=8.13.3"
   }
 }
