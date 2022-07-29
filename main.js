@@ -3920,9 +3920,6 @@ function updateCoins() {
   reloader.update();
   reloaderCG.update();
   // Re-read the new set of coins
-  // TODO: Do we still need the next two yet? hmmm
-  //pairs = JSON.parse(fs.readFileSync('./common/coins.json', 'utf8'));
-  //pairs_filtered = JSON.parse(fs.readFileSync('./common/coins_filtered.json', 'utf8'));
   pairs_CG = JSON.parse(fs.readFileSync('./common/coinsCG.json', 'utf8'));
   pairs_CG_arr = JSON.parse(fs.readFileSync('./common/coinsCGtickers.json', 'utf8'));
   console.log(chalk.green.bold('Reloaded known coins'));
@@ -3966,25 +3963,6 @@ function toggleShortcut(id, shortcut, channel, join, name) {
  ---------------------------------- */
 
 function initializeFiles() {
-
-  // TODO: Might not need these two, need to verify..
-  // //allowed coin pairs
-  // try {
-  //   pairs = JSON.parse(fs.readFileSync('./common/coins.json', 'utf8'));
-  // } catch (err) {
-  //   fs.appendFileSync('./common/coins.json', '[]');
-  //   console.log(chalk.green('Automatically created new coins.json file.'));
-  //   pairs = JSON.parse(fs.readFileSync('./common/coins.json', 'utf8'));
-  // }
-
-  // //filtered version of allowed pairs
-  // try {
-  //   pairs_filtered = JSON.parse(fs.readFileSync('./common/coins_filtered.json', 'utf8'));
-  // } catch (err) {
-  //   fs.appendFileSync('./common/coins_filtered.json', '[]');
-  //   console.log(chalk.green('Automatically created new coins_filtered.json file.'));
-  //   pairs_filtered = JSON.parse(fs.readFileSync('./common/coins_filtered.json', 'utf8'));
-  // }
 
   //allowed coin pairs data from coin gecko
   try {
