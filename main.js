@@ -3418,7 +3418,10 @@ async function chartsProcessingCluster() {
         return;
       }
 
-      await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { waitUntil: 'networkidle0', timeout: 60000 });
+      await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { timeout: 20000 });
+
+      // Wait for the chart to load (this is a hacky workaround for now)
+      await sleep(3500);
 
       const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
       const frame = await elementHandle.contentFrame();
