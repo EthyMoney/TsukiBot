@@ -1,59 +1,28 @@
-TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704) [![Discord Bots](https://discordbots.org/api/widget/servers/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
-=======
-### Welcome to the official GitHub repository for the ultimate all-in-one cryptocurrency bot for Discord! All features and code used in the production instance of TsukiBot is housed and maintained right here in this repo. If you have any questions, issues, suggestions, or just want to chat with us, feel free to join the TsukiBot discord server [here](https://discord.gg/VWNUbR5).
+# Welcome to the Next Generation of TsukiBot!
 
----
-
-##### No annoying ads, no limits, no locked features, no BS! TsukiBot is a very powerful and easy to use Discord bot that makes for an excellent addition to your Discord crypto community!
-
-##### Founded in 2017 and widely used in the earliest crypto Discord servers, TsukiBot is one of the oldest and most featured bots around with a proven reputation. TsukiBot is still in very active development with new features and enhancements being added regularly. So, what are you waiting for? Add TsukiBot to your server today and transform your community into a cryptocurrency powerhouse!
-
-<br></br>
-### The full detailed list of commands and their usage can be found in the commands document [right here in the repo.](https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md)
+This branch is the in-progress build of a brand-new rewrite of TsukiBot!
 
 
+## Why?
+The old codebase has become an absolute disaster and is nearly impossible to keep maintained and stable now that TsukiBot runs at the much greater scale that it now does. There are bugs that have existed for years that mostly have the poor design of the codebase to blame. Problems keep arising without detection and the fixes are becoming increasingly difficult and usually resulting in hacky workarounds. A large portion of the codebase has existed since early 2017 and hasn't changed since then. There's also many features and components that were written by me back in 2018 that are quite crude by current standards. I was very new to JavaScript back then and was writing this bot to learn it. Looking back at this code now, I can see how flawed a lot of my code is and I can see so many ways to do things better that I just didn't understand back when I wrote them. So, I think we are at a good spot to now attempt a full rewrite and get things back to happy and healthy state that is very maintainable and stable, along with having many new features that people have been waiting years for!
 
-## Main Features:
-+ Simple and detailed crypto prices
-+ Customizable personal coin watch lists
-+ TradingView charts
-+ Coin market stats
-+ Coin info and descriptions
-+ Currency conversion tools
-+ Global crypto market stats
-+ Exchange margin funding stats
-+ Specific price pairs from exchanges
-+ Coin price movement heat maps
-+ Traditional stocks prices
-+ ETH gas fees tracking
-+ Ethereum address balances lookup
-+ Language translations
-+ Server tags for saving links
-+ Customizable command shortcuts
-+ Market fear/greed index ratings
-+ Biggest gainer and loser coin prices
-+ Metrics for trending coins and bot usage
-+ Protection from malicious files
-+ ....and more! Join the support server to suggest features you want to see. We are listening!
+## The Goals and Milestones:
++ Full codebase rewrite from the ground up
++ Utilizing Typescript rather than plain JavaScript to improve maintainability and overall stability
++ Optimization and improvement of existing commands and components to use the latest Node.js features and best practices
++ Complete overhaul of the Discord.js implementations (unified message sender, better error handling, defined slash commands, new API features, etc.)
++ Several brand-new features that have been on the back burner for so long (price alerts, custom charts, personal saved charts, portfolio tracking, automated scheduled commands, coin ticker preferences with multiple same tickers, fiat currency preferences, and so much more!)
++ Improvements for overall performance and scalability (utilizing load balancing and clustering to split up the workload and keep performance reliable and consistent)
++ GPU accelerated charts rendering (this is more of a hosting hardware change, but it will be vital to the performance of the bot with charting being one of the most used features)
++ Implementation of a full testing and deployment suite that automates a lot of the development tasks and ensures the bot passes pre-defined test case to reduce the number of bugs that appear in production at runtime
 
-<br>
-
-## More of a visual person? Check out the screenshot gallery:
-<blockquote class="imgur-embed-pub" lang="en" data-id="a/EhZ8sQw"  ><a href="//imgur.com/a/EhZ8sQw">TsukiBot Demo</a></blockquote>
-<br>
-
-## Free Forever
-Wanna know a little secret? We don't operate on advertising, referrals, or commissions whatsoever. We operate solely on donations from kind users like yourself! If you like TsukiBot and want to show support for this effort, you can do so with a generous donation :)
-
-ETH & ERC20 donations to: `0x169381506870283cbABC52034E4ECc123f3FAD02` are greatly appreciated and help support future development!
 <br><br>
-
----
-
-Let's keep in touch! Join our support Discord server where you can get help, report problems, and make suggestions for future updates and features!<br>
-Join the support server here: [discord.gg/TsukiBot](https://discord.gg/VWNUbR5)
-<br><br>
-
-
-[![Discord Bots](https://discordbots.org/api/widget/506918730790600704.svg)](https://discordbots.org/bot/506918730790600704)
-
+<p align="center" font-weight="bold" font-size="25">
+    The Next Generation is Coming
+</p>
+<p align="center" font-weight="bold" font-size="25">
+    Are You Ready?
+</p>
+<p align="center">
+  <img src="https://i.imgur.com/hsauPqd.png" width="8% height="auto">
+</p>
