@@ -187,7 +187,7 @@ const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=5
 // Scheduled Actions for normal operation
 if (!devMode) {
   schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
-  schedule.scheduleJob('*/2 * * * *', getCGData);       // fetch every 2 min
+  schedule.scheduleJob('*/8 * * * *', getCGData);       // fetch every 8 min
   schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
   schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
   schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
@@ -3824,7 +3824,7 @@ async function getCGData(status) {
 
   let coinIDs = [];
   let marketData = [];
-  let level = 0.1;
+  let level = 0.05;
 
   for (let i = 0; i < pairs_CG.length; i++) {
     coinIDs.push(pairs_CG[i].id);
@@ -3845,19 +3845,19 @@ async function getCGData(status) {
         return;
       }
       // add this new chunk to the rest
-      await resJSON.data.forEach((value) => {
+      for (const value of resJSON.data) {
         marketData.push(value);
-      });
+      }
       coinIDs = []; // reset IDs array
       // progress report for first run
       if (status == 'firstrun') {
         if (i >= pairs_CG.length * level) {
           console.log(chalk.blueBright(` ▶ ${Math.round(level * 100)}%`));
           startupProgress = Math.round(level * 100);
-          level = level + 0.1;
+          level = level + 0.05;
         }
       }
-      await sleep(250); //wait to make next call (protection from rate limits when using other external scripts as well)
+      await sleep(10000); //wait to make next call (protection from rate limits when using other external scripts as well)
     }
   }
   // sort by MC rank ascending order with nulls placed at the end
@@ -3880,7 +3880,7 @@ async function getCGData(status) {
   cgArrayDictParsed = [...marketDataFiltered];
 
   // build cache with the coin symbols as keys
-  marketDataFiltered.forEach(function (coinObject) {
+  for (const coinObject of marketDataFiltered) {
     const upperCaseSymbol = coinObject.symbol.toUpperCase();
     // add if not present already
     if (!cgArrayDict[upperCaseSymbol]) {
@@ -3896,7 +3896,7 @@ async function getCGData(status) {
       // TODO:    This means they are not longer on coingecko and should be removed from the cache when seen.
       // TODO:    If left to run for a long time, residual delisted coins will stack up in the cache unhandled (which = memory leak)
     }
-  });
+  }
 
   if (cacheUpdateRunning) {
     console.log(chalk.greenBright(' ▶ 100%\n' + 'CoinGecko data cache initialization complete. Commands are now active.'));
