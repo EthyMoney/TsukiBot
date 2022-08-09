@@ -177,7 +177,6 @@ const fh_api_key          = finnhub.ApiClient.instance.authentications.api_key;
 fh_api_key.apiKey         = keys.finnhub;
 
 // Reload Coins
-const reloader            = require('./getCoins');
 const reloaderCG          = require('./getCoinsCG');
 
 // Donation and footer stuff
@@ -3917,7 +3916,6 @@ async function getCGData(status) {
 
 function updateCoins() {
 
-  reloader.update();
   reloaderCG.update();
   // Re-read the new set of coins
   pairs_CG = JSON.parse(fs.readFileSync('./common/coinsCG.json', 'utf8'));
