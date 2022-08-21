@@ -56,7 +56,7 @@
     "string": "^3.3.3",
     "topgg-autoposter": "^2.0.1",
     "uniqid": "^5.4.0",
-    "web3": "^1.7.4",
+    "web3": "^1.7.5",
     "ws": "^8.8.1"
   },
   "devDependencies": {
