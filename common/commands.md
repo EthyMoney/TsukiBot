@@ -3,17 +3,40 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 #### Welcome to the official commands list! Here you can find all available commands and details on how to use them. <br>
 
-### NOTE: If you didn't see an introduction message when the bot joined or the bot does not respond to you, it is missing permissions! 
+(09/01/2022) IMPORTANT UPDATE REGARDING COMMAND INPUTS: 
+========
+As of September 1st, Discord is now requiring large bots to use slash commands reather than text prefix commands. What this means for TsukiBot is that you will now call the commands by starting with a / rather than the text prefixes like .tb or t
+
+TsukiBot currently supports slash commands at a fairly basic level, and not eveything will be perfect yet. This includes the documentation here, use it as reference, but keep in mind that these have been moved to being slash commands and not all of them are available as a slash command just yet.
+
+I'm working very hard to get things polished up and get everything working well and fully supported on slash commands, I just need to ask that you bear with me for this week as this transition is occurring. Be sure to [join the TsukiBot discord](https://discord.gg/VWNUbR5) for updates as I get this transition finished up.
+
+To use slash commands, simply start typing a "/" in discord and select TsukiBot from the list of bots. You will see all of the currently available commands and how to use them.
+
+If you are an experienced TsukiBot user, here's some quick translations that will help you get going: 
+Coin Gecko price shortcut "t" is now /cg
+Charts ".tbc" is now /c
+Gas ".tb gas" is now /gas
+All other ".tb" commands are now just the command name with a / in front. 
+Some commands have been renamed, you'll need to look over the list to see what you are looking for. I appologize for this, it will improve in the coming week!
+
 
 To resolve permissions issues, kick the bot and add it back using [THIS INVITE LINK](https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664) and keep the requested permissions checked! These permissions are **REQUIRED** for the bot to work correctly!! If you need help, join the support server using the link at the bottom of this page.
 
 TsukiBot deletes files that are not photos or videos by default. The bot will create a role named "File Perms" when it joins. Add this role to yourself 
 and any users that you authorize to send files. If a user doesn't have this role and the bot has manage messages perms allowed, their files will be deleted.
 This a recommended protection measure for crypto users to prevent the spread of malicious scripts, phishing malware, or accidentally shared private key files.
+<br>
+<br>
+<br>
+<br>
+Below is the old version of this commands doc, use it as reference until it gets rewritten for the newer slash commands very soon:
+<br>
+<br><br>
+
+
 
 #### All commands follow this general structure unless noted otherwise: `.tb <command> <parameters>`
-
-<br>
 
 
 ## Simple CoinGecko Price Checks:
