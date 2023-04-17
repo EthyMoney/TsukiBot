@@ -148,7 +148,7 @@ async function startup() {
       console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
       await collectMetadata(cgCoinsList.data[i].id, i + 1);
     }
-    await sleep(1500); //rate limiting requests to not exceed api limits
+    await sleep(15000); //rate limiting requests to not exceed api limits
   }
   writeToFile();
 }
