@@ -56,138 +56,139 @@
 // -------------------------------------------
 
 // Node stuff
-const process             = require('node:process');
+const process = require('node:process');
 
 // Dev mode to disable unnecessary operations for testing
-const devMode             = (process.argv[2] === '-d') ? true : false;
+const devMode = (process.argv[2] === '-d') ? true : false;
 
 // File read for JSON and PostgreSQL
-const fs                  = require('fs');
-const pg                  = require('pg');
+const fs = require('fs');
+const pg = require('pg');
 //const pgp                 = require('pg-promise')(); // TODO: switch non-promise implementation to use this promise based one
 
 // Scheduler
-const schedule            = require('node-schedule');
+const schedule = require('node-schedule');
 
 // Set the prefix
-const prefix              = ['-t', '.tb', '-T', '.TB', '.Tb', '.tB'];
+const prefix = ['-t', '.tb', '-T', '.TB', '.Tb', '.tB'];
 
 // Files allowed
-const extensions          = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
+const extensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'mov', 'mp4'];
 
 // Include fancy console outputs
-const chalk               = require('chalk');
+const chalk = require('chalk');
 
 // Read in and initialize all files
 let keys, pairs_CG, pairs_CG_arr, metadata, admin, shortcutConfig, restricted, tagsJSON;
 initializeFiles();
 
 // Top.gg bot statistics reporter
-const { AutoPoster }      = require('topgg-autoposter');
+const { AutoPoster } = require('topgg-autoposter');
 let poster;               // Will be initialized upon startup
 
 // HTTP stuff
-const WebSocket           = require('ws');
+const WebSocket = require('ws');
 
 // Include API things
-const { MessageEmbed, Client, Intents, ShardClientUtil, Permissions } = require('discord.js');
-const cc                  = require('cryptocompare');
-const CoinMarketCap       = require('coinmarketcap-api');
-const ccxt                = require('ccxt');
-const graviex             = require('graviex');
-const CoinGecko           = require('coingecko-api');
-const NodeExr             = require('currencyexchanges');
-const finnhub             = require('finnhub');
-const Web3                = require('web3');
+const { Client, GatewayIntentBits, ShardClientUtil, Permissions, EmbedBuilder } = require('discord.js');
+const cc = require('cryptocompare');
+const CoinMarketCap = require('coinmarketcap-api');
+const ccxt = require('ccxt');
+const graviex = require('graviex');
+const CoinGecko = require('coingecko-api');
+const NodeExr = require('currencyexchanges');
+const finnhub = require('finnhub');
+const Web3 = require('web3');
 
 // Google Cloud language translations
-const googleProjectID     = keys.googleCloudProjectID; 
+const googleProjectID = keys.googleCloudProjectID;
 const googleProjectApiKeyPath = keys.googleCloudProjectKeyPath;
-const { Translate }       = require('@google-cloud/translate').v2;
+const { Translate } = require('@google-cloud/translate').v2;
 
 // Express server for charts
-const path                = require('path');
-const express             = require('express');
-const app                 = express();
-const dir                 = path.join(process.cwd(), 'public');
+const path = require('path');
+const express = require('express');
+const app = express();
+const dir = path.join(process.cwd(), 'public');
 chartServer();
 
 // Automatic color selector for embeds
-const colorAverager       = require('fast-average-color-node');
+const colorAverager = require('fast-average-color-node');
 
 // Puppeteer for interacting with the headless server and manipulating charts
-const { Cluster }         = require('puppeteer-cluster');
+const { Cluster } = require('puppeteer-cluster');
 let cluster;
 chartsProcessingCluster();
 
 // PNG image comparison tool for validating charts images
-const PixelDiff           = require('pixel-diff');
+const PixelDiff = require('pixel-diff');
 
 // Unique ID generator // TODO: (will get used in the future for scheduled actions stuff)
 //const uniqid              = require('uniqid');
 
 // CMC/CG Cache
-let cmcArray              = {};
-let cmcArrayDict          = {};
-let cmcArrayDictParsed    = [];
-let cgArrayDictParsed     = [];
-let cgArrayDict           = {};
-let fails                 = 0;
-let auto                  = true;
-let selectedKey           = 0;
-let cacheUpdateRunning    = false;
-let startupProgress       = 0;
+let cmcArray = {};
+let cmcArrayDict = {};
+let cmcArrayDictParsed = [];
+let cgArrayDictParsed = [];
+let cgArrayDict = {};
+let fails = 0;
+let auto = true;
+let selectedKey = 0;
+let cacheUpdateRunning = false;
+let startupProgress = 0;
 
 // Spellcheck
-const didyoumean          = require('didyoumean');
+const didyoumean = require('didyoumean');
 
 // JS DOM Selections
-const jsdom               = require('jsdom');
-const { JSDOM }           = jsdom;
+const jsdom = require('jsdom');
+const { JSDOM } = jsdom;
 
 // Connect to database
-const conString           = 'postgres://bigboi:' + keys.tsukibot + '@localhost:5432/tsukibot';
+const conString = 'postgres://bigboi:' + keys.tsukibot + '@' + keys.dbAddress + ':5432/tsukibot';
 //const connp               = pgp(conString); // TODO: switch non-promise implementation to use this promise based one
 
 // Declare general global variables
-let messageCount          = 0;
-let referenceTime         = Date.now();
-let yeetLimit             = 0; // Spam limit count
-let chartTagID            = 0;
+let messageCount = 0;
+let referenceTime = Date.now();
+let yeetLimit = 0; // Spam limit count
+let chartTagID = 0;
+let globalCGSleepTimeout = 15000; // used to set sleep interval between cg cache update queries
 
 // Initialize api things
-const clientKraken        = new ccxt.kraken();
-const bitmex              = new ccxt.bitmex();
-const CoinGeckoClient     = new CoinGecko();
-const clientPoloniex      = new ccxt.poloniex();
-const clientBinance       = new ccxt.binance();
-const clientBittrex       = new ccxt.bittrex();
-const clientBitfinex      = new ccxt.bitfinex2();
-const clientCoinbase      = new ccxt.coinbasepro();
-const clientStex          = new ccxt.stex();
-const finnhubClient       = new finnhub.DefaultApi();
-const translate           = new Translate({ projectId: googleProjectID, keyFilename: googleProjectApiKeyPath });
-const web3eth             = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
-const ExchangeRate        = new NodeExr({ primaryCurrency: 'USD' });
+const clientKraken = new ccxt.kraken();
+const bitmex = new ccxt.bitmex();
+const CoinGeckoClient = new CoinGecko();
+const clientPoloniex = new ccxt.poloniex();
+const clientBinance = new ccxt.binance();
+const clientBittrex = new ccxt.bittrex();
+const clientBitfinex = new ccxt.bitfinex2();
+const clientCoinbase = new ccxt.coinbasepro();
+const clientStex = new ccxt.stex();
+const finnhubClient = new finnhub.DefaultApi();
+const translate = new Translate({ projectId: googleProjectID, keyFilename: googleProjectApiKeyPath });
+const web3eth = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
+const ExchangeRate = new NodeExr({ primaryCurrency: 'USD' });
 //clientcmc will be re-initialized upon bot startup, key selection will be automatic and this selected key here is temporary
-let clientcmc             = new CoinMarketCap(keys.coinmarketcapfailover); 
-graviex.accessKey         = keys.graviexAccessKey;
-graviex.secretKey         = keys.graviexSecretKey;
-const fh_api_key          = finnhub.ApiClient.instance.authentications.api_key;
-fh_api_key.apiKey         = keys.finnhub;
+let clientcmc = new CoinMarketCap(keys.coinmarketcapfailover);
+graviex.accessKey = keys.graviexAccessKey;
+graviex.secretKey = keys.graviexSecretKey;
+const fh_api_key = finnhub.ApiClient.instance.authentications.api_key;
+fh_api_key.apiKey = keys.finnhub;
 
 // Reload Coins
-const reloaderCG          = require('./getCoinsCG');
+const reloaderCG = require('./getCoinsCG');
 
 // Donation and footer stuff
-const quote               = 'Enjoying TsukiBot? Tell your friends!';
-const botInviteAdd        = '\nAdd the bot to other servers by using  `.tb invite`  for the link  :)';
-const inviteLink          = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
+const quote = 'Enjoying TsukiBot? Tell your friends!';
+const botInviteAdd = '\nAdd the bot to other servers by using  `.tb invite`  for the link  :)';
+const inviteLink = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 // Scheduled Actions for normal operation
 if (!devMode) {
-  schedule.scheduleJob('*/8 * * * *', getCMCData);      // fetch every 8 min
-  schedule.scheduleJob('*/8 * * * *', getCGData);       // fetch every 8 min
+  schedule.scheduleJob('*/10 * * * *', getCMCData);      // fetch every 10 min
+  schedule.scheduleJob('*/20 * * * *', getCGData);       // fetch every 20 min
   schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
   schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
   schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
@@ -606,35 +607,35 @@ function getPriceCMC(coins, channel, action = '-', ext = 'd') {
 
       coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
       switch (action) {
-      case '-':
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+        case '-':
+          message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
 
-      case '+':
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + 
-          bp + '\n');
-        break;
+        case '+':
+          message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+            bp + '\n');
+          break;
 
-      case '*':
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
-          up + '\n`|        ⇒` `' +
-          bp + '\n');
-        break;
+        case '*':
+          message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' +
+            up + '\n`|        ⇒` `' +
+            bp + '\n');
+          break;
 
-      case 'e':
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
-          ep + '\n');
-        break;
+        case 'e':
+          message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' +
+            ep + '\n');
+          break;
 
-      case '%':
-        if (cmcArrayDict[coins[i].toUpperCase()])
-          ordered[cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h] =
-            ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+        case '%':
+          if (cmcArrayDict[coins[i].toUpperCase()])
+            ordered[cmcArrayDict[coins[i].toUpperCase()].quote.USD.percent_change_24h] =
+              ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
 
-      default:
-        message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
-        break;
+        default:
+          message += ('`• ' + coins[i].toUpperCase() + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + '\n');
+          break;
       }
     }
 
@@ -665,19 +666,27 @@ function getPriceCMC(coins, channel, action = '-', ext = 'd') {
 // Function for CoinGecko prices 
 // (in similar format the list-style cmc command above)
 
-function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false) {
+function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false, interaction) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
-    console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
-    return;
+    if (interaction) {
+      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      return;
+    }
+    else {
+      channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
+      return;
+    }
   }
 
   // check for no input
   if (coins.length == 0) {
     return;
   }
+
+  console.log(chalk.magentaBright('Incoming coins for call:'), chalk.cyanBright(coins));
 
   let ordered = {};
   let messageHeader;
@@ -815,31 +824,31 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
 
       coins[i] = (coins[i].length > 6) ? coins[i].substring(0, 6) : coins[i];
       switch (action) {
-      case '-':
-        message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
-        break;
+        case '-':
+          message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
+          break;
 
-      case '+':
-        message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + bp + coinIdentifier + '\n');
-        break;
+        case '+':
+          message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + bp + coinIdentifier + '\n');
+          break;
 
-      case '*':
-        message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' + up + '\n`|        ⇒` `' + bp + coinIdentifier + '\n');
-        break;
+        case '*':
+          message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒ 💵` `' + up + '\n`|        ⇒` `' + bp + coinIdentifier + '\n');
+          break;
 
-      case 'e':
-        message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + ep + coinIdentifier + '\n');
-        break;
+        case 'e':
+          message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + ep + coinIdentifier + '\n');
+          break;
 
-      case '%':
-        if (coinObject)
-          ordered[coinObject.price_change_percentage_24h_in_currency] =
+        case '%':
+          if (coinObject)
+            ordered[coinObject.price_change_percentage_24h_in_currency] =
               ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
-        break;
+          break;
 
-      default:
-        message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
-        break;
+        default:
+          message += ('`• ' + coins[i] + ' '.repeat(6 - coins[i].length) + ' ⇒` `' + (ext === 's' ? bp : up) + coinIdentifier + '\n');
+          break;
       }
     });//end of looping through same-ticker coins
 
@@ -870,23 +879,34 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
 
   // Check for confused people looking for help, and prompt them for the real help command
   if (coins.length == 1 && coins.includes('HELP')) {
-    message += '\nLooking for the help with using the bot? Use `.tb help`.';
+    message += '\nLooking for the help with using the bot? Use `/help`.';
   }
 
   // Check for message being too long even after the 2-message split
   if (message.length > 2000) {
-    channel.send('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `.tb pa` to see how to do this.');
-    console.log(chalk.magenta('Oversize tbpa notification sent to user above. Size overflow message: ') + chalk.cyan(message.length));
-    return;
+    if (interaction) {
+      interaction.reply('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `/tbpa-remove` to remove coins.');
+      return;
+    }
+    else {
+      channel.send('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `.tb pa` to see how to do this.');
+      console.log(chalk.magenta('Oversize tbpa notification sent to user above. Size overflow message: ') + chalk.cyan(message.length));
+      return;
+    }
   }
 
   if (message.length > 0) {
-    if (message_part1.length > 0) {
-      channel.send(messageHeader + message_part1);
-      channel.send(message);
+    if (interaction) {
+      interaction.reply(messageHeader + message);
     }
     else {
-      channel.send(messageHeader + message);
+      if (message_part1.length > 0) {
+        channel.send(messageHeader + message_part1);
+        channel.send(message);
+      }
+      else {
+        channel.send(messageHeader + message);
+      }
     }
   }
 }
@@ -1059,26 +1079,26 @@ async function getPriceMex(coin1, coin2, channel, author) {
   // This implementation changes as the BitMEX contract period code changes every 3 months
   if (coin1) {
     switch (coin1.toUpperCase()) {
-    case 'BTC':
-      pair = 'XBTUSD';
-      coin2 = 'usd';
-      break;
-    case 'ETH':
-      if (!coin2 || coin2 !== 'btc') {
-        pair = 'ETHUSD';
+      case 'BTC':
+        pair = 'XBTUSD';
         coin2 = 'usd';
         break;
-      }
-      else {
-        pair = 'ETH' + contractCode;
-      }
-      break;
-    default:
-      //always default the pair to btc value unless it was specified as usd
-      pair = coin1.toUpperCase() + contractCode;
-      if (!coin2 || coin2.toUpperCase() !== 'USD') {
-        coin2 = 'btc';
-      }
+      case 'ETH':
+        if (!coin2 || coin2 !== 'btc') {
+          pair = 'ETHUSD';
+          coin2 = 'usd';
+          break;
+        }
+        else {
+          pair = 'ETH' + contractCode;
+        }
+        break;
+      default:
+        //always default the pair to btc value unless it was specified as usd
+        pair = coin1.toUpperCase() + contractCode;
+        if (!coin2 || coin2.toUpperCase() !== 'USD') {
+          coin2 = 'btc';
+        }
     }
 
     console.log(chalk.green('BitMEX price requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1) + '/' + chalk.cyan(coin2)));
@@ -1246,7 +1266,14 @@ async function getStocks(coin1, channel, author) {
 
 // Function to grab coin purpose and description data from cached CoinGecko metadata
 
-async function getCoinDescription(coin1, channel, author) {
+async function getCoinDescription(coin1, channel, author, interaction) {
+
+  // don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning) {
+    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    console.log(chalk.magentaBright('Attempted use of coin description command prior to initialization. Notification sent to user.'));
+    return;
+  }
 
   const ticker = cgArrayDictParsed;
   const j = ticker.length;
@@ -1264,7 +1291,7 @@ async function getCoinDescription(coin1, channel, author) {
   }
 
   if (foundCoins.length > 0) {
-    console.log(chalk.green('Coin description requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1)));
+    //console.log(chalk.green('Coin description requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1)));
 
     // grabbing for each coin found with matching input
     for (let index = 0, len = foundCoins.length; index < len; index++) {
@@ -1296,40 +1323,57 @@ async function getCoinDescription(coin1, channel, author) {
 
       // check against discord's embed field size limit and cleanly split if necessary
       if (descriptions[index].length <= 2048) {
-        const embed = new MessageEmbed()
+        const embed = new EmbedBuilder()
           .setTitle('About ' + capitalizeFirstLetter(foundCoins[index].name) + ' (' + foundCoins[index].symbol.toUpperCase() + '):')
           .setDescription(descriptions[index])
           .setColor(logoColors[index])
           .setThumbnail(logos[index])
           .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
-        channel.send({ embeds: [embed] }).catch(function (reject) {
-          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-          console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(reject)));
-        });
+        if (interaction) {
+          interaction.reply({ embeds: [embed] });
+        }
+        else {
+          channel.send({ embeds: [embed] }).catch(function (reject) {
+            channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+            console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(reject)));
+          });
+        }
       }
       else {
         let pages = chunkString(descriptions[index], 2048);
         let blockCursor = 1;
         pages.forEach(function (element) {
-          const embed = new MessageEmbed()
+          const embed = new EmbedBuilder()
             .setTitle('About ' + capitalizeFirstLetter(foundCoins[index].name) + ' (' + foundCoins[index].symbol.toUpperCase() + ')  (PAGE ' + blockCursor + '):')
             .setDescription(element)
             .setColor(logoColors[index])
             .setThumbnail(logos[index])
             .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
-          channel.send({ embeds: [embed] }).catch(function (reject) {
-            channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-            console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(reject)));
-          });
+          if (interaction) {
+            interaction.reply({ embeds: [embed] });
+          }
+          else {
+            channel.send({ embeds: [embed] }).catch(function (reject) {
+              channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+              console.log(chalk.red('Error sending coin info response: ' + chalk.cyan(reject)));
+            });
+          }
           blockCursor++;
         });
       }
     }
   }
   else {
-    channel.send('**Error:** __' + coin1 + '__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.');
+    if (interaction) {
+      interaction.reply('**Error:** __' + coin1 + '__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.');
+      return;
+    }
+    else {
+      channel.send('**Error:** __' + coin1 + '__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.');
+      return;
+    }
   }
 }
 
@@ -1339,9 +1383,9 @@ async function getCoinDescription(coin1, channel, author) {
 
 // Function that retrieves current fear/greed index value
 
-async function getFearGreedIndex(channel, author) {
+async function getFearGreedIndex(channel, author, interaction) {
 
-  console.log(chalk.green('Fear/greed index requested by ' + chalk.yellow(author.username)));
+  //console.log(chalk.green('Fear/greed index requested by ' + chalk.yellow(author.username)));
 
   const res = await fetch('https://api.alternative.me/fng/?limit=1&format=json');
   if (res.ok) {
@@ -1357,19 +1401,31 @@ async function getFearGreedIndex(channel, author) {
     const h = Math.floor(d / 3600);
     const m = Math.floor(d % 3600 / 60);
     //create embed and insert data 
-    const embed = new MessageEmbed()
+    const embed = new EmbedBuilder()
       .setAuthor({ name: 'Fear/Greed Index', iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
-      .addField('Current Value:', data.data[0].value + ' (' + tier + ')')
+      .addFields(
+        { name: 'Current Value:', value: data.data[0].value + ' (' + tier + ')', inline: true }
+      )
       .setColor(color)
       .setFooter({ text: `Next update: ${h} hrs, ${m} mins` });
-    channel.send({ embeds: [embed] }).catch(function (reject) {
-      channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-      console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(reject)));
-    });
+    if (interaction) {
+      interaction.reply({ embeds: [embed] });
+    }
+    else {
+      channel.send({ embeds: [embed] }).catch(function (reject) {
+        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+        console.log(chalk.red('Error sending fear/greed index! : ' + chalk.cyan(reject)));
+      });
+    }
   }
   else {
     console.log(chalk.red('Issue fetching fear/greed index: ' + res.status));
-    channel.send('Sorry, there is an issue processing the fear/greed command at this time. Try again later!');
+    if (interaction) {
+      interaction.reply('Sorry, there is an issue processing the fear/greed command at this time. Try again later!');
+    }
+    else {
+      channel.send('Sorry, there is an issue processing the fear/greed command at this time. Try again later!');
+    }
   }
 }
 
@@ -1379,9 +1435,9 @@ async function getFearGreedIndex(channel, author) {
 
 // Function for grabbing Bitmex swap contract funding data
 
-async function getMexFunding(channel, message) {
+async function getMexFunding(channel, message, interaction) {
 
-  console.log(chalk.green('BitMEX funding stats requested by ' + chalk.yellow(message.author.username)));
+  //console.log(chalk.green('BitMEX funding stats requested by ' + chalk.yellow(message.author.username)));
 
   let messageNumber = 0;
   //create websocket listener
@@ -1402,6 +1458,7 @@ async function getMexFunding(channel, message) {
           btc = dataJSON[i];
         }
         if (dataJSON[i].symbol === 'ETHUSD') {
+
           eth = dataJSON[i];
         }
       }
@@ -1411,18 +1468,25 @@ async function getMexFunding(channel, message) {
       const text2 = 'Current Rate: `' + parseFloat(eth.fundingRate * 100).toFixed(4) + '%` \n' +
         'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate * 100).toFixed(4) + '%`';
 
-      const embed = new MessageEmbed()
+      const embed = new EmbedBuilder()
         .setAuthor({ name: 'BitMEX Perpetual Swap Contract Funding Stats' })
-        .addField('XBT/USD:', text)
-        .addField('ETH/USD:', text2)
+        .addFields(
+          { name: 'XBT/USD:', value: text },
+          { name: 'ETH/USD:', value: text2 }
+        )
         .setThumbnail('https://firebounty.com/image/751-bitmex')
         .setColor('#1b51be')
         .setFooter({ text: 'BitMEX Real-Time', iconURL: 'https://firebounty.com/image/751-bitmex' });
 
-      channel.send({ embeds: [embed] }).catch(function (reject) {
-        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-        console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(reject)));
-      });
+      if (interaction) {
+        interaction.editReply({ embeds: [embed] });
+      }
+      else {
+        channel.send({ embeds: [embed] }).catch(function (reject) {
+          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+          console.log(chalk.red('Error sending bitmex funding! : ' + chalk.cyan(reject)));
+        });
+      }
     }
   });
 }
@@ -1433,16 +1497,22 @@ async function getMexFunding(channel, message) {
 
 // Grabs the current data for Binance long and short positions
 
-async function getBinanceLongsShorts(channel, author) {
+async function getBinanceLongsShorts(channel, author, interaction) {
 
-  console.log(chalk.green('Binance longs/shorts requested by ' + chalk.yellow(author.username)));
+  //console.log(chalk.green('Binance longs/shorts requested by ' + chalk.yellow(author.username)));
 
   // First, let's grab the data from the page, which includes the HTML we want
   const res = await fetch('http://blockchainwhispers.com/bitmex-position-calculator').catch(function (error) {
     // handle error
     console.log(chalk.redBright('Longs/shorts command failed to collect data! Response details: \n' + chalk.yellow(error)));
-    channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into. Try again later!');
-    return;
+    if (interaction) {
+      interaction.reply('Sorry, there was an issue processing the longs/shorts command at this time. Try again later!');
+      return;
+    }
+    else {
+      channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into. Try again later!');
+      return;
+    }
   });
   if (res.ok) {
     const data = await res.text();
@@ -1459,23 +1529,36 @@ async function getBinanceLongsShorts(channel, author) {
       const shorts = block[2].querySelector('div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(' ')[0].trim();
       const shortsPercent = block[2].querySelector('div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
       // If all is good, assemble the embed object and send it off
-      const embed = new MessageEmbed()
+      const embed = new EmbedBuilder()
         .setAuthor({ name: title, iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
-        .addField('Longs:', longs + ' (' + longsPercent + ')')
-        .addField('Shorts:', shorts + ' (' + shortsPercent + ')')
+        .addFields(
+          { name: 'Longs:', value: longs + ' (' + longsPercent + ')', inline: false },
+          { name: 'Shorts:', value: shorts + ' (' + shortsPercent + ')', inline: false }
+        )
         .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
         .setColor('#1b51be')
         .setFooter({ text: 'BlockchainWhispers Real-Time', iconURL: 'https://blockchainwhispers.com/images/bw.png' });
-      channel.send({ embeds: [embed] }).catch(function (reject) {
-        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-        console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(reject)));
-      });
+      if (interaction) {
+        interaction.reply({ embeds: [embed] });
+      }
+      else {
+        channel.send({ embeds: [embed] }).catch(function (reject) {
+          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+          console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(reject)));
+        });
+      }
     }
     catch (err) {
       // Check for errors during data parsing and report them
       console.log(chalk.redBright('Longs/shorts command failed to process data! Error details: \n' + chalk.yellow(err.stack)));
-      channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.');
-      return;
+      if (interaction) {
+        interaction.reply('Sorry, there was an issue processing the longs/shorts command at this time. Try again later!');
+        return;
+      }
+      else {
+        channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.');
+        return;
+      }
     }
   }
 }
@@ -1486,7 +1569,7 @@ async function getBinanceLongsShorts(channel, author) {
 
 // Function that converts value of one coin into value in terms of another coin using CG prices
 
-function priceConversionTool(coin1, coin2, amount, channel, author) {
+function priceConversionTool(coin1, coin2, amount, channel, author, interaction) {
 
   const fiatPairs = ['USD', 'CAD', 'EUR', 'AED', 'JPY', 'CHF', 'CNY', 'GBP', 'AUD', 'NOK', 'KRW', 'JMD', 'RUB', 'INR', 'PHP',
     'HKD', 'TWD', 'BRL', 'THB', 'MXN', 'SAR', 'SGD', 'SEK', 'IDR', 'ILS', 'MYR', 'VND', 'PLN', 'TRY', 'CLP', 'EGP', 'ZAR', 'NZD',
@@ -1498,22 +1581,35 @@ function priceConversionTool(coin1, coin2, amount, channel, author) {
   // Validate user input
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
-      channel.send('Invalid amount entered.');
+      if (interaction) {
+        interaction.reply('Invalid amount! Please enter a valid amount!');
+      }
+      else {
+        channel.send('Invalid amount entered.');
+      }
     }
-    // show help message and then exit if wrong input is provided
-    channel.send('**Here\'s how to use the currency conversion command:**\n ' +
-      ':small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n ' +
-      ':small_blue_diamond: Examples: `.tb cv 20 eth usd`  `.tb cv 10 usd cad`\n ' +
-      ':small_blue_diamond: Supported cryptos: `All CoinGecko-listed coins`\n ' +
-      ':small_blue_diamond: Supported fiat currencies: `' + fiatPairs + '`');
+    if (!interaction) {
+      // show help message and then exit if wrong input is provided
+      channel.send('**Here\'s how to use the currency conversion command:**\n ' +
+        ':small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n ' +
+        ':small_blue_diamond: Examples: `.tb cv 20 eth usd`  `.tb cv 10 usd cad`\n ' +
+        ':small_blue_diamond: Supported cryptos: `All CoinGecko-listed coins`\n ' +
+        ':small_blue_diamond: Supported fiat currencies: `' + fiatPairs + '`');
+    }
     return;
   }
 
   // Don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
-    console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
-    return;
+    if (interaction) {
+      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      return;
+    }
+    else {
+      channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
+      return;
+    }
   }
 
   // Setup
@@ -1523,7 +1619,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author) {
   let isForexPairingCoin2 = false;
   let forexRates = null; // will hold our rates if needed to be collected below
 
-  console.log(chalk.green('Currency conversion tool requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1) + ' --> ' + chalk.cyan(coin2)));
+  //console.log(chalk.green('Currency conversion tool requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1) + ' --> ' + chalk.cyan(coin2)));
 
   // Collect our forex pairs and then proceed with that data
   ExchangeRate.getBulkExchangeRates(fiatPairs).then(async rates => {
@@ -1586,10 +1682,20 @@ function priceConversionTool(coin1, coin2, amount, channel, author) {
         builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '`';
       }
 
-      channel.send(builtMessage);
+      if (interaction) {
+        interaction.reply(builtMessage);
+      }
+      else {
+        channel.send(builtMessage);
+      }
     }
     else {
-      channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, just use `.tb cv` to see the guide for this command.');
+      if (!interaction) {
+        interaction.reply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
+      }
+      else {
+        channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, just use `.tb cv` to see the guide for this command.');
+      }
     }
   }).catch(err => {
     console.error('Issue with currency conversion command! Details: ' + err);
@@ -1700,9 +1806,11 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       // check against discord's embed field size limit and split if necessary
       if (message.length <= 1024) {
 
-        const embed = new MessageEmbed()
+        const embed = new EmbedBuilder()
           .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
-          .addField('Available tags in this server: ', message.substring(0, message.length - 2))
+          .addFields(
+            { name: 'Available tags in this server: ', value: message.substring(0, message.length - 2), inline: false }
+          )
           .setColor('#1b51be')
           .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
@@ -1719,9 +1827,11 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         pages.forEach(function (element) {
           // special case for the final page. This one will remove the trailing the commas in the list.
           if (blockMax === blockCursor) {
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
               .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
-              .addField('Available tags in this server (PAGE ' + blockCursor + '): ', element.substring(0, element.length - 2))
+              .addFields(
+                { name: 'Available tags in this server (PAGE ' + blockCursor + '): ', value: element.substring(0, element.length - 2), inline: false }
+              )
               .setColor('#1b51be')
               .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
@@ -1732,9 +1842,11 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
           }
 
           else {
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
               .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
-              .addField('Available tags in this server (PAGE ' + blockCursor + '): ', element)
+              .addFields(
+                { name: 'Available tags in this server (PAGE ' + blockCursor + '): ', value: element, inline: false }
+              )
               .setColor('#1b51be')
               .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
 
@@ -1768,9 +1880,11 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       return;
     }
 
-    const embed = new MessageEmbed()
+    const embed = new EmbedBuilder()
       .setAuthor({ name: 'Tsuki Tags', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/OneDrive_Folder_Icon.svg/1024px-OneDrive_Folder_Icon.svg.png' })
-      .addField('Tag: "' + resultName + '"', resultTag)
+      .addFields(
+        { name: 'Tag: "' + resultName + '"', value: resultTag, inline: false }
+      )
       .setImage(resultTag)
       .setColor('#1b51be')
       .setTimestamp(resultTimestamp)
@@ -1819,7 +1933,7 @@ async function getEtherBalance(author, address, channel, action = 'b') {
       if (owner == '0x0000000000000000000000000000000000000000') {
         console.log(chalk.green(`Etherscan ENS registration sent for ${chalk.yellow(address)} in ${chalk.cyan(channel.guild.name)}`));
         const addy = 'https://app.ens.domains/name/' + address;
-        const embed = new MessageEmbed()
+        const embed = new EmbedBuilder()
           .setTitle('That ENS name is not yet registered!')
           .setDescription(`Want to make it yours?  [CLICK HERE!](${addy})`)
           .setThumbnail('https://imgur.com/jUMEIgL.png')
@@ -1868,9 +1982,9 @@ async function getEtherBalance(author, address, channel, action = 'b') {
 // from Etherscan.
 
 
-async function getEtherGas(channel, author) {
+async function getEtherGas(channel, author, interaction) {
 
-  console.log(chalk.green('Etherscan gas data requested by ' + chalk.yellow(author.username)));
+  //console.log(chalk.green('Etherscan gas data requested by ' + chalk.yellow(author.username)));
 
   const res = await fetch(`https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${keys.etherscan}`)
     .catch(function (error) {
@@ -1881,21 +1995,33 @@ async function getEtherGas(channel, author) {
   if (res.ok) {
     const data = await res.json();
     // assemble the final message as message embed object
-    const embed = new MessageEmbed()
+    const embed = new EmbedBuilder()
       .setTitle('Ethereum Gas Tracker')
-      .addField('Slow:', `${data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, true)
-      .addField('Average:', `${data.result.ProposeGasPrice} gwei\n~ 3 minutes \u200B\u200B`, true)
-      .addField('Fast:', `${data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, true)
+      .addFields(
+        { name: 'Slow:', value: `${data.result.SafeGasPrice} gwei\n~ 10 minutes \u200B\u200B`, inline: true },
+        { name: 'Average:', value: `${data.result.ProposeGasPrice} gwei\n~ 3 minutes \u200B\u200B`, inline: true },
+        { name: 'Fast:', value: `${data.result.FastGasPrice} gwei\n~ 30 seconds \u200B\u200B`, inline: true }
+      )
       .setColor('#1b51be')
       .setThumbnail('https://kittyhelper.co/local/templates/main/images/ETHgas.png')
       .setFooter({ text: 'Powered by Etherscan', iconURL: 'https://etherscan.io/images/brandassets/etherscan-logo-circle.png' });
 
     // Send it
     try {
-      channel.send({ embeds: [embed] });
+      if (interaction) {
+        interaction.reply({ embeds: [embed] });
+      }
+      else {
+        channel.send({ embeds: [embed] });
+      }
     }
     catch (reject) {
-      channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+      if (interaction) {
+        interaction.reply('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+      }
+      else {
+        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+      }
       console.log(chalk.red('Error sending eth gas response embed: ' + chalk.cyan(reject)));
     }
   }
@@ -1942,20 +2068,31 @@ function getBiggestMovers(channel, author) {
 //------------------------------------------
 
 // Send Coin360 coins heatmap
-function sendCoin360Heatmap(message) {
+function sendCoin360Heatmap(message, interaction) {
 
-  console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(message.member.user.tag)}`);
+  //console.log(`${chalk.green('Coin360 heatmap command called by:')} ${chalk.yellow(message.member.user.tag)}`);
 
   // Hmap image is cached in 30 min cycles by scheduler, we just need to send it here
-  message.channel.send({
-    files: [{
-      attachment: 'chartscreens/hmap.png',
-      name: 'hmap.png'
-    }]
-  }).catch(function (error) {
-    console.log(chalk.red('Error sending hmap image:', error));
-    message.channel.send('Sorry, I was unable to send the heatmap image. Please try again later.');
-  });
+
+  if (interaction) {
+    interaction.reply({
+      files: [{
+        attachment: 'chartscreens/hmap.png',
+        name: 'hmap.png'
+      }]
+    });
+  }
+  else {
+    message.channel.send({
+      files: [{
+        attachment: 'chartscreens/hmap.png',
+        name: 'hmap.png'
+      }]
+    }).catch(function (error) {
+      console.log(chalk.red('Error sending hmap image:', error));
+      message.channel.send('Sorry, I was unable to send the heatmap image. Please try again later.');
+    });
+  }
 }
 
 
@@ -1964,15 +2101,21 @@ function sendCoin360Heatmap(message) {
 
 // Function for getting total market cap data and BTC/ETH dominance from CG
 
-async function getMarketCap(message) {
+async function getMarketCap(message, interaction) {
 
-  console.log(chalk.yellow(message.author.username) + chalk.green(' requested global market cap data'));
+  //console.log(chalk.yellow(message.author.username) + chalk.green(' requested global market cap data'));
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
-    console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
-    return;
+    if (interaction) {
+      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      return;
+    }
+    else {
+      message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
+      return;
+    }
   }
 
   await CoinGeckoClient.global().then((data) => {
@@ -1981,7 +2124,12 @@ async function getMarketCap(message) {
     for (let i = 0; i < cgArrayDictParsed.length; i++) { if (cgArrayDictParsed[i].id == 'ethereum') { ethMarketCap = cgArrayDictParsed[i].market_cap; break; } }
     const btcDominance = parseFloat((cgArrayDict.BTC.market_cap / mcTotalUSD) * 100).toFixed(2);
     const ethDominance = parseFloat((ethMarketCap / mcTotalUSD) * 100).toFixed(2);
-    message.channel.send(`**[all]** \`$ ${numberWithCommas(mcTotalUSD)} \` BTC dominance: \`${btcDominance}%\`,  ETH dominance: \`${ethDominance}%\``);
+    if (interaction) {
+      interaction.reply(`**[all]** \`$ ${numberWithCommas(mcTotalUSD)} \` BTC dominance: \`${btcDominance}%\`,  ETH dominance: \`${ethDominance}%\``);
+    }
+    else {
+      message.channel.send(`**[all]** \`$ ${numberWithCommas(mcTotalUSD)} \` BTC dominance: \`${btcDominance}%\`,  ETH dominance: \`${ethDominance}%\``);
+    }
   });
 }
 
@@ -1992,25 +2140,36 @@ async function getMarketCap(message) {
 
 // Function for getting market cap data of a specific coin from CG
 
-function getMarketCapSpecific(message) {
+function getMarketCapSpecific(message, interaction) {
 
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
-    console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
-    return;
+    if (interaction) {
+      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      return;
+    }
+    else {
+      message.channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
+      return;
+    }
   }
 
   let cur = '';
-  //cut the command prefixes and any leading/trailing spaces
-  cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc', '').trimStart().trimEnd();
-  cur = cur.toUpperCase();
+  if (interaction) {
+    cur = message;
+  }
+  else {
+    //cut the command prefixes and any leading/trailing spaces
+    cur = message.content.toLowerCase().replace('.tb', '').replace('-t ', '').replace('mc', '').trimStart().trimEnd();
+    cur = cur.toUpperCase();
+  }
 
-  if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
+  //if (cur === 'HAMMER') { message.channel.send('https://youtu.be/otCpCn0l4Wo?t=14'); return; }
 
   //collect and process cached cg api data 
   (async () => {
-    console.log(chalk.yellow(message.author.username) + chalk.green(' requested MC of: ' + chalk.cyan(cur)));
+    //console.log(chalk.yellow(message.author.username) + chalk.green(' requested MC of: ' + chalk.cyan(cur)));
     let success = false;
     const ticker = cgArrayDictParsed;
     const j = ticker.length;
@@ -2045,23 +2204,23 @@ function getMarketCapSpecific(message) {
         // TODO: Need to add these commented data fields to the message still, but need to figure out a way to make it look pretty first
 
         //checking for missing data and generating the text lines that will be used in the final response message
-        const l1 = (rank)         ?  `MC Rank: #${rank}\n`                                                     : 'MC Rank: n/a\n';
-        const l2 = (marketcap)    ?  `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n`           : 'Market Cap: n/a\n';
-        const l3 = (volume)       ?  `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n`             : '24hr volume: n/a\n';
-        const l4 = (supply)       ?  `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n`       : 'In Circulation: n/a\n';
-        const l5 = (totalSupply)  ?  `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n`    : 'Total Supply: n/a\n';
-        const l6 = (maxSupply)    ?  `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n`        : 'Max Supply: n/a\n';
-        const l71 = (price)       ?  `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n`           : 'USD: n/a\n';
+        const l1 = (rank) ? `MC Rank: #${rank}\n` : 'MC Rank: n/a\n';
+        const l2 = (marketcap) ? `Market Cap: ${abbreviateNumber(parseInt(marketcap), 1)} USD\n` : 'Market Cap: n/a\n';
+        const l3 = (volume) ? `24hr volume: ${abbreviateNumber(parseInt(volume), 1)} USD\n` : '24hr volume: n/a\n';
+        const l4 = (supply) ? `In Circulation: ${numberWithCommas(parseInt(supply))} ${symbol}\n` : 'In Circulation: n/a\n';
+        const l5 = (totalSupply) ? `Total Supply: ${numberWithCommas(parseInt(totalSupply))} ${symbol}\n` : 'Total Supply: n/a\n';
+        const l6 = (maxSupply) ? `Max Supply: ${numberWithCommas(parseInt(maxSupply))} ${symbol}\n` : 'Max Supply: n/a\n';
+        const l71 = (price) ? `USD: \`${trimDecimalPlaces(parseFloat(price).toFixed(6))}\`\n` : 'USD: n/a\n';
         //const l72 = (price)       ?  `24h H: \`${trimDecimalPlaces(parseFloat(high24hr).toFixed(6))}\`\n`      : `24h H: n/a\n`;
         //const l73 = (price)       ?  `24h L: \`${trimDecimalPlaces(parseFloat(low24hr).toFixed(6))}\`\n`       : `24h L: n/a\n`;
         //const l74 = (ath)         ?  `ATH: \`${trimDecimalPlaces(ath)} \`\n`                                   : `ATH: n/a\n`;
-        const l75 = (price)       ?  `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n`                               : 'BTC: n/a\n';
-        const l76 = (price)       ?  `ETH: \`${trimDecimalPlaces(priceETH)}\``                                 : 'ETH: n/a';
-        const l81 = (percent1h || percent1h == 0)    ?  `1h: \u200B\u200B\u200B\u200B  \`${parseFloat(percent1h).toFixed(2)}%\`\n`: '1h:  n/a\n';
-        const l82 = (percent || percent == 0)        ?  `24h: \`${parseFloat(percent).toFixed(2)}%\`\n`                           : '24h: n/a\n';
-        const l83 = (percent7 || percent7 == 0)      ?  `7d: \u200B\u200B\u200B\u200B  \`${parseFloat(percent7).toFixed(2)}%\`\n` : '7d:  n/a\n';
-        const l84 = (percent30 || percent30 == 0)    ?  `1m: \`${parseFloat(percent30).toFixed(2)}%\`\n`                          : '1m: n/a\n';
-        const l85 = (percent1y || percent1y == 0)    ?  `1y: \u200B \`${parseFloat(percent1y).toFixed(2)}%\``                     : '1y: n/a';
+        const l75 = (price) ? `BTC: \`${trimDecimalPlaces(priceBTC)}\`\n` : 'BTC: n/a\n';
+        const l76 = (price) ? `ETH: \`${trimDecimalPlaces(priceETH)}\`` : 'ETH: n/a';
+        const l81 = (percent1h || percent1h == 0) ? `1h: \u200B\u200B\u200B\u200B  \`${parseFloat(percent1h).toFixed(2)}%\`\n` : '1h:  n/a\n';
+        const l82 = (percent || percent == 0) ? `24h: \`${parseFloat(percent).toFixed(2)}%\`\n` : '24h: n/a\n';
+        const l83 = (percent7 || percent7 == 0) ? `7d: \u200B\u200B\u200B\u200B  \`${parseFloat(percent7).toFixed(2)}%\`\n` : '7d:  n/a\n';
+        const l84 = (percent30 || percent30 == 0) ? `1m: \`${parseFloat(percent30).toFixed(2)}%\`\n` : '1m: n/a\n';
+        const l85 = (percent1y || percent1y == 0) ? `1y: \u200B \`${parseFloat(percent1y).toFixed(2)}%\`` : '1y: n/a';
         //l86 = (mcappercent || mcappercent == 0) ?  `MC 24h: \`${parseFloat(mcappercent).toFixed(2)}%\`\n`                    : `MC 24h: n/a\n`;
         //l87 = (percentath || percentath == 0)  ?  `From ATH: \`${parseFloat(percentath).toFixed(2)}%\`\n`                   : `From ATH: n/a\n`;
         //l88 = (athdate)     ?  `ATH day: \`${athdate}\``                                                 : `ATH day: n/a`;
@@ -2080,28 +2239,41 @@ function getMarketCapSpecific(message) {
         }
 
         //assemble the final message as message embed object
-        const embed = new MessageEmbed()
-          .addField(name + ' (' + symbol + ')', l1 + l2 + l3 + l4 + l5 + l6, false)
-          .addField('Current Prices:', l71 + l75 + l76, true)
-          .addField('Price Changes:', l81 + l82 + l83 + l84 + l85, true)
+        const embed = new EmbedBuilder()
+          .addFields(
+            { name: name + ' (' + symbol + ')', value: l1 + l2 + l3 + l4 + l5 + l6, inline: false },
+            { name: 'Current Prices:', value: l71 + l75 + l76, inline: true },
+            { name: 'Price Changes:', value: l81 + l82 + l83 + l84 + l85, inline: true },
+          )
           .setColor(logoColor)
           .setThumbnail(logo)
           .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
 
         //send it
-        try {
-          message.channel.send({ embeds: [embed] });
-          success = true;
+
+        if (interaction) {
+          interaction.reply({ embeds: [embed] });
         }
-        catch (reject) {
-          message.channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-          console.log(chalk.red('Error sending MC response embed: ' + chalk.cyan(reject)));
+        else {
+          try {
+            message.channel.send({ embeds: [embed] });
+            success = true;
+          }
+          catch (reject) {
+            message.channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+            console.log(chalk.red('Error sending MC response embed: ' + chalk.cyan(reject)));
+          }
         }
       }
     }
     if (!success) {
-      message.channel.send('Failed to find a CoinGecko coin associated with that input.\nTry again with either the full name, or the ticker symbol.');
-      console.log(chalk.red(`Failed to find matching coin for input to mc command of: ${chalk.cyan(cur)}`));
+      if (interaction) {
+        interaction.reply('Sorry, I was unable to find that coin.');
+      }
+      else {
+        message.channel.send('Failed to find a CoinGecko coin associated with that input.\nTry again with either the full name, or the ticker symbol.');
+        console.log(chalk.red(`Failed to find matching coin for input to mc command of: ${chalk.cyan(cur)}`));
+      }
     }
   })();
 }
@@ -2114,13 +2286,19 @@ function getMarketCapSpecific(message) {
 // lists. Setting, displaying, and editing 
 // of lists is handled here.
 
-function getCoinArray(id, channel, message, coins = '', action = '') {
+function getCoinArray(id, channel, message, coins = '', action = '', interaction) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
-    console.log(chalk.magentaBright('Attempted use of tbpa command prior to initialization. Notification sent to user.'));
-    return;
+    if (interaction) {
+      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      return;
+    }
+    else {
+      channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
+      return;
+    }
   }
 
   const conn = new pg.Client(conString);
@@ -2149,13 +2327,13 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
           //Process coins string
           inStr = inStr.replace(/\s+/g, ''); //remove spaces
           try {
-            console.log(chalk.green(
-              'tbpa called by ' + chalk.yellow(message.member.user.tag) + ' : ' +
-              chalk.blue.bold(inStr)
-            ));
+            // console.log(chalk.green(
+            //   'tbpa called by ' + chalk.yellow(message.member.user.tag) + ' : ' +
+            //   chalk.blue.bold(inStr)
+            // ));
           } catch (e) {
-            console.log(chalk.red.bold('Tbpa caller ' + chalk.yellow(message.author) + ' is null, could not get user tag. ' +
-              '(likely due to them being very new to server or lacking roles)'));
+            // console.log(chalk.red.bold('Tbpa caller ' + chalk.yellow(message.author) + ' is null, could not get user tag. ' +
+            //   '(likely due to them being very new to server or lacking roles)'));
           }
           inStr = inStr.replace(/\{+/g, ''); //remove left bracket
           inStr = inStr.replace(/\}+/g, ''); //remove right bracket
@@ -2163,10 +2341,15 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
           const coins = inStr.split(',').filter(function (value) {
             return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
           });
-          getPriceCG(coins, channel, action, 'd', true);
+          getPriceCG(coins, channel, action, 'd', true, interaction);
         } else {
-          console.log(chalk.green('Sent missing tbpa notice to ') + chalk.blue(message.member.user.tag));
-          channel.send('Looks like you don\'t currently have a saved list. You can set one up with `.tb pa <coins list>`. Example usage: `.tb pa btc eth xrp glm .....`');
+          //console.log(chalk.green('Sent missing tbpa notice to ') + chalk.blue(message.member.user.tag));
+          if (interaction) {
+            interaction.reply('You don\'t have any coins in your list. Use `/tbpa-add <coin>` to add some!');
+          }
+          else {
+            channel.send('Looks like you don\'t currently have a saved list. Use `/tbpa-add <coin>` to add some!');
+          }
         }
       }
       conn.end();
@@ -2220,8 +2403,13 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
           }
           if (command === 'REMOVE') {
             if (typeof inStr === 'undefined') {
-              channel.send('There\'s nothing to remove! Your request has been ignored.');
-              console.log(chalk.red.bold('Remove action aborted on null tbpa. Request was sent by: ' + chalk.yellow(message.author.username)));
+              if (interaction) {
+                interaction.reply('You don\'t have a saved list to remove from.');
+              }
+              else {
+                channel.send('There\'s nothing to remove! Your request has been ignored.');
+                //console.log(chalk.red.bold('Remove action aborted on null tbpa. Request was sent by: ' + chalk.yellow(message.author.username)));
+              }
             }
             else {
               //String processing
@@ -2242,7 +2430,14 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
               conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(chalk.red.bold(err + '------TB PA remove insert query error')); }
-                else { channel.send('Personal array modified successfully.'); }
+                else {
+                  if (interaction) {
+                    interaction.reply('Personal array modified successfully.');
+                  }
+                  else {
+                    channel.send('Personal array modified successfully.');
+                  }
+                }
                 conn.end();
               });
             }
@@ -2252,7 +2447,7 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
             //Check if user has an entry in the DB
             if (typeof inStr === 'undefined') {
               channel.send('There is no tbpa entry found yet for your profile, create one by using the command `.tb pa <coins list>` Example: `.tb pa btc eth xrp glm .....`');
-              console.log(chalk.red.bold('TBPA add action aborted on null tbpa. The user does not have a DB entry yet! Request was sent by: ' + chalk.yellow(message.author.username)));
+              //console.log(chalk.red.bold('TBPA add action aborted on null tbpa. The user does not have a DB entry yet! Request was sent by: ' + chalk.yellow(message.author.username)));
             } else {
               //String processing
               while (inStr.includes(',,')) { inStr = inStr.replace(',,', ','); } //remove excess commas
@@ -2264,8 +2459,22 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
               conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(chalk.red.bold(err + '------TB PA add insert query error')); }
                 else {
-                  if (coins.length > 0) { channel.send('Personal array modified. Added: `' + cleanedCoins.toString() + '`' + invalidCoinsMessage); }
-                  else { channel.send('Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!'); }
+                  if (coins.length > 0) {
+                    if (interaction) {
+                      interaction.reply('Personal array modified. Added: `' + cleanedCoins.toString() + '`' + invalidCoinsMessage);
+                    }
+                    else {
+                      channel.send('Personal array modified. Added: `' + cleanedCoins.toString() + '`' + invalidCoinsMessage);
+                    }
+                  }
+                  else {
+                    if (interaction) {
+                      interaction.reply('Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!');
+                    }
+                    else {
+                      channel.send('Your provided coin(s) were invalid or not found listed on CoinGecko. Your request has been aborted.\nMake sure your coins are valid CoinGecko-listed coins!');
+                    }
+                  }
                 }
                 conn.end();
               });
@@ -2288,7 +2497,7 @@ function getCoinArray(id, channel, message, coins = '', action = '') {
 // -------------------------------------------
 
 // Create a client and set client parameters
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES], shards: 'auto' });
+const client = new Client({ intents: [GatewayIntentBits.Guilds], shards: 'auto' });
 const clientShardHelper = new ShardClientUtil(client);
 
 // Wait for the client to be ready, then load up.
@@ -2311,7 +2520,7 @@ client.on('ready', () => {
   if (devMode) console.log(chalk.yellow('Dev mode active!'));
 
   // Display help command on bot's status
-  client.user.setActivity('.tb help', { type: 'WATCHING' });
+  client.user.setActivity('/help', { type: 'WATCHING' });
 
   // First run of scheduled executions
   updateCoins();
@@ -2323,11 +2532,17 @@ client.on('ready', () => {
 });
 
 // DM's the command list to the caller
-function postHelp(message, author, code) {
+function postHelp(message, author, code, interaction) {
+
+  const link = 'https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md';
+
+  if (interaction) {
+    interaction.reply('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link);
+    return;
+  }
 
   code = code || 'none';
   let fail = false;
-  const link = 'https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md';
   if (code === 'ask') {
     author.send('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link).catch(function () {
       console.log(chalk.yellow('Failed to send help text to ' + author.username + ' via DM, sent link in server instead.'));
@@ -2357,7 +2572,7 @@ function postHelp(message, author, code) {
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
 client.on('guildCreate', guild => {
-  joinProcedure(guild);
+  //joinProcedure(guild);
 });
 
 // Log when a server removes the bot
@@ -2502,7 +2717,142 @@ client.on('messageCreate', async message => {
 
   // Forward message to the commands processor (but only if send message perms are allowed to the bot)
   if (message.guild.me.permissionsIn(message.channel).has(Permissions.FLAGS.SEND_MESSAGES) && message.content !== 'skipped') {
+    // message.channel.send('PREFIX STYLE COMMANDS LIKE THIS WILL STOP WORKING IMMINENTLY! START USING SLASH COMMANDS NOW!\nUse a / now instead of what you\'ve been using. For example, `.tbc` is now `/c`. Try it out!');
     commands(message);
+  }
+});
+
+
+//? OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOHHHHH
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//! ----------------------------------------------------
+//? OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOHHHHH
+
+// this is the new interaction hell for slash commands of modern discord
+// I hate these, but here it is
+
+client.on('interactionCreate', async interaction => {
+  if (interaction.user.bot) return; // ignore bots
+
+
+  const command = interaction.commandName;
+
+  console.log('incoming command:', command);
+  console.log('opts', interaction.options._hoistedOptions);
+
+  //! charts
+  //* WORKING
+  if (command === 'c') {
+    interaction.deferReply(); // wait actual commands to process and reply later!
+    let optsString = '';
+    if (interaction.options._hoistedOptions) {
+      optsString = interaction.options._hoistedOptions.map(opt => opt.value).join(' ').toLowerCase();
+    }
+    if (chartTagID > 25) {
+      chartTagID = 1;
+    }
+    // Build data object for the cluster task
+    const data = {
+      'message': '',
+      'interaction': interaction,
+      'args': ('.tbc ' + optsString).split(' '),
+      'chartMessage': '',
+      'attempt': 1,
+      'chartID': ++chartTagID
+    };
+    // Send the request to the cluster queue
+    cluster.queue(data);
+
+    //! cg prices
+    //* WORKING
+  } else if (command === 'cg') {
+    getPriceCG(interaction.options._hoistedOptions[0].value.split(' '), null, '-', 'd', false, interaction);
+
+    //! stats
+    //* WORKING
+  } else if (command === 'stats') {
+    postSessionStats(null, interaction);
+
+    //! help
+    //* WORKING
+  } else if (command === 'help') {
+    postHelp(null, null, null, interaction);
+
+    //! fg
+    //* WORKING
+  } else if (command === 'fg') {
+    getFearGreedIndex(null, null, interaction);
+
+    //! funding
+    //* WORKING
+  } else if (command === 'funding') {
+    interaction.deferReply();
+    getMexFunding(null, null, interaction);
+
+    //! longs/shorts
+    //* WORKING
+  } else if (command === 'ls') {
+    getBinanceLongsShorts(null, null, interaction);
+
+    //! gas
+    //* WORKING
+  } else if (command === 'gas') {
+    getEtherGas(null, null, interaction);
+
+    //! heatmap
+    //* PARTIALLY WORKING //
+    //TODO fix the screenshot cleanup, need to remove more elements
+  } else if (command === 'hmap') {
+    sendCoin360Heatmap(null, interaction);
+
+    //! info
+    //* PARTIALLY WORKING //
+    //TODO find a workaround for the multi-message reply, we can currently only send the first message and the rest error out because the interaction has already been replied to...
+  } else if (command === 'info') {
+    getCoinDescription(interaction.options._hoistedOptions[0].value.toUpperCase(), null, null, interaction);
+
+    //! mc
+    //* PARTIALLY WORKING //
+    //TODO Same issue as above, find a workaround for the multi-message reply, we can currently only send the first message and the rest error out because the interaction has already been replied to...
+    //? maybe try to ask user if they want them all? Idk, we really don't need all to send, but we need preference selection set up for which they want of the same ticker
+  } else if (command === 'mc') {
+    if (interaction.options._hoistedOptions.length === 0) {
+      getMarketCap(null, interaction); // base global mc call
+    }
+    else {
+      getMarketCapSpecific(interaction.options._hoistedOptions[0].value.toUpperCase(), interaction); // specific mc call
+    }
+
+    //! conversion
+    //* WORKING
+  } else if (command === 'convert') {
+    priceConversionTool(interaction.options._hoistedOptions[1].value, interaction.options._hoistedOptions[2].value, interaction.options._hoistedOptions[0].value, null, null, interaction);
+
+    //! translation
+    //* WORKING
+  } else if (command === 'translate') {
+    translateEN(null, interaction.options._hoistedOptions[0].value, interaction);
+
+    //! tbpa call
+    //* WORKING
+  } else if (command === 'tbpa') {
+    getCoinArray(interaction.user.id, null, null, '', null, interaction);
+
+    //! tbpa-add call
+    //* WORKING
+  } else if (command === 'tbpa-add') {
+    getCoinArray(interaction.user.id, null, null, [interaction.options._hoistedOptions[0].value], 'ADD', interaction);
+
+    //! tbpa-remove call
+    //* WORKING
+  } else if (command === 'tbpa-remove') {
+    getCoinArray(interaction.user.id, null, null, [interaction.options._hoistedOptions[0].value], '-', interaction);
   }
 });
 
@@ -2582,37 +2932,6 @@ function commands(message) {
     getMarketCapSpecific(message);
     return;
   }
-  let string = '';
-  string = message.content.toUpperCase();
-  let flag = false;
-
-
-  //-------------------------------
-  //    Some fun text responses
-  //-------------------------------
-  if ((string.includes('HEY TSUKI') || string.includes('HI TSUKI')) && message.author.id === '235406107416330250') {
-    channel.send('IS THAT CEHH!?? AAAAAHHHHHHHHHHHHHH');
-    flag = true;
-  }
-  if ((string.includes('HEY TSUKI') || (string.includes('HI TSUKI'))) && flag === false) {
-    channel.send('Hi ' + message.author.username);
-    flag = true;
-  }
-  if ((string.includes('TSUKI UR') || string.includes('TSUKI, UR')) && flag === false) {
-    channel.send('no u');
-  }
-  if (((string.includes('MORNING TSUKI') || string.includes('GOOD MORNING TSUKI')) || string.includes('GM TSUKI')) && flag === false) {
-    channel.send('Good morning!');
-  }
-  if (((string.includes('NIGHT TSUKI') || string.includes('GOOD NIGHT TSUKI')) || string.includes('GN TSUKI')) && flag === false) {
-    channel.send('Good night!!');
-  }
-  if (((string.includes('GET A RIP') || string.includes('RIP IN CHAT')) || string.includes('RIP TSUKI')) && flag === false) {
-    channel.send('rip  :(');
-  }
-  //-------------------------------
-  //   End of fun text responses
-  //-------------------------------
 
   // Check for bot mention and reply with response ping latency
   const collection = message.mentions.members;
@@ -3015,10 +3334,10 @@ function commands(message) {
         }
       });
       getPriceCG([cgArrayDictParsed[cursor].symbol, cgArrayDictParsed[cursor + 1].symbol,
-        cgArrayDictParsed[cursor + 2].symbol, cgArrayDictParsed[cursor + 3].symbol,
-        cgArrayDictParsed[cursor + 4].symbol, cgArrayDictParsed[cursor + 5].symbol,
-        cgArrayDictParsed[cursor + 6].symbol, cgArrayDictParsed[cursor + 7].symbol,
-        cgArrayDictParsed[cursor + 8].symbol, cgArrayDictParsed[cursor + 9].symbol], channel, 'p');
+      cgArrayDictParsed[cursor + 2].symbol, cgArrayDictParsed[cursor + 3].symbol,
+      cgArrayDictParsed[cursor + 4].symbol, cgArrayDictParsed[cursor + 5].symbol,
+      cgArrayDictParsed[cursor + 6].symbol, cgArrayDictParsed[cursor + 7].symbol,
+      cgArrayDictParsed[cursor + 8].symbol, cgArrayDictParsed[cursor + 9].symbol], channel, 'p');
 
       // Get Bittrex ETHUSDT
     } else if (scommand === 'b') {
@@ -3170,39 +3489,72 @@ function capitalizeFirstLetter(string) {
 // }
 
 // Translate message to english using google cloud
-async function translateEN(channel, message) {
-  let messageText = message.content + '';
-  // strip out mentions, emojis, and command prefixes
-  messageText = messageText.replace(/<.*>/, '');
-  messageText = messageText.replace(RegExp('.tb translate', 'gi'), '');
-  messageText = messageText.replace(RegExp('-t translate', 'gi'), '');
-  messageText = messageText.replace(RegExp('.tb trans', 'gi'), '');
-  messageText = messageText.replace(RegExp('-t trans', 'gi'), '');
-  messageText = messageText.replace(RegExp('.tb t', 'gi'), '');
-  messageText = messageText.replace(RegExp('-t t', 'gi'), '');
-  messageText = messageText.replace(RegExp('.tbt', 'gi'), '');
-  messageText = messageText.replace(RegExp('-tt', 'gi'), '');
+async function translateEN(channel, message, interaction) {
+
+  let messageText = '';
+
+  if (!interaction) {
+    messageText = message.content + '';
+    // strip out mentions, emojis, and command prefixes
+    messageText = messageText.replace(/<.*>/, '');
+    messageText = messageText.replace(RegExp('.tb translate', 'gi'), '');
+    messageText = messageText.replace(RegExp('-t translate', 'gi'), '');
+    messageText = messageText.replace(RegExp('.tb trans', 'gi'), '');
+    messageText = messageText.replace(RegExp('-t trans', 'gi'), '');
+    messageText = messageText.replace(RegExp('.tb t', 'gi'), '');
+    messageText = messageText.replace(RegExp('-t t', 'gi'), '');
+    messageText = messageText.replace(RegExp('.tbt', 'gi'), '');
+    messageText = messageText.replace(RegExp('-tt', 'gi'), '');
+  }
+  else {
+    messageText = message;
+  }
+
   // check for empty input and send help response
   if (messageText.length == 0) {
-    channel.send('Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.');
-    console.log(chalk.green(`Translation command help sent to: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
-    return;
+    if (interaction) {
+      interaction.reply('Please enter a message to translate.');
+      return;
+    }
+    else {
+      channel.send('Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.');
+      //console.log(chalk.green(`Translation command help sent to: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
+      return;
+    }
   }
   // do the translation
   const target = 'en';
   const [translation] = await translate.translate(messageText, target).catch((err) => {
-    channel.send('Translation failed. Try again later.');
-    console.log(chalk.red(`Translation command failed and was rejected at client side: \n ${err}`));
-    return;
+    if (interaction) {
+      interaction.reply('Translation failed.  Please try again later.');
+      return;
+    }
+    else {
+      channel.send('Translation failed. Try again later.');
+      console.log(chalk.red(`Translation command failed and was rejected at client side: \n ${err}`));
+      return;
+    }
   });
   console.log(chalk.magenta(`Translation: ${chalk.cyan(translation)}`));
   if (!translation) {
-    channel.send('Translation failed. Try shortening your input, otherwise try again later.');
-    console.log(chalk.red('Translation command failed and was undefined. Sent notification to user.'));
-    return;
+    if (interaction) {
+      interaction.reply('Translation failed.  Please try shortening your input or try again later.');
+      return;
+    }
+    else {
+      channel.send('Translation failed. Try shortening your input, otherwise try again later.');
+      console.log(chalk.red('Translation command failed and was undefined. Sent notification to user.'));
+      return;
+    }
   }
-  console.log(chalk.green(`Translation command called by: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
-  channel.send(`Translation:  \`${translation.trimStart()}\``);
+  //console.log(chalk.green(`Translation command called by: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
+
+  if (interaction) {
+    interaction.reply(`Translation:  \`${translation.trimStart()}\``);
+  }
+  else {
+    channel.send(`Translation:  \`${translation.trimStart()}\``);
+  }
 }
 
 // Split up large strings by length provided without breaking words or links within them
@@ -3273,8 +3625,8 @@ function sleep(ms) {
 }
 
 // Send the session stats of the bot
-function postSessionStats(message) {
-  console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
+function postSessionStats(message, interaction) {
+  //console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
   let users = (client.guilds.cache.reduce(function (sum, guild) { return sum + guild.memberCount; }, 0));
   users = numberWithCommas(users);
   const guilds = numberWithCommas(client.guilds.cache.size);
@@ -3289,12 +3641,19 @@ function postSessionStats(message) {
     '⇒ Join the support server! (https://discord.gg/VWNUbR5)\n' +
     '`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02`');
 
-  const embed = new MessageEmbed()
-    .addField('TsukiBot Stats', messageHeader)
-    .setColor('BLUE')
+  const embed = new EmbedBuilder()
+    .addFields(
+      { name: 'TsukiBot Stats', value: messageHeader }
+    )
+    .setColor('#007fff')
     .setThumbnail('https://i.imgur.com/r6yCs2T.png')
     .setFooter({ text: 'The original cryptobot since 2017', iconURL: 'https://imgur.com/OG77bXa.png' });
-  message.channel.send({ embeds: [embed] });
+
+  if (interaction) {
+    interaction.reply({ embeds: [embed] });
+  } else {
+    message.channel.send({ embeds: [embed] });
+  }
 }
 
 // Launches a puppeteer cluster and defines the job for grabbing tradingview charts
@@ -3331,18 +3690,25 @@ async function chartsProcessingCluster() {
     const chartID = data.chartID;
 
     try {
-      if (args.length < 2) {
-        message.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
-        return;
+      let query = '';
+
+      if (data.interaction) {
+        query = args.slice(2);
       }
-      let query = args.slice(2);
-      if (attempt == 1) {
-        message.channel.send('Fetching ``' + message.content + '``')
-          .then(sendMessage => {
-            chartMessage = sendMessage;
-          });
-      } else {
-        chartMessage.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + message.content + '``');
+      else {
+        if (args.length < 2) {
+          message.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
+          return;
+        }
+        query = args.slice(2);
+        if (attempt == 1) {
+          message.channel.send('Fetching ``' + message.content + '``')
+            .then(sendMessage => {
+              chartMessage = sendMessage;
+            });
+        } else {
+          chartMessage.edit('```TradingView Widget threw error' + `, re-attempting ${attempt} of 3` + '```' + 'Fetching ``' + message.content + '``');
+        }
       }
 
       const binancePairs = await clientBinance.loadMarkets();
@@ -3411,10 +3777,16 @@ async function chartsProcessingCluster() {
 
       // Inform user of unknown pair if pair wasn't located and exchange was explicitly defined as Binance
       if (!found && args.includes('binance')) {
-        message.channel.send('Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!');
-        await sleep(1500);
-        chartMessage.delete();
-        return;
+        if (data.interaction) {
+          await data.interaction.editReply('Pair not found on Binance. Check pair or try another exchange!');
+          return;
+        }
+        else {
+          message.channel.send('Error: Your requested pair was not found on Binance. Check your spelling or try another pair or exchange!');
+          await sleep(1500);
+          chartMessage.delete();
+          return;
+        }
       }
 
       await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { timeout: 20000 });
@@ -3423,8 +3795,8 @@ async function chartsProcessingCluster() {
       await sleep(3500);
 
       const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
-      const frame = await elementHandle.contentFrame();
-      await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
+      await elementHandle.contentFrame();
+      //await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
       await elementHandle.click({ button: 'right' });
 
       if (query.includes('log')) {
@@ -3462,27 +3834,15 @@ async function chartsProcessingCluster() {
           if (error) {
             console.error(error);
             console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(' Pixel Diff chart comparison error was thrown. Skipping validation of this chart.'));
-            message.channel.send({
-              files: [{
-                attachment: chartScreenshot,
-                name: 'tsukibotchart.png'
-              }]
-            }).then(() => {
-              chartMessage.delete(); // Remove the placeholder
-            });
-          } else {
-            const status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
-            console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
-            console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
-            if (result.differences < 5000) {
-              message.reply('Unable to generate chart with your provided pair. Check your pair or try another exchange!')
-                .then(() => {
-                  chartMessage.delete(); // Remove the placeholder
-                });
+            if (data.interaction) {
+              data.interaction.editReply({
+                files: [{
+                  attachment: chartScreenshot,
+                  name: 'tsukibotchart.png'
+                }]
+              });
             }
             else {
-              const end = performance.now();
-              console.log(chalk.blue(`(ID:${chartID})`) + ' Execution time: ' + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
               message.channel.send({
                 files: [{
                   attachment: chartScreenshot,
@@ -3492,6 +3852,43 @@ async function chartsProcessingCluster() {
                 chartMessage.delete(); // Remove the placeholder
               });
             }
+          } else {
+            const status = (result.differences < 5000) ? chalk.red('<FAILED>') : chalk.greenBright('passed!');
+            console.log(chalk.blue(`(ID:${chartID})`) + ` chart validation test ${status}`);
+            console.log(chalk.blue(`(ID:${chartID})`) + ` found ${result.differences} differences from failure`);
+            if (result.differences < 5000) {
+              if (data.interaction) {
+                data.interaction.editReply('Error: Chart failed to generate with your provided pair. Please try again.');
+              }
+              else {
+                message.reply('Unable to generate chart with your provided pair. Check your pair or try another exchange!')
+                  .then(() => {
+                    chartMessage.delete(); // Remove the placeholder
+                  });
+              }
+            }
+            else {
+              const end = performance.now();
+              console.log(chalk.blue(`(ID:${chartID})`) + ' Execution time: ' + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
+              if (data.interaction) {
+                data.interaction.editReply({
+                  files: [{
+                    attachment: chartScreenshot,
+                    name: 'tsukibotchart.png'
+                  }]
+                });
+              }
+              else {
+                message.channel.send({
+                  files: [{
+                    attachment: chartScreenshot,
+                    name: 'tsukibotchart.png'
+                  }]
+                }).then(() => {
+                  chartMessage.delete(); // Remove the placeholder
+                });
+              }
+            }
           }
         });
       }
@@ -3499,14 +3896,24 @@ async function chartsProcessingCluster() {
         console.log(chalk.blue(`ID:${chartID}`) + chalk.yellow(' Caught Pixel Diff chart comparison error. Skipping validation of this chart.'));
         const end = performance.now();
         console.log(chalk.blue(`(ID:${chartID})`) + ' Execution time: ' + chalk.green(`${((end - start) / 1000).toFixed(3)} seconds`));
-        message.channel.send({
-          files: [{
-            attachment: chartScreenshot,
-            name: 'tsukibotchart.png'
-          }]
-        }).then(() => {
-          chartMessage.delete(); // Remove the placeholder
-        });
+        if (data.interaction) {
+          data.interaction.editReply({
+            files: [{
+              attachment: chartScreenshot,
+              name: 'tsukibotchart.png'
+            }]
+          });
+        }
+        else {
+          message.channel.send({
+            files: [{
+              attachment: chartScreenshot,
+              name: 'tsukibotchart.png'
+            }]
+          }).then(() => {
+            chartMessage.delete(); // Remove the placeholder
+          });
+        }
       }
       // Free up resources, then close the page
       await page.goto('about:blank');
@@ -3517,6 +3924,7 @@ async function chartsProcessingCluster() {
         attempt++;
         let data2 = {
           'message': message,
+          'interaction': data.interaction,
           'args': args,
           'chartMessage': chartMessage,
           'attempt': attempt,
@@ -3525,7 +3933,7 @@ async function chartsProcessingCluster() {
         cluster.queue(data2);
       }
       else {
-        chartMessage.edit('```TradingView handler threw error' + ', all re-attempts exhausted :(' + '```');
+        if (!data.interaction) chartMessage.edit('```TradingView handler threw error' + ', all re-attempts exhausted :(' + '```');
       }
     }
   });
@@ -3639,9 +4047,9 @@ function joinProcedure(guild) {
         'Your default price command shortcut is `t` and you can change it at any time using `.tb shortcut`.' +
         '\nIf you ever need help or have suggestions, please don\'t hesitate to join the support server and chat with us! ' +
         ' Use `.tb stat` for the link.').catch(function () {
-        console.log(chalk.red('Failed to send introduction message, missing message send permissions'));
-        failGC = true;
-      });
+          console.log(chalk.red('Failed to send introduction message, missing message send permissions'));
+          failGC = true;
+        });
     }
     else {
       console.log(chalk.red(chalk.cyan(guild.name) + ' does not have a valid system channel.' + chalk.yellow(' No intro will be sent!')));
@@ -3739,18 +4147,18 @@ function updateCmcKey(override) {
   if (auto) {
     //Key assignment by time
     switch (hour) {
-    case 0: case 1: selectedKey = 1; break;
-    case 2: case 3: selectedKey = 2; break;
-    case 4: case 5: selectedKey = 3; break;
-    case 6: case 7: selectedKey = 4; break;
-    case 8: case 9: selectedKey = 5; break;
-    case 10: case 11: selectedKey = 6; break;
-    case 12: case 13: selectedKey = 7; break;
-    case 14: case 15: selectedKey = 8; break;
-    case 16: case 17: selectedKey = 9; break;
-    case 18: case 19: selectedKey = 10; break;
-    case 20: case 21: selectedKey = 11; break;
-    case 22: case 23: selectedKey = 12;
+      case 0: case 1: selectedKey = 1; break;
+      case 2: case 3: selectedKey = 2; break;
+      case 4: case 5: selectedKey = 3; break;
+      case 6: case 7: selectedKey = 4; break;
+      case 8: case 9: selectedKey = 5; break;
+      case 10: case 11: selectedKey = 6; break;
+      case 12: case 13: selectedKey = 7; break;
+      case 14: case 15: selectedKey = 8; break;
+      case 16: case 17: selectedKey = 9; break;
+      case 18: case 19: selectedKey = 10; break;
+      case 20: case 21: selectedKey = 11; break;
+      case 22: case 23: selectedKey = 12;
     }
   }
   //Update client to operate with new key
@@ -3803,83 +4211,86 @@ async function getCMCData() {
   getCGData()
 
   Update the CoinGecko data array
-  every 2 minutes (Endpoint update rate)
+  every 20 minutes (as per cron job at top of file)
 
-  Caching process takes up to 30sec to
-  complete. The pricing data will 
-  effectively be updated every ~1.5 mins
-  at this rate (varies by API response delays)
+  Caching process takes around 10-15 minutes
+  and could end up taking longer depending on API
+  limited and current availability
 
  ---------------------------------- */
 
 async function getCGData(status) {
 
+  // startup handling
   if (cacheUpdateRunning) {
     return;
   }
   if (status == 'firstrun') {
     console.log(chalk.yellowBright('Initializing CoinGecko data cache...\n' +
-      chalk.cyan(' ▶ This will take up to 30 seconds. CoinGecko commands will be unavailable until this is complete.')));
+      chalk.cyan(' ▶ This could take up to several minutes, hang in there. CoinGecko commands will be unavailable until this is complete.')));
   }
 
-  let coinIDs = [];
-  let marketData = [];
-  let level = 0.05;
+  let page = 1;
+  let lastResSize = 0;
+  let coinDataJsonArr = [];
+  let progressPercentage = 0;
+  let totalCoinsCount = 0;
+  const startTime = Date.now();
 
-  for (let i = 0; i < pairs_CG.length; i++) {
-    coinIDs.push(pairs_CG[i].id);
-    // break up API calls by groups of 435 IDs (request URI max size)
-    if (i % 435 === 0 || i === pairs_CG.length - 1) {
-      let resJSON = await CoinGeckoClient.coins.markets({
-        'vs_currency': 'usd',
-        'ids': coinIDs.toString(),
-        'order': 'market_cap_desc',
-        'sparkline': false,
-        'price_change_percentage': '1h,24h,7d,14d,30d,1y'
-      }).catch((reject) => {
-        cacheUpdateRunning = false; // allow for scheduler to call for next update cycle
-        console.log(chalk.redBright('Failed to complete CG cache update. Skipping this instance.... ') + chalk.cyanBright('Here is the trace:'));
-        console.error(reject);
-      });
-      if (!resJSON || !resJSON.data) {
-        return;
+  // first, lets see how many coins are on the API so we can accurately report progress
+  const resList = await fetch('https://api.coingecko.com/api/v3/coins/list?include_platform=false');
+  if (resList.ok) {
+    const data = await resList.json();
+    totalCoinsCount = data.length;
+  }
+  else {
+    console.log('Couldn\'t get total CG coins, aborting this cache update..');
+    return;
+  }
+
+  // query for sets of 250 until we got them all
+  do {
+    const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&page=${page}&order=market_cap_desc&price_change_percentage=1h,24h,7d,14d,30d,1y`);
+    if (res.ok) {
+      const data = await res.json();
+      for (const coin of data) {
+        coinDataJsonArr.push(coin);
       }
-      // add this new chunk to the rest
-      for (const value of resJSON.data) {
-        marketData.push(value);
-      }
-      coinIDs = []; // reset IDs array
+      page++;
+      lastResSize = data.length;
+
       // progress report for first run
       if (status == 'firstrun') {
-        if (i >= pairs_CG.length * level) {
-          console.log(chalk.blueBright(` ▶ ${Math.round(level * 100)}%`));
-          startupProgress = Math.round(level * 100);
-          level = level + 0.05;
-        }
+        progressPercentage = Math.round((coinDataJsonArr.length / totalCoinsCount) * 100);
+        console.log(chalk.blueBright(` ▶ ${progressPercentage}%`));
+        startupProgress = Math.round(progressPercentage); // update global
       }
-      await sleep(10000); //wait to make next call (protection from rate limits when using other external scripts as well)
     }
-  }
+    else {
+      console.log(chalk.red('CG update error at page:', page, ', status: ') + res.status);
+      // 429 is rate limiting
+      if (res.status == 429) {
+        console.log('Whelp, looks like we got rate limited on that run. Increasing sleep timeout to', globalCGSleepTimeout + 1000, 'for the next run.')
+        // try increasing the sleep timeout by a second for the next run (attempted auto healing for rate limiting)
+        globalCGSleepTimeout += 1000;
+      }
+      return;
+    }
+    if (progressPercentage < 100) {
+      await sleep(globalCGSleepTimeout); //wait to make next query (CoinGecko is touchy with rate limits)
+    }
+  } while (lastResSize == 250);
+
+
   // sort by MC rank ascending order with nulls placed at the end
-  let marketDataFiltered = marketData.sort(function (a, b) {
+  let marketDataFiltered = coinDataJsonArr.sort(function (a, b) {
     return (b.market_cap_rank != null) - (a.market_cap_rank != null) || a.market_cap_rank - b.market_cap_rank;
   });
 
-  // clean up any potential duplicates
-  let cleaned = [];
-  let uniqueCoin = {};
-  for (let i in marketDataFiltered) {
-    const coinID = marketDataFiltered[i].id;
-    uniqueCoin[coinID] = marketDataFiltered[i];
-  }
-  for (let i in uniqueCoin) {
-    cleaned.push(uniqueCoin[i]);
-  }
-
-  marketDataFiltered = [...cleaned];
+  // update global
   cgArrayDictParsed = [...marketDataFiltered];
 
-  // build cache with the coin symbols as keys
+  //build cache with the coin symbols as keys
   for (const coinObject of marketDataFiltered) {
     const upperCaseSymbol = coinObject.symbol.toUpperCase();
     // add if not present already
@@ -3894,7 +4305,7 @@ async function getCGData(status) {
       // ! WARNING:
       // TODO: (MEMORY LEAK!) Need to look for symbols in the cache that no longer exist in the data received.
       // TODO:    This means they are not longer on coingecko and should be removed from the cache when seen.
-      // TODO:    If left to run for a long time, residual delisted coins will stack up in the cache unhandled (which = memory leak)
+      // TODO:    If left to run for a long time, residual de-listed coins will stack up in the cache unhandled (which = memory leak)
     }
   }
 
@@ -3903,6 +4314,27 @@ async function getCGData(status) {
     cacheUpdateRunning = false;
     startupProgress = null;
   }
+
+  const runTime = Date.now() - startTime;
+  let milliseconds = parseInt((runTime % 1000));
+  let seconds = parseInt((runTime / 1000) % 60);
+  let minutes = parseInt((runTime / (1000 * 60)) % 60);
+  let hours = parseInt((runTime / (1000 * 60 * 60)) % 24);
+  hours = (hours < 10) ? '0' + hours : hours;
+  minutes = (minutes < 10) ? '0' + minutes : minutes;
+  seconds = (seconds < 10) ? '0' + seconds : seconds;
+
+  console.log('Update completed in', hours + ':' + minutes + ':' + seconds + '.' + milliseconds);
+
+  // write the cache to file
+  // fs.writeFile('cg-cache.json', JSON.stringify(cgArrayDictParsed), (err) => {
+  //   if (err) {
+  //     console.log(chalk.red('Error writing CG cache file: ' + err));
+  //   }
+  //   else {
+  //     console.log(chalk.greenBright('CoinGecko cache file updated.'));
+  //   }
+  // });
 }
 
 
@@ -4153,7 +4585,7 @@ function chartServer() {
       </script>
     </div>
     <!-- TradingView Widget END -->
-    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:30px; height:30px; width:30px; position:absolute; bottom:35px; left:50px;"></div>
+    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:35px; height:35px; width:35px; position:absolute; bottom:43px; left:50px;"></div>
     <div id="bera1" style="background: url('bera1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
     <div id="bera2" style="background: url('bera2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
     <div id="blul1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
@@ -4192,7 +4624,13 @@ process.on('unhandledRejection', err => {
 
 
 // Jack in, Megaman. Execute.
-client.login(keys.token);
+if (devMode) {
+  console.log(chalk.cyan('Logging in with dev token...'));
+  client.login(keys.devToken);
+}
+else {
+  client.login(keys.token);
+}
 
 
 // Wow, you made it to the bottom! Here's a big yeet.
