@@ -29,7 +29,7 @@ async function getCGdata(coin, index) {
         'market_data': false, 'developer_data': false
       });
     } catch {
-      console.log(chalk.yellowBright(`Attempt ${chalk.magentaBright(attempt)} failed for ${chalk.cyanBright(coin)} : (${index})` + (attempt === 10 ? chalk.redBright(' ---> All attempts failed! SHUTTING DOWN :(') : ' --> Re-attempting')));
+      console.log(chalk.yellowBright(`Attempt ${chalk.magentaBright(attempt)} failed for ${chalk.cyanBright(coin)} : (${index})` + (attempt === 10 ? chalk.redBright(' ---> All attempts failed!') : ' --> Re-attempting')));
       attempt++;
       await sleep(1000);
     }
