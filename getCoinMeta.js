@@ -4,158 +4,114 @@
 //  Coins are cached one at a time with a delay between them so as to not exceed the API rate limit for the CoinGecko metadata endpoint
 //
 
-
-//* general setup
 const fs = require('fs');
 const chalk = require('chalk');
 const CoinGecko = require('coingecko-api');
-const jsdom = require('jsdom');
-const { JSDOM } = jsdom;
+const { JSDOM } = require('jsdom');
 const S = require('string');
 const CoinGeckoClient = new CoinGecko();
-const process = require('node:process');
+
 let meta = { 'data': [] };
 let skipped = [];
 let count = 0;
 let cgCoinsList = '';
-let resJSON = null;
-let attempt = 1;
 
 
 //* makes the call to the CoinGecko API and sets the resJSON global variable to the response
 //* also tracks the number of attempts made to get the data and if it fails, it will increase the attempt number and try again
 async function getCGdata(coin, index) {
-  resJSON = await CoinGeckoClient.coins.fetch(coin, {
-    'localization': false, 'tickers': false,
-    'market_data': false, 'developer_data': false
-  }).catch(() => {
-    // notify of failed attempt(s)
-    if (attempt < 10) {
-      console.log(chalk.yellowBright('Attempt ' + chalk.magentaBright(attempt) + ' failed for ' + chalk.cyanBright(coin) + ' : (' + index + ') --> Re-attempting'));
-      attempt += 1;
+  let attempt = 1;
+  let resJSON;
+  while (!resJSON && attempt <= 10) {
+    try {
+      resJSON = await CoinGeckoClient.coins.fetch(coin, {
+        'localization': false, 'tickers': false,
+        'market_data': false, 'developer_data': false
+      });
+    } catch {
+      console.log(chalk.yellowBright(`Attempt ${chalk.magentaBright(attempt)} failed for ${chalk.cyanBright(coin)} : (${index})` + (attempt === 10 ? chalk.redBright(' ---> All attempts failed! SHUTTING DOWN :(') : ' --> Re-attempting')));
+      attempt++;
+      await sleep(1000);
     }
-    else {
-      console.log(chalk.yellowBright('Attempt ' + chalk.magentaBright(attempt) + ' failed for ' + chalk.cyanBright(coin) + ' : (' + index + ') ' +
-        chalk.redBright('---> All attempts failed! SHUTTING DOWN :(')));
-      process.exit(1);
-    }
-  });
+  }
+  return resJSON;
 }
-
 
 //* collects the metadata for a coin and does some cleanup and formatting on the data before then adding it to the meta object
 async function collectMetadata(coin, index) {
-  let stringResponse = '';
-  // Get api data
-  await getCGdata(coin, index);
-  // Keep trying again on failed attempts (usually this is due to a request timeout or temporary rate limit trip and can be recovered with a retry)
-  while (!resJSON) {
-    await getCGdata(coin, index);
-  }
-
-  // Skip instances where the coin has missing data on API side (this can happen if the API removes it while this process is running or the entry is corrupt)
-  if (resJSON.error || !resJSON.data.symbol || !resJSON.data.name) {
+  const resJSON = await getCGdata(coin, index);
+  if (!resJSON || resJSON.error || !resJSON.data.symbol || !resJSON.data.name) {
     skipped.push(coin);
-    console.log(chalk.yellowBright(`SKIPPED COIN: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
+    console.log(chalk.yellowBright(`SKIPPED COIN: ${chalk.cyan(coin)} due to missing or bad data. Proceeding...`));
     return;
   }
 
-  // Formatting and cleaning up data in the description field for the coin
-  if (resJSON.data.description) {
-    stringResponse = resJSON.data.description.en;
-    const descDOM = new JSDOM(stringResponse);
-    let convertedLinks = [];
-
-    // Extract all of the html links, convert them to discord embed links, and then put them into an array
-    let elements = descDOM.window.document.getElementsByTagName('a');
-    for (let i = 0; i < elements.length; i++) {
-      let element = elements[i];
-      let url = element.href;
-      let hyperlinkText = element.text;
-      let discordHyperlink = `[${hyperlinkText}](${url})`;
-      convertedLinks.push(discordHyperlink);
-    }
-
-    // Replace each html link in the description string its the corresponding converted link we created earlier
-    for (let i = 0; i < convertedLinks.length; i++) {
-      let locatedString = S(stringResponse).between('<a href="', '</a>').s;
-      let lookupString = `<a href="${locatedString}</a>`;
-      stringResponse = stringResponse.replace(lookupString, convertedLinks[i]);
-    }
-
-    // Clean up the newline formatting
-    stringResponse = S(stringResponse).replaceAll('\r\n\r\n', '\n\n').s;
-    stringResponse = S(stringResponse).replaceAll('\r\n\r', '\n\n').s;
-    stringResponse = S(stringResponse).replaceAll('\r\n', '\n').s;
-    stringResponse = S(stringResponse).replaceAll('\n\r', '\n').s;
-    stringResponse = S(stringResponse).replaceAll('\n\r\n', '\n\n').s;
-    stringResponse = S(stringResponse).replaceAll('\n\r\n\r', '\n\n').s;
-  }
-  // Otherwise we just leave the description blank if there isn't one found (the bot knows what to do with this when it sees it)
-  else {
-    stringResponse = '';
-    console.log(chalk.magenta(`Blank description saved for: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
-  }
+  // Set the description re-formatted, otherwise just leave it blank if there isn't one found (the bot will handle this properly)
+  const desc = resJSON.data.description ? formatDescription(resJSON.data.description.en) : '';
+  if (!desc) console.log(chalk.magenta(`Blank description saved for: ${chalk.cyan(coin)} due to missing data. Proceeding...`));
 
   // Now can assemble a new meta object for this coin and then add it to the global meta json array for writing to file later
-  let coinMeta = {
+  meta.data.push({
     id: ++count,
     coin: resJSON.data.symbol.toUpperCase(),
     name: resJSON.data.name,
     slug: resJSON.data.id,
     logo: resJSON.data.image.large,
-    description: stringResponse,
+    description: desc,
     links: resJSON.data.links
-  };
-  meta.data.push(coinMeta);
-
-  // Reset for next coin
-  resJSON = null;
-  attempt = 1;
+  });
 }
 
+// Formatting and cleaning up data in the description field for the coin
+function formatDescription(description) {
+  const descDOM = new JSDOM(description);
+  const elements = descDOM.window.document.getElementsByTagName('a');
+  const convertedLinks = Array.from(elements).map(e => `[${e.text}](${e.href})`);
+
+  // Replace each html link in the description string its the corresponding converted link we created earlier
+  convertedLinks.forEach(link => {
+    const locatedString = S(description).between('<a href="', '</a>').s;
+    const lookupString = `<a href="${locatedString}</a>`;
+    description = description.replace(lookupString, link);
+  });
+
+  // Clean up the newline formatting and whitespace, then return the description
+  return S(description).collapseWhitespace().replaceAll('\r\n', '\n').s;
+}
 
 //* once all of the coins have been collected and had their data formatted, this will get called to write the meta object to a file
 function writeToFile() {
-  fs.writeFileSync('./common/metadata.json', JSON.stringify(meta), function (err) {
-    if (err)
-      return console.log(err);
-  });
+  fs.writeFileSync('./common/metadata.json', JSON.stringify(meta));
   if (skipped.length > 0) {
     console.log(chalk.yellow(`Warning: The following coins were skipped due to missing data on API at their call time: ${chalk.cyan(skipped.toString())}`));
   }
   console.log(chalk.greenBright('Caching operation completed successfully and file was written!'));
 }
 
-
 //* utility function used to wait in an async function
 function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
-
 
 //* starts the process of collecting the metadata for all of the coins and handles rate limiting and calling of the other functions
 async function startup() {
   cgCoinsList = await CoinGeckoClient.coins.list();
   for (let i = 0; i < cgCoinsList.data.length; i++) {
-    // skip coins with no id in api
-    if (!cgCoinsList.data[i].id) {
-      console.log(chalk.yellow('NO ID FOUND [SKIPPED]') + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
+    const coinData = cgCoinsList.data[i];
+    const progress = chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`);
+
+    if (!coinData.id) {
+      console.log(chalk.yellow('NO ID FOUND [SKIPPED]') + progress);
+    } else {
+      console.log(chalk.cyan(coinData.id) + progress);
+      await collectMetadata(coinData.id, i + 1);
     }
-    else {
-      console.log(chalk.cyan(cgCoinsList.data[i].id) + chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`));
-      await collectMetadata(cgCoinsList.data[i].id, i + 1);
-    }
-    await sleep(15000); //rate limiting requests to not exceed api limits
+    await sleep(15000); // Rate limiting requests to not exceed API limits
   }
   writeToFile();
 }
 
-
-//* starts the script
+// for starting when running this file directly
 startup();
-
-//* allows the script to be imported and run from within the bot process
+// for exporting to be imported and used in other files like the bot files
 exports.run = startup;
