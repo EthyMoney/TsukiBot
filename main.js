@@ -4225,7 +4225,7 @@ async function getCGData(status) {
   if (cacheUpdateRunning) {
     return;
   }
-  if (status == 'firstrun') {
+  if (status == 'firstrun' || cgArrayDictParsed.length == 0) {
     console.log(chalk.yellowBright('Initializing CoinGecko data cache...\n' +
       chalk.cyan(' ▶ This could take up to several minutes, hang in there. CoinGecko commands will be unavailable until this is complete.')));
   }
@@ -4245,6 +4245,7 @@ async function getCGData(status) {
   }
   else {
     console.log('Couldn\'t get total CG coins, aborting this cache update..');
+    cacheUpdateRunning = false;
     return;
   }
 
@@ -4273,6 +4274,7 @@ async function getCGData(status) {
         console.log('Whelp, looks like we got rate limited on that run. Increasing sleep timeout to', globalCGSleepTimeout + 1000, 'for the next run.')
         // try increasing the sleep timeout by a second for the next run (attempted auto healing for rate limiting)
         globalCGSleepTimeout += 1000;
+        cacheUpdateRunning = false;
       }
       return;
     }
@@ -4347,7 +4349,6 @@ async function getCGData(status) {
  ---------------------------------- */
 
 function updateCoins() {
-
   reloaderCG.update();
   // Re-read the new set of coins
   pairs_CG = JSON.parse(fs.readFileSync('./common/coinsCG.json', 'utf8'));
@@ -4585,7 +4586,7 @@ function chartServer() {
       </script>
     </div>
     <!-- TradingView Widget END -->
-    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:35px; height:35px; width:35px; position:absolute; bottom:43px; left:50px;"></div>
+    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:35px; height:35px; width:35px; position:absolute; bottom:44px; left:50px;"></div>
     <div id="bera1" style="background: url('bera1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
     <div id="bera2" style="background: url('bera2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
     <div id="blul1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>

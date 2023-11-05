@@ -1,4 +1,5 @@
 const fs = require('fs');
+const chalk = require('chalk');
 
 //
 //
@@ -16,15 +17,21 @@ const CoinGecko = require('coingecko-api');
 const CoinGeckoClient = new CoinGecko();
 
 // Make API call and do JSON build operation
-var update = async() => {
-  let data = await CoinGeckoClient.coins.list();
-  let tickers = [];
-  for (const value of data.data) {
-    tickers.push(value.symbol.toUpperCase());
+var update = async () => {
+  let data, tickers = [];
+  try {
+    data = await CoinGeckoClient.coins.list();
+    for (const value of data.data) {
+      tickers.push(value.symbol.toUpperCase());
+    }
+  } catch (err) {
+    if (data?.code) {
+      console.log(chalk.red(`Unable to grab list of all CG coins: Error ${data.code}: ${data.message}`));
+    }
   }
-  
+
   //console.log(data);
-  
+
   // Write the identification JSON to file
   fs.writeFileSync('./common/coinsCG.json', JSON.stringify(data.data));
   fs.writeFileSync('./common/coinsCGtickers.json', JSON.stringify(tickers));
@@ -34,4 +41,3 @@ var update = async() => {
 update();
 
 exports.update = update;
-
