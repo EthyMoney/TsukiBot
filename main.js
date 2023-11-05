@@ -3984,19 +3984,18 @@ async function getCoin360Heatmap() {
       height: 2010
     });
 
-    // Wait for full hmap to be rendered by looking for BTC's tags
-    await page.waitForSelector('#SHA256 > a:nth-child(2) > div:nth-child(1) > div:nth-child(1)', { visible: true, timeout: 85000 });
-    sleep(1000);
+    // Wait for full hmap to be rendered by waiting for this selector to appear
+    await page.waitForSelector('a.mTpAkD:nth-child(2) > div:nth-child(3)', { visible: true });
 
-    // Remove headers, banner ads, footers, and zoom buttons from the page screenshot
-    const removalItems = ['.styles_zoomControls__YlWVe', 'styles_closer___Gbhu', '.ad_wrapper', '.styles_header__AHV_y', '.styles_cookiesBanner__Dd7rR', '.Header', '.MapFiltersContainer', '.styles_newsFeed__Ep1gS', '.TopLeaderboard', '.StickyCorner', '.styles_filters__AtA4G', '.styles_filters__yxiC0'];
-    for (let index in removalItems) {
+    // Remove these selectors from the image (top banner)
+    const itemsToRemove = ['._3Dzhq0', '.d26ypj'];
+    for (let i = 0; i < itemsToRemove.length; i++) {
       await page.evaluate((sel) => {
         const elements = document.querySelectorAll(sel);
         for (let i = 0; i < elements.length; i++) {
           elements[i].parentNode.removeChild(elements[i]);
         }
-      }, removalItems[index]);
+      }, itemsToRemove[i]);
     }
 
     // Take screenshot and save it
@@ -4004,9 +4003,10 @@ async function getCoin360Heatmap() {
     // Free up resources, then close the page
     await page.goto('about:blank');
     await page.close();
+    console.log(chalk.green('Coin360 heatmap image saved to cache!'));
   };
 
-  cluster.queue('https://coin360.com/', grabHmap);
+  cluster.queue('https://coin360.com/widget/map?utm_source=embed_map', grabHmap);
 }
 
 // Convert USD price to ETH value
