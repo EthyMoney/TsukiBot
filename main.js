@@ -3990,11 +3990,18 @@ async function getCoin360Heatmap() {
       height: 2010
     });
 
+    await page.waitForNetworkIdle({ idleTime: 1000, timeout: 6000 });
+
     // Wait for full hmap to be rendered by waiting for this selector to appear
     await page.waitForSelector('a.mTpAkD:nth-child(2) > div:nth-child(3)', { visible: true });
 
+    // Coin360 logo load
+    await page.waitForSelector('._7FNuP_'), { visible: true };
+
+    await sleep(2000);
+
     // Remove these selectors from the image (top banner)
-    const itemsToRemove = ['._3Dzhq0', '.d26ypj'];
+    const itemsToRemove = ['.d26ypj'];
     for (let i = 0; i < itemsToRemove.length; i++) {
       await page.evaluate((sel) => {
         const elements = document.querySelectorAll(sel);
