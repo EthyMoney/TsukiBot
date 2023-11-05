@@ -137,6 +137,7 @@ let auto = true;
 let selectedKey = 0;
 let cacheUpdateRunning = false;
 let startupProgress = 0;
+let forexRates = {};
 
 // Spellcheck
 const didyoumean = require('didyoumean');
@@ -192,6 +193,7 @@ if (!devMode) {
   schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
   schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
   schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
+  schedule.scheduleJob('0 */6 * * *', updateExchangeRates); // update every 6 hours
   schedule.scheduleJob('1 */1 * * *', function () {  // update cmc key on the first minute after every hour
     updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
   });
@@ -348,8 +350,8 @@ async function getPriceSTEX(channel, coin1, coin2, author) {
 
 async function getPriceCoinGecko(coin, coin2, channel, action, author) {
 
-  // don't let command run if cache is still updating for the first time
-  if (cacheUpdateRunning) {
+  //don't let command run if cache is still updating for the first time
+  if (cacheUpdateRunning && !devMode) {
     channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
     return;
@@ -548,7 +550,7 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
 function getPriceCMC(coins, channel, action = '-', ext = 'd') {
 
   // don't let command run if cache is still updating for the first time
-  if (cacheUpdateRunning) {
+  if (cacheUpdateRunning && !devMode) {
     channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
     return;
@@ -669,7 +671,7 @@ function getPriceCMC(coins, channel, action = '-', ext = 'd') {
 function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false, interaction) {
 
   // don't let command run if cache is still updating for the first time
-  if (cacheUpdateRunning) {
+  if (cacheUpdateRunning && !devMode) {
     if (interaction) {
       interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
       return;
@@ -1571,10 +1573,6 @@ async function getBinanceLongsShorts(channel, author, interaction) {
 
 function priceConversionTool(coin1, coin2, amount, channel, author, interaction) {
 
-  const fiatPairs = ['USD', 'CAD', 'EUR', 'AED', 'JPY', 'CHF', 'CNY', 'GBP', 'AUD', 'NOK', 'KRW', 'JMD', 'RUB', 'INR', 'PHP',
-    'HKD', 'TWD', 'BRL', 'THB', 'MXN', 'SAR', 'SGD', 'SEK', 'IDR', 'ILS', 'MYR', 'VND', 'PLN', 'TRY', 'CLP', 'EGP', 'ZAR', 'NZD',
-    'DKK', 'CZK', 'COP', 'MAD', 'QAR', 'PKR', 'LBP', 'KWD'];
-
   // Remove potential commas in amount
   if (amount) amount = amount.replace(/,/g, '');
 
@@ -1591,8 +1589,8 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
     if (!interaction) {
       // show help message and then exit if wrong input is provided
       channel.send('**Here\'s how to use the currency conversion command:**\n ' +
-        ':small_blue_diamond: Format: `.tb cv <quantity> <FROM coin> <TO coin>`\n ' +
-        ':small_blue_diamond: Examples: `.tb cv 20 eth usd`  `.tb cv 10 usd cad`\n ' +
+        ':small_blue_diamond: Format: `/convert <quantity> <FROM coin> <TO coin>`\n ' +
+        ':small_blue_diamond: Examples: `/convert 20 eth usd`  `/convert 10 usd cad`\n ' +
         ':small_blue_diamond: Supported cryptos: `All CoinGecko-listed coins`\n ' +
         ':small_blue_diamond: Supported fiat currencies: `' + fiatPairs + '`');
     }
@@ -1617,17 +1615,14 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
   coin2 = coin2.toUpperCase() + '';
   let isForexPairingCoin1 = false;
   let isForexPairingCoin2 = false;
-  let forexRates = null; // will hold our rates if needed to be collected below
 
   //console.log(chalk.green('Currency conversion tool requested by ' + chalk.yellow(author.username) + ' for ' + chalk.cyan(coin1) + ' --> ' + chalk.cyan(coin2)));
 
-  // Collect our forex pairs and then proceed with that data
-  ExchangeRate.getBulkExchangeRates(fiatPairs).then(async rates => {
-    forexRates = rates;
-    if (fiatPairs.includes(coin1)) {
+  try {
+    if (Object.keys(forexRates).includes(coin1)) {
       isForexPairingCoin1 = true;
     }
-    if (fiatPairs.includes(coin2)) {
+    if (Object.keys(forexRates).includes(coin2)) {
       isForexPairingCoin2 = true;
     }
 
@@ -1647,60 +1642,70 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
 
     //if both IDs were found, grab price, %change, and name data from API and/or the forex rate cache
     if (found1 && found2) {
-      let cgData, cgData2, price1, price2;
-      if (isForexPairingCoin1) {
-        price1 = 1 / forexRates[coin1];
-      }
-      else {
-        cgData = await getPriceCoinGecko(coin1, 'usd', channel, 'convert');
-      }
-      if (isForexPairingCoin2) {
-        price2 = 1 / forexRates[coin2];
-      }
-      else {
-        cgData2 = await getPriceCoinGecko(coin2, 'usd', channel, 'convert');
-      }
-
-      let builtMessage = '';
-      let amount2;
-      if (cgData2) {
-        for (let i = 0; i < cgData2[0].length; i++) {
-          //select the prices from the API response and then calculate the converted amount
-          if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
-          price2 = parseFloat(cgData2[0][i]).toFixed(8);
-          let name = cgData2[2][i];
-          amount2 = (amount * price1) / (price2);
-          if (cgData2[0].length > 1)
-            builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '` (' + name.toUpperCase() + ')\n';
-          else
-            builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '`';
+      (async () => {
+        let cgData, cgData2, price1, price2;
+        if (isForexPairingCoin1) {
+          price1 = 1 / forexRates[coin1];
         }
-      }
-      else {
-        if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
-        amount2 = (amount * price1) / (price2);
-        builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '`';
-      }
+        else {
+          cgData = await getPriceCoinGecko(coin1, 'usd', channel, 'convert');
+        }
+        if (isForexPairingCoin2) {
+          price2 = 1 / forexRates[coin2];
+        }
+        else {
+          cgData2 = await getPriceCoinGecko(coin2, 'usd', channel, 'convert');
+        }
 
-      if (interaction) {
-        interaction.reply(builtMessage);
-      }
-      else {
-        channel.send(builtMessage);
-      }
+        let builtMessage = '';
+        let amount2;
+        if (cgData2) {
+          for (let i = 0; i < cgData2[0].length; i++) {
+            //select the prices from the API response and then calculate the converted amount
+            if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
+            price2 = parseFloat(cgData2[0][i]).toFixed(8);
+            let name = cgData2[2][i];
+            amount2 = (amount * price1) / (price2);
+            if (cgData2[0].length > 1)
+              builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '` (' + name.toUpperCase() + ')\n';
+            else
+              builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '`';
+          }
+        }
+        else {
+          if (!isForexPairingCoin1) price1 = parseFloat(cgData[0][0]).toFixed(8);
+          amount2 = (amount * price1) / (price2);
+          builtMessage += '`' + amount + ' ' + coin1 + ' ` ➪ ` ' + numberWithCommas(amount2.toFixed(6)) + ' ' + coin2 + '`';
+        }
+
+        if (interaction) {
+          interaction.reply(builtMessage);
+        }
+        else {
+          channel.send(builtMessage);
+        }
+      })();
     }
     else {
-      if (!interaction) {
+      if (interaction) {
         interaction.reply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
       }
       else {
         channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, just use `.tb cv` to see the guide for this command.');
       }
     }
-  }).catch(err => {
+  }
+  catch (err) {
     console.error('Issue with currency conversion command! Details: ' + err);
+    // reply to user if this was an interaction
+    if (interaction) {
+      interaction.reply('Sorry, there was an issue processing the conversion command at this time. Try again later!');
+    }
+    else {
+      channel.send('Sorry, there was an issue processing the conversion command at this time. Try again later!');
+    }
     return;
-  });
+  }
 }
 
 
@@ -2523,6 +2528,7 @@ client.on('ready', () => {
   client.user.setActivity('/help', { type: 'WATCHING' });
 
   // First run of scheduled executions
+  updateExchangeRates();
   updateCoins();
   updateCmcKey();
   getCMCData();
@@ -4221,6 +4227,59 @@ async function getCMCData() {
 
 async function getCGData(status) {
 
+  // if in dev mode, pre-fill the cache with a few coins and fake prices
+  if (devMode) {
+    cgArrayDictParsed.push({
+      'id': 'bitcoin',
+      'symbol': 'btc',
+      'name': 'Bitcoin',
+      'image': 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579',
+      'current_price': 10000,
+      'market_cap': 100000000,
+      'market_cap_rank': 1,
+      'total_volume': 100000000,
+      'high_24h': 10000,
+      'low_24h': 10000,
+      'price_change_24h': 0,
+      'price_change_percentage_24h': 0,
+      'market_cap_change_24h': 0,
+      'market_cap_change_percentage_24h': 0,
+      'circulating_supply': 10000000,
+      'total_supply': 10000000,
+      'ath': 10000,
+      'ath_change_percentage': 0,
+      'ath_date': '2021-01-01T00:00:00.000Z',
+      'roi': null,
+      'last_updated': '2021-01-01T00:00:00.000Z'
+    });
+    cgArrayDictParsed.push({
+      'id': 'ethereum',
+      'symbol': 'eth',
+      'name': 'Ethereum',
+      'image': 'https://assets.coingecko.com/coins/images/279/large/ethereum.png?1595348880',
+      'current_price': 1000,
+      'market_cap': 100000000,
+      'market_cap_rank': 2,
+      'total_volume': 100000000,
+      'high_24h': 1000,
+      'low_24h': 1000,
+      'price_change_24h': 0,
+      'price_change_percentage_24h': 0,
+      'market_cap_change_24h': 0,
+      'market_cap_change_percentage_24h': 0,
+      'circulating_supply': 10000000,
+      'total_supply': 10000000,
+      'ath': 1000,
+      'ath_change_percentage': 0,
+      'ath_date': '2021-01-01T00:00:00.000Z',
+      'roi': null,
+      'last_updated': '2021-01-01T00:00:00.000Z'
+    });
+    cgArrayDict['BTC'] = cgArrayDictParsed[0];
+    cgArrayDict['ETH'] = cgArrayDictParsed[1];
+    console.log(chalk.green('Dev mode enabled, pre-filled cache with 2 coins!'));
+  }
+
   // startup handling
   if (cacheUpdateRunning) {
     return;
@@ -4340,6 +4399,23 @@ async function getCGData(status) {
 }
 
 
+// This function queries and updates the local cache of fiat exchange rates (for the convert command)
+async function updateExchangeRates() {
+  const res = await fetch(`https://openexchangerates.org/api/latest.json?app_id=${keys['openexchangerates.org']}&base=USD`);
+  if (res.ok) {
+    const apiRes = await res.json();
+    forexRates = apiRes.rates;
+    if (Object.keys(forexRates).length > 0) {
+      console.log(chalk.green(Object.keys(forexRates).length + ' fiat exchange rates updated!'));
+    }
+  }
+  else {
+    console.log(chalk.red('Issue fetching exchange rates: ' + res.status));
+    return;
+  }
+}
+
+
 /* ---------------------------------
 
   updateCoins()
@@ -4380,17 +4456,17 @@ function toggleShortcut(id, shortcut, channel, join, name) {
     }
     console.log(chalk.green(startMessage + 'hortcut config ' + chalk.blue('"' + shortcut + '" ') + 'saved for: ' + chalk.yellow(name)));
   } else {
-    channel.send('Shortcut format not allowed. (Max. 3 alphanumeric and `!$%._,<>=+*&`)');
+    channel.send('Shortcut format not allowed. (Max. 3 alphanumeric and `!$ %._,<>=+*&`)');
   }
 }
 
 
 /* ---------------------------------
-
+ 
   initializeFiles()
-
+ 
   Reads and checks all files needed for operation
-
+ 
  ---------------------------------- */
 
 function initializeFiles() {
@@ -4495,9 +4571,9 @@ function initializeFiles() {
   Starts a server to show TradingView chart widgets
   at http://localhost:${port}
 
-  e.g. http://localhost:8080/ethbtc?query=sma,ema,macd,log,wide
+    e.g. http://localhost:8080/ethbtc?query=sma,ema,macd,log,wide
 
- ---------------------------------- */
+    ---------------------------------- */
 
 function chartServer() {
   const port = 8080;
@@ -4559,44 +4635,44 @@ function chartServer() {
 
     res.write(`
     <div id="ccchart-container" style="width:${query.includes('wide') ? '1280' : '720'}px; height: 600px; position:relative; top:-50px; left:-10px;">
-    <!-- TradingView Widget BEGIN -->
-    <div class="tradingview-widget-container">
-      <div id="tradingview_bc0b0"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget(
-      {
-        "width": ${query.includes('wide') ? '1280' : '720'},
-        "height": 600,
-        "symbol": "${req.params.ticker}",
-        "interval": "${intervalMap[intervalKey]}",
-        "timezone": "Etc/UTC",
-        "theme": "${query.includes('moro') || query.includes('light') ? 'light' : 'dark'}",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "studies": [
+      <!-- TradingView Widget BEGIN -->
+      <div class="tradingview-widget-container">
+        <div id="tradingview_bc0b0"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+        <script type="text/javascript">
+          new TradingView.widget(
+          {
+            "width": ${query.includes('wide') ? '1280' : '720'},
+          "height": 600,
+          "symbol": "${req.params.ticker}",
+          "interval": "${intervalMap[intervalKey]}",
+          "timezone": "Etc/UTC",
+          "theme": "${query.includes('moro') || query.includes('light') ? 'light' : 'dark'}",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "studies": [
           ${selectedStudies.join(',')}
-        ],
-        "container_id": "tradingview_bc0b0"
+          ],
+          "container_id": "tradingview_bc0b0"
       }
-      );
-      </script>
-    </div>
-    <!-- TradingView Widget END -->
-    <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:35px; height:35px; width:35px; position:absolute; bottom:44px; left:50px;"></div>
-    <div id="bera1" style="background: url('bera1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
-    <div id="bera2" style="background: url('bera2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
-    <div id="blul1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
-    <div id="blul2" style="background: url('blul2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
-    <div id="crab0" style="background: url('crab0.png'); background-size:${query.includes('wide') ? '1280' : '720'}px 600px; height:100%; width:100%; position:absolute; bottom:0px; opacity:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
-    <div id="crab1" style="background: url('crab1.png'); background-size:125px; height:117px; width:126px; position:absolute; bottom:0px; left:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
-    <div id="crab2" style="background: url('crab2.png'); background-size:346px; height:206px; width:345px; position:absolute; bottom:15%; left:50%; transform:translate(-50%, -50%); display:${query.includes('crab') ? 'block' : 'none'};"></div>
-    <div id="crab3" style="background: url('crab3.png'); background-size:95px; height:109px; width:93px; position:absolute; bottom:0px; right:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
-    <div id="cryptosoy1" style="background: url('cryptosoy1.png'); background-size:160px; height:263px; width:160px; position:absolute; bottom:0px; left:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
-    <div id="cryptosoy2" style="background: url('cryptosoy2.png'); background-size:130px; height:318px; width:130px; position:absolute; bottom:-5px; right:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
+          );
+        </script>
+      </div>
+      <!-- TradingView Widget END -->
+      <div id="tsukilogo" style="background: url('tsukilogo.png'); background-size:35px; height:35px; width:35px; position:absolute; bottom:44px; left:50px;"></div>
+      <div id="bera1" style="background: url('bera1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
+      <div id="bera2" style="background: url('bera2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('bera') ? 'block' : 'none'};"></div>
+      <div id="blul1" style="background: url('blul1.png'); background-size:144px; height:235px; width:144px; position:absolute; bottom:0px; left:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
+      <div id="blul2" style="background: url('blul2.png'); background-size:107px; height:267px; width:107px; position:absolute; bottom:0px; right:0px; display:${query.includes('blul') ? 'block' : 'none'};"></div>
+      <div id="crab0" style="background: url('crab0.png'); background-size:${query.includes('wide') ? '1280' : '720'}px 600px; height:100%; width:100%; position:absolute; bottom:0px; opacity:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
+      <div id="crab1" style="background: url('crab1.png'); background-size:125px; height:117px; width:126px; position:absolute; bottom:0px; left:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
+      <div id="crab2" style="background: url('crab2.png'); background-size:346px; height:206px; width:345px; position:absolute; bottom:15%; left:50%; transform:translate(-50%, -50%); display:${query.includes('crab') ? 'block' : 'none'};"></div>
+      <div id="crab3" style="background: url('crab3.png'); background-size:95px; height:109px; width:93px; position:absolute; bottom:0px; right:30%; display:${query.includes('crab') ? 'block' : 'none'};"></div>
+      <div id="cryptosoy1" style="background: url('cryptosoy1.png'); background-size:160px; height:263px; width:160px; position:absolute; bottom:0px; left:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
+      <div id="cryptosoy2" style="background: url('cryptosoy2.png'); background-size:130px; height:318px; width:130px; position:absolute; bottom:-5px; right:0px; display:${query.includes('mmsoy') ? 'block' : 'none'};"></div>
     </div>`);
     res.end();
   });
