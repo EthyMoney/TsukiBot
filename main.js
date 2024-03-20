@@ -155,7 +155,7 @@ let messageCount = 0;
 let referenceTime = Date.now();
 let yeetLimit = 0; // Spam limit count
 let chartTagID = 0;
-let globalCGSleepTimeout = 15000; // used to set sleep interval between cg cache update queries
+let globalCGSleepTimeout = 25000; // used to set sleep interval between cg cache update queries
 
 // Initialize api things
 const clientKraken = new ccxt.kraken();
@@ -189,7 +189,7 @@ const inviteLink = 'https://discordapp.com/oauth2/authorize?client_id=5069187307
 // Scheduled Actions for normal operation
 if (!devMode) {
   schedule.scheduleJob('*/10 * * * *', getCMCData);      // fetch every 10 min
-  schedule.scheduleJob('*/20 * * * *', getCGData);       // fetch every 20 min
+  schedule.scheduleJob('*/30 * * * *', getCGData);       // fetch every 30 min
   schedule.scheduleJob('*/2 * * * *', resetSpamLimit);  // reset every 2 min
   schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
   schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
@@ -1272,7 +1272,7 @@ async function getCoinDescription(coin1, channel, author, interaction) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
-    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(chalk.magentaBright('Attempted use of coin description command prior to initialization. Notification sent to user.'));
     return;
   }
@@ -2812,8 +2812,7 @@ client.on('interactionCreate', async interaction => {
     getEtherGas(null, null, interaction);
 
     //! heatmap
-    //* PARTIALLY WORKING //
-    //TODO fix the screenshot cleanup, need to remove more elements
+    //* WORKING
   } else if (command === 'hmap') {
     sendCoin360Heatmap(null, interaction);
 
@@ -3800,18 +3799,13 @@ async function chartsProcessingCluster() {
       // Wait for the chart to load (this is a hacky workaround for now)
       await sleep(3500);
 
-      const elementHandle = await page.$('div#tradingview_bc0b0 iframe');
-      await elementHandle.contentFrame();
-      //await frame.waitForSelector('div[data-name="legend-series-item"', { visible: true });
-      await elementHandle.click({ button: 'right' });
-
       if (query.includes('log')) {
         await page.keyboard.down('Alt');
         await page.keyboard.press('KeyL');
         await page.keyboard.up('Alt');
       }
 
-      // Clicking to remove focus dots on price line
+      // Clicking to remove focus dots on price line and the crosshair from cursor
       await page.click('#tsukilogo');
 
       // Set the view area to be captured by the screenshot
@@ -3819,9 +3813,6 @@ async function chartsProcessingCluster() {
         width: query.includes('wide') ? 1275 : 715,
         height: 557
       });
-
-      // Wait a moment just to make sure that all elements are loaded up
-      //await sleep(720);
 
       // Capture and save the chart from the browser window
       const chartScreenshot = await page.screenshot();

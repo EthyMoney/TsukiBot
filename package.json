@@ -7,7 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no tests available yet!\" && exit 1"
+    "test": "echo \"Error: no tests available yet!\" && exit 1",
+    "dev": "node main.js -d"
   },
   "repository": {
     "type": "git",
@@ -33,7 +34,7 @@
   },
   "homepage": "https://github.com/EthyMoney/TsukiBot#readme",
   "dependencies": {
-    "@google-cloud/translate": "^7.2.2",
+    "@google-cloud/translate": "^8.1.0",
     "ccxt": "^1.95.43",
     "chalk": "^4.1.2",
     "coingecko-api": "^1.0.10",
@@ -41,23 +42,23 @@
     "cryptocompare": "^1.0.0",
     "currencyexchanges": "^1.1.1",
     "didyoumean": "^1.2.2",
-    "discord.js": "^14.12.1",
-    "express": "^4.18.2",
-    "fast-average-color-node": "^1.0.3",
-    "finnhub": "^1.2.17",
+    "discord.js": "^14.14.1",
+    "express": "^4.18.3",
+    "fast-average-color-node": "^3.0.0",
+    "finnhub": "^1.2.18",
     "graviex": "^1.0.0",
-    "jsdom": "^21.1.1",
+    "jsdom": "^24.0.0",
     "node-schedule": "^2.1.1",
-    "pg": "^8.11.2",
+    "pg": "^8.11.3",
     "pixel-diff": "^1.0.1",
-    "puppeteer-cluster": "^0.23.0",
+    "puppeteer-cluster": "^0.24.0",
     "string": "^3.3.3",
-    "topgg-autoposter": "^2.0.1",
-    "web3": "^1.10.0",
-    "ws": "^8.13.0"
+    "topgg-autoposter": "^2.0.2",
+    "web3": "^1.10.4",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
-    "eslint": "^8.46.0"
+    "eslint": "^8.57.0"
   },
   "engines": {
     "node": ">=16.9.0",
