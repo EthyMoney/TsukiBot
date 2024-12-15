@@ -57,6 +57,8 @@
 
 // Node stuff
 const process = require('node:process');
+const os = require('node:os');
+const crypto = require('node:crypto');
 
 // Dev mode to disable unnecessary operations for testing
 const devMode = (process.argv[2] === '-d') ? true : false;
@@ -111,6 +113,10 @@ const express = require('express');
 const app = express();
 const dir = path.join(process.cwd(), 'public');
 chartServer();
+
+// Express server for coin prices API
+const apiApp = express();
+const apiAppPort = 3330;
 
 // Automatic color selector for embeds
 const colorAverager = require('fast-average-color-node');
@@ -3816,6 +3822,11 @@ async function chartsProcessingCluster() {
 
       // Capture and save the chart from the browser window
       const chartScreenshot = await page.screenshot();
+      // Convert chart screenshot to Buffer for Discord to use
+
+      // Save screenshot to file with random identifier
+      const fileName = `chart${crypto.randomBytes(8).toString('hex')}.png`;
+      fs.writeFileSync(fileName, chartScreenshot);
 
       try {
         // Run pixel comparison between the received chart and a known failure
@@ -3826,6 +3837,7 @@ async function chartsProcessingCluster() {
           threshold: 0.99 // 99% threshold
         });
 
+
         // Check if the difference count is within threshold to verify if the chart has generated correctly or is blank
         diff.run((error, result) => {
           if (error) {
@@ -3834,7 +3846,7 @@ async function chartsProcessingCluster() {
             if (data.interaction) {
               data.interaction.editReply({
                 files: [{
-                  attachment: chartScreenshot,
+                  attachment: fileName,
                   name: 'tsukibotchart.png'
                 }]
               });
@@ -3842,7 +3854,7 @@ async function chartsProcessingCluster() {
             else {
               message.channel.send({
                 files: [{
-                  attachment: chartScreenshot,
+                  attachment: fileName,
                   name: 'tsukibotchart.png'
                 }]
               }).then(() => {
@@ -4698,6 +4710,35 @@ process.on('unhandledRejection', err => {
 });
 
 
+// Express stuff for prices api
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    for (const alias of iface) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        return alias.address;
+      }
+    }
+  }
+  return '127.0.0.1'; // Fallback to localhost if no external IP found
+}
+
+apiApp.get('/coin/:ticker', (req, res) => {
+  const { ticker } = req.params;
+  const coin = cgArrayDictParsed.find(coin => coin.symbol.toUpperCase() === ticker.toUpperCase());
+  if (coin) {
+    res.json(coin);
+  } else {
+    res.status(404).send('Coin not found');
+  }
+});
+
+const ip = getLocalIP();
+apiApp.listen(apiAppPort, () => {
+  console.log(`Prices API server running at http://${ip}:${apiAppPort}`);
+});
+
+
 // Jack in, Megaman. Execute.
 if (devMode) {
   console.log(chalk.cyan('Logging in with dev token...'));
@@ -4706,6 +4747,7 @@ if (devMode) {
 else {
   client.login(keys.token);
 }
+
 
 
 // Wow, you made it to the bottom! Here's a big yeet.

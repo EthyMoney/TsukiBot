@@ -11,7 +11,7 @@
         "chartscreens",
         "stuff"
       ],
-      "watch": true,
+      "watch": false,
       "args": [
         "--color"
       ],
