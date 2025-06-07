@@ -4014,6 +4014,16 @@ async function getCoin360Heatmap() {
       }, itemsToRemove[i]);
     }
 
+    // Hide the onetrust button (id uc-privacy-button) and the popup
+    await page.evaluate(() => {
+      const elements = document.querySelectorAll('#uc-privacy-button');
+      const moreElements = document.querySelectorAll('#usercentrics-cmp-ui');
+      const allElements = [...elements, ...moreElements];
+      for (let i = 0; i < allElements.length; i++) {
+        allElements[i].style.display = 'none';
+      }
+    });
+
     // Take screenshot and save it
     await page.screenshot({ path: 'chartscreens/hmap.png' });
     // Free up resources, then close the page
