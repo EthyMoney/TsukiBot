@@ -2584,7 +2584,7 @@ function postHelp(message, author, code, interaction) {
 
 // Sends the help command reminder and creates file permission role upon being added to a new server
 client.on('guildCreate', guild => {
-  //joinProcedure(guild);
+  joinProcedure(guild);
 });
 
 // Log when a server removes the bot
@@ -4052,7 +4052,8 @@ function abbreviateNumber(num, fixed) {
 
 // Run through new server procedure when the bot joins
 function joinProcedure(guild) {
-
+  // bail out, not using this
+  return;
   let failGC = false;
   let fail2GC = false;
   let fail3GC = false;
@@ -4192,12 +4193,12 @@ function updateCmcKey(override) {
 
 
 /* ---------------------------------
-
+ 
   getCMCData()
-
+ 
   Update the cmc data array every
   8 minutes (Endpoint update rate)
-
+ 
  ---------------------------------- */
 
 async function getCMCData() {
@@ -4223,16 +4224,16 @@ async function getCMCData() {
 
 
 /* ---------------------------------
-
+ 
   getCGData()
-
+ 
   Update the CoinGecko data array
   every 20 minutes (as per cron job at top of file)
-
+ 
   Caching process takes around 10-15 minutes
   and could end up taking longer depending on API
   limited and current availability
-
+ 
  ---------------------------------- */
 
 async function getCGData(status) {
@@ -4340,7 +4341,7 @@ async function getCGData(status) {
       console.log(chalk.red('CG update error at page:', page, ', status: ') + res.status);
       // 429 is rate limiting
       if (res.status == 429) {
-        console.log('Whelp, looks like we got rate limited on that run. Increasing sleep timeout to', globalCGSleepTimeout + 1000, 'for the next run.')
+        console.log('Whelp, looks like we got rate limited on that run. Increasing sleep timeout to', globalCGSleepTimeout + 1000, 'for the next run.');
         // try increasing the sleep timeout by a second for the next run (attempted auto healing for rate limiting)
         globalCGSleepTimeout += 1000;
         cacheUpdateRunning = false;
@@ -4427,11 +4428,11 @@ async function updateExchangeRates() {
 
 
 /* ---------------------------------
-
+ 
   updateCoins()
-
+ 
   Update known existing CMC/CG coins
-
+ 
  ---------------------------------- */
 
 function updateCoins() {
@@ -4444,11 +4445,11 @@ function updateCoins() {
 
 
 /* ---------------------------------
-
+ 
   toggleShortcut(guildid, shortcut string, channel, new server join (bool), server name)
-
+ 
   Sets CMC price command shortcut
-
+ 
  ---------------------------------- */
 
 function toggleShortcut(id, shortcut, channel, join, name) {
@@ -4575,14 +4576,14 @@ function initializeFiles() {
 }
 
 /* ---------------------------------
-
+ 
   chartServer()
-
+ 
   Starts a server to show TradingView chart widgets
   at http://localhost:${port}
-
+ 
     e.g. http://localhost:8080/ethbtc?query=sma,ema,macd,log,wide
-
+ 
     ---------------------------------- */
 
 function chartServer() {
