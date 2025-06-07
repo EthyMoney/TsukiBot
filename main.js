@@ -3800,7 +3800,7 @@ async function chartsProcessingCluster() {
         }
       }
 
-      await page.goto(`http://localhost:8080/${encodeURIComponent(args[1])}?query=${query}`, { timeout: 20000 });
+      await page.goto(`http://localhost:${devMode ? 8086 : 8080}/${encodeURIComponent(args[1])}?query=${query}`, { timeout: 20000 });
 
       // Wait for the chart to load (this is a hacky workaround for now)
       await sleep(3500);
@@ -4586,7 +4586,7 @@ function initializeFiles() {
     ---------------------------------- */
 
 function chartServer() {
-  const port = 8080;
+  const port = devMode ? 8086 : 8080;
   app.use(express.static(dir));
   app.get('/:ticker', function (req, res) {
     let query = [];
@@ -4734,9 +4734,11 @@ apiApp.get('/coin/:ticker', (req, res) => {
 });
 
 const ip = getLocalIP();
-apiApp.listen(apiAppPort, () => {
-  console.log(`Prices API server running at http://${ip}:${apiAppPort}`);
-});
+if (!devMode) {
+  apiApp.listen(apiAppPort, () => {
+    console.log(`Prices API server running at http://${ip}:${apiAppPort}`);
+  });
+}
 
 
 // Jack in, Megaman. Execute.
