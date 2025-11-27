@@ -1600,7 +1600,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
   if (!coin1 || !coin2 || !amount || isNaN(amount)) {
     if (amount && isNaN(amount)) {
       if (interaction) {
-        interaction.reply('Invalid amount! Please enter a valid amount!');
+        interaction.editReply('Invalid amount! Please enter a valid amount!');
       }
       else {
         channel.send('Invalid amount entered.');
@@ -1620,7 +1620,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
   // Don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
     if (interaction) {
-      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      interaction.editReply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
       return;
     }
     else {
@@ -1699,7 +1699,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
         }
 
         if (interaction) {
-          interaction.reply(builtMessage);
+          interaction.editReply(builtMessage);
         }
         else {
           channel.send(builtMessage);
@@ -1708,7 +1708,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
     }
     else {
       if (interaction) {
-        interaction.reply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
+        interaction.editReply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
       }
       else {
         channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, just use `.tb cv` to see the guide for this command.');
@@ -1719,7 +1719,7 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
     console.error('Issue with currency conversion command! Details: ' + err);
     // reply to user if this was an interaction
     if (interaction) {
-      interaction.reply('Sorry, there was an issue processing the conversion command at this time. Try again later!');
+      interaction.editReply('Sorry, there was an issue processing the conversion command at this time. Try again later!');
     }
     else {
       channel.send('Sorry, there was an issue processing the conversion command at this time. Try again later!');
@@ -2868,6 +2868,7 @@ client.on('interactionCreate', async interaction => {
     //! conversion
     //* WORKING
   } else if (command === 'convert') {
+    await interaction.deferReply();
     priceConversionTool(interaction.options._hoistedOptions[1].value, interaction.options._hoistedOptions[2].value, interaction.options._hoistedOptions[0].value, null, null, interaction);
 
     //! translation
@@ -4371,7 +4372,7 @@ async function getCGData(status) {
     cgArrayDict['BTC'] = cgArrayDictParsed[0];
     cgArrayDict['ETH'] = cgArrayDictParsed[1];
     console.log(chalk.green('Dev mode enabled, pre-filled cache with 2 coins!'));
-    return;
+    //return;
   }
 
   // startup handling
