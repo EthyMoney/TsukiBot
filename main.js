@@ -1503,70 +1503,84 @@ async function getMexFunding(channel, message, interaction) {
 //------------------------------------------
 //------------------------------------------
 
-// Grabs the current data for Binance long and short positions
+// Grabs the current data for Binance long and short positions from Coinalyze
 
 async function getBinanceLongsShorts(channel, author, interaction) {
 
   //console.log(chalk.green('Binance longs/shorts requested by ' + chalk.yellow(author.username)));
 
-  // First, let's grab the data from the page, which includes the HTML we want
-  const res = await fetch('http://blockchainwhispers.com/bitmex-position-calculator').catch(function (error) {
-    // handle error
-    console.log(chalk.redBright('Longs/shorts command failed to collect data! Response details: \n' + chalk.yellow(error)));
+  // Check if Coinalyze API key exists
+  if (!keys.coinalyze) {
+    const errorMsg = 'Coinalyze API key is missing. Please add it to your keys.api file.';
+    console.log(chalk.redBright(errorMsg));
     if (interaction) {
-      interaction.reply('Sorry, there was an issue processing the longs/shorts command at this time. Try again later!');
-      return;
+      interaction.editReply('Sorry, the longs/shorts command is not configured. Contact the bot administrator.');
     }
     else {
-      channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into. Try again later!');
-      return;
+      channel.send('Sorry, the longs/shorts command is not configured. Contact the bot administrator.');
     }
-  });
-  if (res.ok) {
-    const data = await res.text();
-    // Using the HTML of the page, make a new DOM object that we can navigate
-    const dom = new JSDOM(data);
-    // Response may have unexpected output as it relies on the site not changing. We'll be cautious and look for problems here
-    try {
-      // Grabbing all exchange data from selected class name
-      const block = dom.window.document.getElementsByClassName('col-lg-3 col-sm-6 col-12 hover-up-block');
-      // block index 0 is finex, 1 is mex, 2 is binance, 3 is total for all of them together (currently using mex as written "block[1]")
-      const title = block[2].querySelector('div:nth-child(1) > h6:nth-child(1)').textContent;
-      const longsPercent = block[2].querySelector('div:nth-child(1) > span:nth-child(2)').textContent.trim().split(' ')[0].trim();
-      const longs = block[2].querySelector('div:nth-child(2) > span:nth-child(1)').textContent;
-      const shorts = block[2].querySelector('div:nth-child(3) > div:nth-child(2) > span:nth-child(1)').textContent.trim().split(' ')[0].trim();
-      const shortsPercent = block[2].querySelector('div:nth-child(3) > div:nth-child(1) > span:nth-child(2)').textContent;
-      // If all is good, assemble the embed object and send it off
-      const embed = new EmbedBuilder()
-        .setAuthor({ name: title, iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
-        .addFields(
-          { name: 'Longs:', value: longs + ' (' + longsPercent + ')', inline: false },
-          { name: 'Shorts:', value: shorts + ' (' + shortsPercent + ')', inline: false }
-        )
-        .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
-        .setColor('#1b51be')
-        .setFooter({ text: 'BlockchainWhispers Real-Time', iconURL: 'https://blockchainwhispers.com/images/bw.png' });
-      if (interaction) {
-        interaction.reply({ embeds: [embed] });
-      }
-      else {
-        channel.send({ embeds: [embed] }).catch(function (reject) {
-          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-          console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(reject)));
-        });
-      }
+    return;
+  }
+
+  try {
+    // Get current timestamp and 1 hour ago for the latest data point
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - 3600; // 1 hour ago
+
+    // Fetch long/short ratio data from Coinalyze API for Binance BTC perpetual
+    const res = await fetch(
+      `https://api.coinalyze.net/v1/long-short-ratio-history?api_key=${keys.coinalyze}&symbols=BTCUSDT_PERP.A&interval=1hour&from=${from}&to=${now}`
+    );
+
+    if (!res.ok) {
+      throw new Error(`Coinalyze API returned status ${res.status}`);
     }
-    catch (err) {
-      // Check for errors during data parsing and report them
-      console.log(chalk.redBright('Longs/shorts command failed to process data! Error details: \n' + chalk.yellow(err.stack)));
-      if (interaction) {
-        interaction.reply('Sorry, there was an issue processing the longs/shorts command at this time. Try again later!');
-        return;
-      }
-      else {
-        channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.');
-        return;
-      }
+
+    const data = await res.json();
+
+    // Check if data is valid and has history
+    if (!data || data.length === 0 || !data[0].history || data[0].history.length === 0) {
+      throw new Error('Invalid or empty response from Coinalyze API');
+    }
+
+    // Get the latest data point (most recent)
+    const latestData = data[0].history[data[0].history.length - 1];
+
+    // Extract percentages (l = long %, s = short %)
+    const longsPercent = latestData.l.toFixed(2);
+    const shortsPercent = latestData.s.toFixed(2);
+    const ratio = latestData.r.toFixed(4);
+
+    // Create and send the embed
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: 'Binance BTC/USDT Long/Short Ratio', iconURL: 'https://en.bitcoin.it/w/images/en/2/29/BC_Logo_.png' })
+      .addFields(
+        { name: 'Longs:', value: `${longsPercent}%`, inline: true },
+        { name: 'Shorts:', value: `${shortsPercent}%`, inline: true },
+        { name: 'Ratio:', value: ratio, inline: true }
+      )
+      .setThumbnail('https://cryptologos.cc/logos/binance-coin-bnb-logo.png?v=014')
+      .setColor('#1b51be')
+      .setFooter({ text: 'Coinalyze Real-Time', iconURL: 'https://coinalyze.net/og-image.png' });
+
+    if (interaction) {
+      interaction.editReply({ embeds: [embed] });
+    }
+    else {
+      channel.send({ embeds: [embed] }).catch(function (reject) {
+        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+        console.log(chalk.red('Error sending longs/shorts! : ' + chalk.cyan(reject)));
+      });
+    }
+  }
+  catch (err) {
+    // Handle any errors
+    console.log(chalk.redBright('Longs/shorts command failed! Error details: \n' + chalk.yellow(err.stack)));
+    if (interaction) {
+      interaction.editReply('Sorry, there was an issue processing the longs/shorts command at this time. Try again later!');
+    }
+    else {
+      channel.send('The longs/shorts command is having issues at the moment. This has been logged and will be looked into shortly.');
     }
   }
 }
@@ -2820,6 +2834,7 @@ client.on('interactionCreate', async interaction => {
     //! longs/shorts
     //* WORKING
   } else if (command === 'ls') {
+    interaction.deferReply();
     getBinanceLongsShorts(null, null, interaction);
 
     //! gas
