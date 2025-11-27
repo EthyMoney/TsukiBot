@@ -3672,7 +3672,8 @@ async function chartsProcessingCluster() {
   const puppeteerOpts = {
     headless: true,
     // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
-    //executablePath:'/author/bin/chromium-browser',
+    // adjust the path as needed based on what environment and executable you're using
+    executablePath: '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   };
   // Start up a puppeteer cluster browser
@@ -4000,6 +4001,12 @@ async function getCoin360Heatmap() {
 
     // Coin360 logo load
     await page.waitForSelector('._7FNuP_'), { visible: true };
+
+    // Wait for the annoying popup to appear so we can proceed to close it
+    await page.waitForSelector('.pr6pBR', { visible: true });
+
+    // Click the close button to dismiss the popup
+    await page.click('.pr6pBR');
 
     await sleep(2000);
 
@@ -4744,7 +4751,7 @@ apiApp.get('/coin/:ticker', (req, res) => {
   }
 });
 
-const ip = getLocalIP();
+const ip = '127.0.0.1';//getLocalIP();
 if (!devMode) {
   apiApp.listen(apiAppPort, () => {
     console.log(`Prices API server running at http://${ip}:${apiAppPort}`);
