@@ -2538,8 +2538,18 @@ client.on('ready', () => {
   updateCoins();
   updateCmcKey();
   getCMCData();
-  getCGData('firstrun');
-  cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
+
+  // Load CG cache from file first for instant availability
+  const cacheLoaded = loadCGCacheFromFile();
+
+  // Then run the update in the background to get fresh data
+  if (cacheLoaded) {
+    console.log(chalk.cyan('Starting background CoinGecko cache update...'));
+  }
+  getCGData(cacheLoaded ? 'background' : 'firstrun');
+  if (!cacheLoaded) {
+    cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
+  }
   getCoin360Heatmap();
 });
 
@@ -4253,6 +4263,46 @@ async function getCMCData() {
  
  ---------------------------------- */
 
+// Load CG cache from file if it exists (for instant startup)
+function loadCGCacheFromFile() {
+  try {
+    if (fs.existsSync('./common/cgCache.json')) {
+      const cacheData = JSON.parse(fs.readFileSync('./common/cgCache.json', 'utf8'));
+      if (cacheData && cacheData.data && Array.isArray(cacheData.data) && cacheData.data.length > 0) {
+        cgArrayDictParsed = [...cacheData.data];
+        // Rebuild the dictionary
+        cgArrayDict = {};
+        for (const coinObject of cacheData.data) {
+          const upperCaseSymbol = coinObject.symbol.toUpperCase();
+          if (!cgArrayDict[upperCaseSymbol]) {
+            cgArrayDict[upperCaseSymbol] = coinObject;
+          }
+        }
+        console.log(chalk.greenBright('Loaded CoinGecko cache from file (' + cacheData.data.length + ' coins). Commands are available immediately!'));
+        console.log(chalk.cyan('Cache last updated: ' + new Date(cacheData.timestamp).toLocaleString()));
+        return true;
+      }
+    }
+  } catch (err) {
+    console.log(chalk.yellow('Could not load CG cache from file: ' + err.message));
+  }
+  return false;
+}
+
+// Save CG cache to file for next startup
+function saveCGCacheToFile() {
+  try {
+    const cacheData = {
+      timestamp: Date.now(),
+      data: cgArrayDictParsed
+    };
+    fs.writeFileSync('./common/cgCache.json', JSON.stringify(cacheData));
+    console.log(chalk.greenBright('CoinGecko cache saved to file for next startup.'));
+  } catch (err) {
+    console.log(chalk.red('Error saving CG cache to file: ' + err.message));
+  }
+}
+
 async function getCGData(status) {
 
   // if in dev mode, pre-fill the cache with a few coins and fake prices
@@ -4306,6 +4356,7 @@ async function getCGData(status) {
     cgArrayDict['BTC'] = cgArrayDictParsed[0];
     cgArrayDict['ETH'] = cgArrayDictParsed[1];
     console.log(chalk.green('Dev mode enabled, pre-filled cache with 2 coins!'));
+    return;
   }
 
   // startup handling
@@ -4315,6 +4366,9 @@ async function getCGData(status) {
   if (status == 'firstrun' || cgArrayDictParsed.length == 0) {
     console.log(chalk.yellowBright('Initializing CoinGecko data cache...\n' +
       chalk.cyan(' ▶ This could take up to several minutes, hang in there. CoinGecko commands will be unavailable until this is complete.')));
+  }
+  else if (status == 'background') {
+    console.log(chalk.cyan('Updating CoinGecko cache in background...'));
   }
 
   let page = 1;
@@ -4347,8 +4401,8 @@ async function getCGData(status) {
       page++;
       lastResSize = data.length;
 
-      // progress report for first run
-      if (status == 'firstrun') {
+      // progress report for first run (only show if no cache was loaded)
+      if (status == 'firstrun' || cgArrayDictParsed.length == 0) {
         progressPercentage = Math.round((coinDataJsonArr.length / totalCoinsCount) * 100);
         console.log(chalk.blueBright(` ▶ ${progressPercentage}%`));
         startupProgress = Math.round(progressPercentage); // update global
@@ -4415,15 +4469,8 @@ async function getCGData(status) {
 
   console.log('Update completed in', hours + ':' + minutes + ':' + seconds + '.' + milliseconds);
 
-  // write the cache to file
-  // fs.writeFile('cg-cache.json', JSON.stringify(cgArrayDictParsed), (err) => {
-  //   if (err) {
-  //     console.log(chalk.red('Error writing CG cache file: ' + err));
-  //   }
-  //   else {
-  //     console.log(chalk.greenBright('CoinGecko cache file updated.'));
-  //   }
-  // });
+  // Save the cache to file for next startup
+  saveCGCacheToFile();
 }
 
 

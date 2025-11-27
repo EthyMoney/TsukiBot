@@ -22,3 +22,4 @@ common/help.json
 common/msg_id
 common/serverPerms.json
 common/puppeteer-cache
+common/cgCache.json
