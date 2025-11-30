@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/EthyMoney/TsukiBot#readme",
   "dependencies": {
-    "@google-cloud/translate": "^8.5.0",
+    "@google-cloud/translate": "^9.3.0",
     "ccxt": "^1.95.43",
     "chalk": "^4.1.2",
     "coingecko-api": "^1.0.10",
@@ -42,24 +42,27 @@
     "cryptocompare": "^1.0.0",
     "currencyexchanges": "^1.1.1",
     "didyoumean": "^1.2.2",
-    "discord.js": "^14.19.3",
-    "express": "^4.21.2",
+    "discord.js": "^14.25.1",
+    "express": "^5.1.0",
     "fast-average-color-node": "^3.1.0",
     "finnhub": "^1.2.19",
     "graviex": "^1.0.0",
-    "jsdom": "^24.1.3",
+    "jsdom": "^27.2.0",
     "node-schedule": "^2.1.1",
-    "pg": "^8.16.0",
+    "pg": "^8.16.3",
     "pixel-diff": "^1.0.1",
-    "puppeteer": "^23.11.1",
-    "puppeteer-cluster": "^0.24.0",
+    "puppeteer": "^24.31.0",
+    "puppeteer-cluster": "^0.25.0",
     "string": "^3.3.3",
     "topgg-autoposter": "^2.0.2",
     "web3": "^1.10.4",
-    "ws": "^8.18.2"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "eslint": "^8.57.1"
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0"
   },
   "engines": {
     "node": ">=16.9.0",
