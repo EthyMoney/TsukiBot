@@ -4020,19 +4020,36 @@ async function getCoin360Heatmap() {
       height: 2010
     });
 
-    await page.waitForNetworkIdle({ idleTime: 1000, timeout: 6000 });
+    await page.waitForNetworkIdle({ idleTime: 1000, timeout: 10000 }).catch(() => {
+      // Coin360 keeps websocket activity open; continue if network idle times out.
+    });
 
-    // Wait for full hmap to be rendered by waiting for this selector to appear
-    await page.waitForSelector('a.mTpAkD:nth-child(2) > div:nth-child(3)', { visible: true });
+    // Wait for a large visible rendering surface (canvas/svg) instead of brittle hashed classes.
+    await page.waitForFunction(() => {
+      const surfaces = document.querySelectorAll('canvas, svg');
+      for (const surface of surfaces) {
+        const rect = surface.getBoundingClientRect();
+        if (rect.width > 1000 && rect.height > 600) {
+          return true;
+        }
+      }
+      return false;
+    }, { timeout: 15000 });
 
-    // Coin360 logo load
-    await page.waitForSelector('._7FNuP_'), { visible: true };
-
-    // Wait for the annoying popup to appear so we can proceed to close it
-    await page.waitForSelector('.pr6pBR', { visible: true });
-
-    // Click the close button to dismiss the popup
-    await page.click('.pr6pBR');
+    // Try to dismiss optional overlays/popups if present, but never fail the fetch over this.
+    const popupCloseSelectors = [
+      '.pr6pBR',
+      'button[aria-label="Close"]',
+      'button[title="Close"]',
+      '[class*="close"][role="button"]'
+    ];
+    for (const selector of popupCloseSelectors) {
+      const closeBtn = await page.$(selector);
+      if (closeBtn) {
+        await closeBtn.click().catch(() => { });
+        break;
+      }
+    }
 
     await sleep(2000);
 
