@@ -5,7 +5,7 @@
 //
 
 const fs = require('fs');
-const chalk = require('chalk');
+const pc = require('picocolors');
 const CoinGecko = require('coingecko-api');
 const { JSDOM } = require('jsdom');
 const S = require('string');
@@ -31,12 +31,12 @@ async function getCGdata(coin, index) {
         'market_data': false, 'developer_data': false
       });
     } catch {
-      console.log(chalk.yellowBright(`Attempt ${chalk.magentaBright(attempt)} failed for ${chalk.cyanBright(coin)} : (${index})` + (attempt === 10 ? chalk.redBright(' ---> All attempts failed!') : ' --> Re-attempting')));
+      console.log(pc.yellowBright(`Attempt ${pc.magentaBright(attempt)} failed for ${pc.cyanBright(coin)} : (${index})` + (attempt === 10 ? pc.redBright(' ---> All attempts failed!') : ' --> Re-attempting')));
       attempt++;
       await sleep(queryTimeout);
     }
   }
-  if (attempt > 1) chalk.greenBright(`Attempt ${attempt} succeeded for ${chalk.cyanBright(coin)}`);
+  if (attempt > 1) pc.greenBright(`Attempt ${attempt} succeeded for ${pc.cyanBright(coin)}`);
   return resJSON;
 }
 
@@ -45,13 +45,13 @@ async function collectMetadata(coin, index) {
   const resJSON = await getCGdata(coin, index);
   if (!resJSON || resJSON.error || !resJSON.data.symbol || !resJSON.data.name) {
     skipped.push(coin);
-    console.log(chalk.yellowBright(`SKIPPED COIN: ${chalk.cyan(coin)} due to missing or bad data. Proceeding...`));
+    console.log(pc.yellowBright(`SKIPPED COIN: ${pc.cyan(coin)} due to missing or bad data. Proceeding...`));
     return;
   }
 
   // set the description re-formatted, otherwise just leave it blank if there isn't one found (the bot will handle this properly)
   const desc = resJSON.data.description ? formatDescription(resJSON.data.description.en) : '';
-  if (!desc) console.log(chalk.magenta(`No description found for: ${chalk.cyan(coin)} - Saving a blank description and proceeding...`));
+  if (!desc) console.log(pc.magenta(`No description found for: ${pc.cyan(coin)} - Saving a blank description and proceeding...`));
 
   // now can assemble a new meta object for this coin and then add it to the global meta json array for writing to file later
   meta.data.push({
@@ -84,7 +84,7 @@ function formatDescription(description) {
     return S(description).collapseWhitespace().replaceAll('\r\n', '\n').s;
   }
   catch (e) {
-    console.error(chalk.yellow('Description formatting failed, returning a blank string. Error details:\n', e));
+    console.error(pc.yellow('Description formatting failed, returning a blank string. Error details:\n' + e));
     return '';
   }
 }
@@ -93,9 +93,9 @@ function formatDescription(description) {
 function writeToFile() {
   fs.writeFileSync('./common/metadata.json', JSON.stringify(meta));
   if (skipped.length > 0) {
-    console.log(chalk.yellow(`Warning: The following coins were skipped due to missing data on API at their call time: ${chalk.cyan(skipped.toString())}`));
+    console.log(pc.yellow(`Warning: The following coins were skipped due to missing data on API at their call time: ${pc.cyan(skipped.toString())}`));
   }
-  console.log(chalk.greenBright('Caching operation completed successfully and file was written!'));
+  console.log(pc.greenBright('Caching operation completed successfully and file was written!'));
 }
 
 //* utility function used to wait in an async function
@@ -107,16 +107,16 @@ function sleep(ms) {
 async function startup() {
   cgCoinsList = await CoinGeckoClient.coins.list();
   if (cgCoinsList == 0) {
-    console.log(chalk.red('Could not grab coins list, likely currently rate limited or API is down. Exiting..'));
+    console.log(pc.red('Could not grab coins list, likely currently rate limited or API is down. Exiting..'));
     process.exit(1);
   }
   for (let i = 0; i < cgCoinsList.data.length; i++) {
     const coinData = cgCoinsList.data[i];
-    const progress = chalk.green(` (${i + 1} of ${cgCoinsList.data.length})`);
+    const progress = pc.green(` (${i + 1} of ${cgCoinsList.data.length})`);
     if (!coinData.id) {
-      console.log(chalk.yellow('NO ID FOUND [SKIPPED]') + progress);
+      console.log(pc.yellow('NO ID FOUND [SKIPPED]') + progress);
     } else {
-      console.log(chalk.cyan(coinData.id) + progress);
+      console.log(pc.cyan(coinData.id) + progress);
       await collectMetadata(coinData.id, i + 1);
     }
     await sleep(queryTimeout); // Rate limiting requests to not exceed API limits

@@ -1,5 +1,5 @@
 const fs = require('fs');
-const chalk = require('chalk');
+const pc = require('picocolors');
 
 //
 //
@@ -14,18 +14,18 @@ var update = async () => {
   let data, tickers = [];
   try {
     const response = await fetch('https://api.coingecko.com/api/v3/coins/list?include_platform=false');
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     data = await response.json();
-    
+
     for (const value of data) {
       tickers.push(value.symbol.toUpperCase());
     }
   } catch (err) {
-    console.log(chalk.red(`Unable to grab list of all CG coins: ${err.message}`));
+    console.log(pc.red(`Unable to grab list of all CG coins: ${err.message}`));
   }
 
   //console.log(data);
