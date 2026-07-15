@@ -41,8 +41,10 @@ For reference, here's what a few of those actually are:
 "tsukibot"   -> your postgresql database password
 "token"      -> your bot's token from the discord dev portal
 "alpha"      -> your api key for alpha vantage (stocks)
-"coingecko"  -> your free CoinGecko Demo API key (required for /cg contract-address lookups)
+"coingecko"  -> your optional free CoinGecko Demo API key for /cg contract-address lookups
 
 For a CoinGecko Pro key, use "coingeckoPro" instead of "coingecko". You can also
 set COINGECKO_API_KEY (Demo) or COINGECKO_PRO_API_KEY (Pro) in the environment.
+If no key is configured, contract lookups automatically use CoinGecko's public
+GeckoTerminal API with its lower public rate limit.
 

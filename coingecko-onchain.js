@@ -1,5 +1,6 @@
 const PUBLIC_API_BASE_URL = 'https://api.coingecko.com/api/v3';
 const PRO_API_BASE_URL = 'https://pro-api.coingecko.com/api/v3';
+const GECKOTERMINAL_API_BASE_URL = 'https://api.geckoterminal.com/api/v2';
 
 class CoinGeckoOnchainError extends Error {
   constructor(message, status) {
@@ -29,10 +30,25 @@ function getApiConfig(keys = {}, env = process.env) {
   }
 
   const demoApiKey = env.COINGECKO_API_KEY || keys.coingecko || keys.coingeckoDemo;
+  if (demoApiKey) {
+    return {
+      baseUrl: PUBLIC_API_BASE_URL,
+      headers: { 'x-cg-demo-api-key': demoApiKey }
+    };
+  }
+
+  return getKeylessApiConfig();
+}
+
+function getKeylessApiConfig() {
   return {
-    baseUrl: PUBLIC_API_BASE_URL,
-    headers: demoApiKey ? { 'x-cg-demo-api-key': demoApiKey } : {}
+    baseUrl: GECKOTERMINAL_API_BASE_URL,
+    headers: {}
   };
+}
+
+function getOnchainPath(apiConfig, path) {
+  return apiConfig.baseUrl === GECKOTERMINAL_API_BASE_URL ? path : `/onchain${path}`;
 }
 
 async function requestJson(path, apiConfig, fetchImpl) {
@@ -103,20 +119,10 @@ function getTokenAndNetwork(searchResult, contractAddress) {
   return candidates[0] || null;
 }
 
-async function lookupOnchainToken(contractAddress, options = {}) {
-  if (!isLikelyContractAddress(contractAddress)) {
-    throw new CoinGeckoOnchainError('That does not look like a valid token contract address.');
-  }
-
-  const fetchImpl = options.fetchImpl || global.fetch;
-  if (typeof fetchImpl !== 'function') {
-    throw new CoinGeckoOnchainError('This Node.js version does not provide fetch support.');
-  }
-
-  const apiConfig = options.apiConfig || getApiConfig(options.keys);
+async function lookupWithApiConfig(contractAddress, apiConfig, fetchImpl) {
   const encodedAddress = encodeURIComponent(contractAddress);
   const searchResult = await requestJson(
-    `/onchain/search/pools?query=${encodedAddress}&include=base_token%2Cquote_token`,
+    getOnchainPath(apiConfig, `/search/pools?query=${encodedAddress}&include=base_token%2Cquote_token`),
     apiConfig,
     fetchImpl
   );
@@ -126,7 +132,7 @@ async function lookupOnchainToken(contractAddress, options = {}) {
   }
 
   const tokenResult = await requestJson(
-    `/onchain/networks/${encodeURIComponent(match.network)}/tokens/${encodedAddress}?include=top_pools`,
+    getOnchainPath(apiConfig, `/networks/${encodeURIComponent(match.network)}/tokens/${encodedAddress}?include=top_pools`),
     apiConfig,
     fetchImpl
   );
@@ -148,6 +154,30 @@ async function lookupOnchainToken(contractAddress, options = {}) {
     marketCapUsd: attributes.market_cap_usd == null ? null : Number(attributes.market_cap_usd),
     volume24hUsd: attributes.volume_usd?.h24 == null ? null : Number(attributes.volume_usd.h24)
   };
+}
+
+async function lookupOnchainToken(contractAddress, options = {}) {
+  if (!isLikelyContractAddress(contractAddress)) {
+    throw new CoinGeckoOnchainError('That does not look like a valid token contract address.');
+  }
+
+  const fetchImpl = options.fetchImpl || global.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw new CoinGeckoOnchainError('This Node.js version does not provide fetch support.');
+  }
+
+  const apiConfig = options.apiConfig || getApiConfig(options.keys);
+  try {
+    return await lookupWithApiConfig(contractAddress, apiConfig, fetchImpl);
+  }
+  catch (err) {
+    const canUseKeylessFallback = (err.status === 401 || err.status === 403) &&
+      apiConfig.baseUrl !== GECKOTERMINAL_API_BASE_URL;
+    if (canUseKeylessFallback) {
+      return lookupWithApiConfig(contractAddress, getKeylessApiConfig(), fetchImpl);
+    }
+    throw err;
+  }
 }
 
 module.exports = {
