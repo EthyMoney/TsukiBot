@@ -62,8 +62,8 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('cg')
-    .setDescription('Get CoinGecko prices for one or more coins.')
-    .addStringOption(o => o.setName('coins').setDescription('Space-separated tickers, e.g. "btc eth glm"').setRequired(true)),
+    .setDescription('Get CoinGecko prices by ticker(s) or token contract address.')
+    .addStringOption(o => o.setName('coins').setDescription('Tickers ("btc eth") or one token contract address').setRequired(true)),
 
   new SlashCommandBuilder()
     .setName('price')

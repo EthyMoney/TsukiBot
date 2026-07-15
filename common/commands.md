@@ -12,8 +12,8 @@ To resolve permissions issues, kick the bot and add it back using [THIS INVITE L
 ## Prices
 
 ### `/cg <coins>`
-Get CoinGecko prices for one or more coins. This is the fastest and most commonly used price command, and it supports thousands of coins listed on CoinGecko. Provide a single ticker or a space-separated list.
-+ `coins` *(required)* — space-separated tickers, e.g. `btc eth glm`
+Get CoinGecko prices for one or more coins. This is the fastest and most commonly used price command, and it supports thousands of coins listed on CoinGecko plus tokens tracked by CoinGecko Onchain. Provide tickers or one token contract address.
++ `coins` *(required)* — space-separated tickers, e.g. `btc eth glm`, or one contract address, e.g. `0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`
 
 ### `/price <exchange> <coin> [vs]`
 Get a real-time price for a coin directly from a specific exchange.

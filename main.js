@@ -90,6 +90,7 @@ const CoinMarketCap = require('coinmarketcap-api');
 const ccxt = require('ccxt');
 const graviex = require('graviex');
 const CoinGecko = require('coingecko-api');
+const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
 const { Web3 } = require('web3');
 
@@ -609,6 +610,41 @@ function getPriceCMC(coins, channel, action = '-', ext = 'd') {
 
 // Function for CoinGecko prices 
 // (in similar format the list-style cmc command above)
+
+function formatOnchainUsdPrice(price) {
+  if (!Number.isFinite(price)) return 'n/a';
+  if (price === 0) return '0';
+  if (Math.abs(price) >= 1) return trimDecimalPlaces(price.toFixed(6));
+  return Number(price.toPrecision(8)).toString();
+}
+
+function sanitizeCoinGeckoText(value) {
+  return String(value).replace(/[`\r\n]/g, '').trim();
+}
+
+async function getPriceCGByContract(contractAddress, interaction) {
+  try {
+    const token = await lookupOnchainToken(contractAddress, { apiConfig: getApiConfig(keys) });
+    const symbol = sanitizeCoinGeckoText(token.symbol).toUpperCase().substring(0, 16);
+    const name = sanitizeCoinGeckoText(token.name).substring(0, 60);
+    const change = Number.isFinite(token.priceChange24h) ? `${Math.round(token.priceChange24h * 100) / 100}%` : 'n/a';
+    const shortAddress = token.address.length > 18
+      ? `${token.address.substring(0, 8)}…${token.address.substring(token.address.length - 6)}`
+      : token.address;
+    const message = '__CoinGecko Onchain__ Price for:\n' +
+      `**${symbol} — ${name}**\n` +
+      `\`• USD ⇒\` \`${formatOnchainUsdPrice(token.priceUsd)} USD\` (\`${change}\`)\n` +
+      `Network: \`${sanitizeCoinGeckoText(token.network)}\` • Contract: \`${sanitizeCoinGeckoText(shortAddress)}\``;
+    await interaction.editReply(message);
+  }
+  catch (err) {
+    console.log(pc.redBright('CoinGecko onchain lookup failed: ') + pc.cyan(err.message));
+    const message = err instanceof CoinGeckoOnchainError
+      ? err.message
+      : 'Unable to look up that contract address right now. Please try again shortly.';
+    await interaction.editReply(`**CoinGecko onchain lookup failed:** ${message}`);
+  }
+}
 
 function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false, interaction) {
 
@@ -2628,9 +2664,17 @@ client.on('interactionCreate', async interaction => {
       }
 
       // ---- CoinGecko prices ----
-      case 'cg':
-        getPriceCG(opts.getString('coins').split(' ').filter(v => v !== ''), null, '-', 'd', false, interaction);
+      case 'cg': {
+        const coins = opts.getString('coins').split(' ').filter(v => v !== '');
+        if (coins.length === 1 && isLikelyContractAddress(coins[0])) {
+          await interaction.deferReply();
+          await getPriceCGByContract(coins[0], interaction);
+        }
+        else {
+          getPriceCG(coins, null, '-', 'd', false, interaction);
+        }
         break;
+      }
 
       // ---- Exchange prices ----
       case 'price': {
