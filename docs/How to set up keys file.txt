@@ -27,8 +27,6 @@ Create a file named keys.api in the common folder. Put the following structure i
     "coinmarketcapfailover": "",
     "coinmarketcapfailover2": "",
     "coingecko": "",
-    "graviexAccessKey": "",
-    "graviexSecretKey": "",
     "finnhub": ""
 }
 

@@ -40,8 +40,7 @@
 //    chromium depending on your environment. The commend there tells you whether you need to do it or not. (charts may not work if you don't check this!)
 //    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
 // 5. Set up your PostgreSQL database according to the schema defined in the docs folder.
-// 6. Head into the docs folder and check the fix guide for the graviex package and apply that fix.
-// 7. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
+// 6. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
 //    If you have any questions or issues, feel free to contact me in the support discord server and I'll try to help you out. Link: https://discordapp.com/invite/VWNUbR5
 
 // Alright the hard part is over. Carry on :)
@@ -88,7 +87,6 @@ const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder }
 const cc = require('cryptocompare');
 const CoinMarketCap = require('coinmarketcap-api');
 const ccxt = require('ccxt');
-const graviex = require('graviex');
 const CoinGecko = require('coingecko-api');
 const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
@@ -159,8 +157,6 @@ const translate = new Translate({ projectId: googleProjectID, keyFilename: googl
 const web3eth = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
 //clientcmc will be re-initialized upon bot startup, key selection will be automatic and this selected key here is temporary
 let clientcmc = new CoinMarketCap(keys.coinmarketcapfailover);
-graviex.accessKey = keys.graviexAccessKey;
-graviex.secretKey = keys.graviexSecretKey;
 cc.setApiKey(keys.cryptocompare);
 
 // Reload Coins
@@ -236,53 +232,6 @@ async function getPriceCoinbase(channel, coin1, coin2) {
 
   let ans = '__Coinbase__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + s + ' ' + coin2.toUpperCase() + '` .';
   channel.send(ans);
-}
-
-
-//------------------------------------------
-//------------------------------------------
-
-// Function for Graviex prices
-
-async function getPriceGraviex(channel, coin1, coin2) {
-
-  let graviexJSON;
-  let price = 0;
-  let change = 0;
-  let volume = 0;
-  let volumeCoin = 0;
-  if (typeof coin2 === 'undefined') {
-    coin2 = 'BTC';
-  }
-  if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc') {
-    coin2 = 'USDT';
-  }
-  coin1 = coin1 + '';
-  coin2 = coin2 + '';
-
-  await graviex.ticker(coin1.toLowerCase() + coin2.toLowerCase(), function (res) {
-    let moon = '';
-    graviexJSON = res;
-    if (typeof graviexJSON.ticker === 'undefined') {
-      channel.send('Internal error. Requested pair does not exist or Graviex is overloaded.');
-      console.log((pc.red('Graviex error : graviex failed to respond.')));
-      return;
-    }
-    price = trimDecimalPlaces(graviexJSON.ticker.last);
-    change = graviexJSON.ticker.change;
-    change = parseFloat(change * 100).toFixed(2);
-    volume = graviexJSON.ticker.volbtc;
-    volumeCoin = graviexJSON.ticker.vol;
-
-    if (change > 20) { moon = ':full_moon_with_face:'; }
-
-    let ans = '__Graviex__ Price for **' + coin1.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' + price + ' ' + coin2.toUpperCase() + '` ' + '(' + '`' + change + '%' + '`' + ') ' + moon;
-
-    if (coin2.toLowerCase() === 'btc') {
-      ans = ans + '\n \\/\\/\\/\\/**24hr volume **➪ `' + parseFloat(volume).toFixed(4) + ' ' + coin2.toUpperCase() + '` ' + '➪ `' + numberWithCommas(parseFloat(volumeCoin).toFixed(0)) + ' ' + coin1.toUpperCase() + '`';
-    }
-    channel.send(ans);
-  });
 }
 
 
@@ -2690,7 +2639,6 @@ client.on('interactionCreate', async interaction => {
           case 'bitfinex': getPriceBitfinex(author, coin, vs, responder); break;
           case 'bitmex': getPriceMex(coin, vs, responder); break;
           case 'poloniex': getPricePolo(coin, vs, responder); break;
-          case 'graviex': getPriceGraviex(responder, coin, vs); break;
           default: await interaction.editReply('Unknown exchange selected.');
         }
         break;

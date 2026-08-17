@@ -49,8 +49,7 @@ const priceExchangeChoices = [
   { name: 'Kraken', value: 'kraken' },
   { name: 'Bitfinex', value: 'bitfinex' },
   { name: 'BitMEX', value: 'bitmex' },
-  { name: 'Poloniex', value: 'poloniex' },
-  { name: 'Graviex', value: 'graviex' }
+  { name: 'Poloniex', value: 'poloniex' }
 ];
 
 // ---- Command definitions ----

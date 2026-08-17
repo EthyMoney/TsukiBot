@@ -8,7 +8,6 @@ const fs = require('fs');
 const pc = require('picocolors');
 const CoinGecko = require('coingecko-api');
 const { JSDOM } = require('jsdom');
-const S = require('string');
 const CoinGeckoClient = new CoinGecko();
 const process = require('node:process');
 
@@ -65,6 +64,20 @@ async function collectMetadata(coin, index) {
   });
 }
 
+//* grabs the text sitting between the first occurrence of the left marker and the next right marker after it
+//* returns a blank string when the right marker isn't found, same as the old string.js between() this replaced
+function between(str, left, right) {
+  const startPos = str.indexOf(left);
+  const endPos = str.indexOf(right, startPos + left.length);
+  if (endPos === -1) return '';
+  return str.slice(startPos + left.length, endPos);
+}
+
+//* squashes every run of whitespace (non-breaking spaces included) down to a single space and trims the ends
+function collapseWhitespace(str) {
+  return str.replace(/[\s\xa0]+/g, ' ').replace(/^\s+|\s+$/g, '');
+}
+
 //* formatting and cleaning up data in the description field for the coin
 function formatDescription(description) {
   const descDOM = new JSDOM(description);
@@ -73,15 +86,14 @@ function formatDescription(description) {
 
   // replace each html link in the description string its the corresponding converted link we created earlier
   convertedLinks.forEach(link => {
-    const locatedString = S(description).between('<a href="', '</a>').s;
+    const locatedString = between(description, '<a href="', '</a>');
     const lookupString = `<a href="${locatedString}</a>`;
     description = description.replace(lookupString, link);
   });
 
   // clean up the newline formatting and whitespace, then return the description
-  // Clean up the newline formatting and whitespace, then return the description
   try {
-    return S(description).collapseWhitespace().replaceAll('\r\n', '\n').s;
+    return collapseWhitespace(description).replaceAll('\r\n', '\n');
   }
   catch (e) {
     console.error(pc.yellow('Description formatting failed, returning a blank string. Error details:\n' + e));

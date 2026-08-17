@@ -10,7 +10,6 @@ common/metadata.json
 common/coinsCGtickers.json
 .DS_Store
 stuff
-graviex
 .vs
 .jshintrc
 *.png

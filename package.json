@@ -37,44 +37,49 @@
   },
   "homepage": "https://github.com/EthyMoney/TsukiBot#readme",
   "dependencies": {
-    "@google-cloud/translate": "^9.4.2",
-    "ccxt": "^4.5.61",
+    "@google-cloud/translate": "^10.0.1",
+    "ccxt": "^4.5.73",
     "coingecko-api": "^1.0.10",
     "coinmarketcap-api": "^3.1.1",
     "cryptocompare": "^1.0.0",
     "currencyexchanges": "^1.1.1",
     "didyoumean": "^1.2.2",
-    "discord.js": "^14.26.4",
+    "discord.js": "^14.27.0",
     "express": "^5.2.1",
     "fast-average-color-node": "^3.2.0",
     "finnhub": "^2.0.15",
-    "graviex": "^1.0.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "node-schedule": "^2.1.1",
-    "pg": "^8.22.0",
+    "pg": "^8.23.0",
     "picocolors": "^1.1.1",
-    "puppeteer": "^25.2.1",
+    "puppeteer": "^25.7.0",
     "puppeteer-cluster": "^0.25.0",
-    "string": "^3.3.3",
     "topgg-autoposter": "^2.0.2",
     "web3": "^4.16.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.3"
+  },
+  "overrides": {
+    "fast-average-color-node": {
+      "sharp": "^0.35.3"
+    },
+    "@top-gg/sdk": {
+      "undici": "^6.28.0"
+    }
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/eslintrc": "^3.3.6",
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.6.0",
-    "globals": "^17.7.0"
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
   },
   "engines": {
-    "node": ">=16.9.0",
-    "npm": ">=8.13.3"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
+    "npm": ">=10.9.0"
   },
   "allowScripts": {
     "bufferutil@4.1.0": true,
-    "ccxt@4.5.61": true,
-    "protobufjs@7.6.4": true,
-    "puppeteer@25.2.1": true,
-    "sharp@0.34.5": true
+    "protobufjs@7.6.5": true,
+    "ccxt@4.5.73": true,
+    "puppeteer@25.7.0": true
   }
 }
