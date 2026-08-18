@@ -15,6 +15,15 @@
  *   - Guild command updates are instant, so use --guild while developing/testing.
  *   - The bot token is read from common/keys.api (token / devToken fields).
  *
+ * Owner-only commands (see OWNER_ONLY_COMMANDS) are NOT registered globally. A global command is
+ * visible to every administrator in every server the bot is in, and to everyone in DMs, because
+ * default_member_permissions is only a default that server admins can override and it does not
+ * apply to DMs at all. Registering those commands to a single guild means they do not exist
+ * anywhere else, which is a real restriction rather than a hidden one.
+ *
+ * The owner guild is read from OWNER_GUILD_ID or the "ownerGuild" field in common/keys.api, so a
+ * specific server ID never has to live in this file.
+ *
  * ------------------------------------------------------------------------ */
 
 'use strict';
@@ -28,6 +37,26 @@ const args = process.argv.slice(2);
 const useDevToken = args.includes('--dev');
 const guildIndex = args.indexOf('--guild');
 const guildId = guildIndex > -1 ? args[guildIndex + 1] : null;
+
+// Commands that must never be registered globally. See the header for why a guild-scoped command
+// is a genuine restriction and default_member_permissions is not.
+const OWNER_ONLY_COMMANDS = new Set(['usage']);
+
+/**
+ * Reads common/keys.api, or an empty object if it is absent. Never exits: callers decide whether a
+ * missing value is fatal.
+ * @returns {object}
+ */
+function readKeys() {
+  const keysPath = path.join(__dirname, 'common', 'keys.api');
+  if (!fs.existsSync(keysPath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(keysPath, 'utf8'));
+  }
+  catch {
+    return {};
+  }
+}
 
 // Reads the bot token, preferring an environment variable so this works in Docker/CI without a
 // keys file. Called only on a direct run, so requiring this module never exits the process.
@@ -47,6 +76,15 @@ function loadToken() {
     process.exit(1);
   }
   return token;
+}
+
+/**
+ * The guild that owner-only commands are registered to.
+ * @returns {string|null} null when unconfigured, which the caller reports rather than guessing.
+ */
+function resolveOwnerGuildId() {
+  const id = process.env.OWNER_GUILD_ID || readKeys().ownerGuild;
+  return id ? String(id) : null;
 }
 
 // Supported exchanges for the /price command
@@ -227,12 +265,61 @@ const commands = [
       .addStringOption(o => o.setName('link').setDescription('Tag image/link URL').setRequired(true)))
     .addSubcommand(s => s.setName('delete').setDescription('Delete a tag.')
       .addStringOption(o => o.setName('name').setDescription('Tag name').setRequired(true)))
-    .addSubcommand(s => s.setName('list').setDescription('List all tags in this server.'))
+    .addSubcommand(s => s.setName('list').setDescription('List all tags in this server.')),
+
+  // Usage telemetry. The real gate is in the handler, which checks the application owner (or the
+  // botAdmins list in keys.api) - a per-guild permission would be the wrong gate for reports that
+  // span every server. Administrator here is only to keep the command out of ordinary members'
+  // pickers, since they could never use it; it does not restrict DMs, so the owner always has it.
+  new SlashCommandBuilder()
+    .setName('usage')
+    .setDescription('Bot owner only: usage telemetry and metrics.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand(s => s.setName('overview').setDescription('Headline numbers: volume, reach, reliability, speed.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addStringOption(o => o.setName('timezone').setDescription('IANA timezone for daily buckets (default UTC)')))
+    .addSubcommand(s => s.setName('commands').setDescription('Most used commands.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('limit').setDescription('How many to list (default 15)').setMinValue(1).setMaxValue(50))
+      .addBooleanOption(o => o.setName('include_searches').setDescription('Count autocomplete searches as uses too')))
+    .addSubcommand(s => s.setName('users').setDescription('Most active users.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('limit').setDescription('How many to list (default 15)').setMinValue(1).setMaxValue(50)))
+    .addSubcommand(s => s.setName('servers').setDescription('Most active servers.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('limit').setDescription('How many to list (default 15)').setMinValue(1).setMaxValue(50)))
+    .addSubcommand(s => s.setName('coins').setDescription('Most requested coins.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('limit').setDescription('How many to list (default 15)').setMinValue(1).setMaxValue(50)))
+    .addSubcommand(s => s.setName('activity').setDescription('When the bot gets used: hour, weekday, heatmap.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addStringOption(o => o.setName('timezone').setDescription('IANA timezone, e.g. America/Chicago (default UTC)')))
+    .addSubcommand(s => s.setName('command').setDescription('Deep dive on one command: subcommands, options, values.')
+      .addStringOption(o => o.setName('name').setDescription('Command name, without the slash').setRequired(true).setAutocomplete(true))
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650)))
+    .addSubcommand(s => s.setName('errors').setDescription('What is failing, and what is slow.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('limit').setDescription('How many to list (default 15)').setMinValue(1).setMaxValue(50)))
+    .addSubcommand(s => s.setName('growth').setDescription('New vs returning users, and retention.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addStringOption(o => o.setName('timezone').setDescription('IANA timezone for daily buckets (default UTC)')))
+    .addSubcommand(s => s.setName('export').setDescription('Download raw events as a CSV file.')
+      .addIntegerOption(o => o.setName('days').setDescription('Window in days (default 30)').setMinValue(1).setMaxValue(3650))
+      .addIntegerOption(o => o.setName('rows').setDescription('Row cap (default 5000, max 50000)').setMinValue(1).setMaxValue(50000)))
+    .addSubcommand(s => s.setName('storage').setDescription('Table size, row count, and writer health.'))
+    .addSubcommand(s => s.setName('prune').setDescription('Permanently delete events older than a cutoff.')
+      .addIntegerOption(o => o.setName('keep_days').setDescription('Keep events newer than this many days').setRequired(true).setMinValue(1).setMaxValue(3650))
+      .addBooleanOption(o => o.setName('confirm').setDescription('Must be True to actually delete'))),
 ].map(c => c.toJSON());
+
+// Split by where each command gets registered. `commands` remains the full set so drift tests can
+// check every command against main.js's handler switch regardless of scope.
+const globalCommands = commands.filter(c => !OWNER_ONLY_COMMANDS.has(c.name));
+const ownerGuildCommands = commands.filter(c => OWNER_ONLY_COMMANDS.has(c.name));
 
 // Exported so the command definitions can be inspected and validated without registering anything
 // with Discord (see test/commands.test.js).
-module.exports = { commands };
+module.exports = { commands, globalCommands, ownerGuildCommands, OWNER_ONLY_COMMANDS };
 
 // ---- Register ----
 async function registerCommands() {
@@ -242,15 +329,36 @@ async function registerCommands() {
     const app = await rest.get(Routes.oauth2CurrentApplication());
     const clientId = app.id;
 
-    console.log(`Registering ${commands.length} slash commands for application ${clientId}${guildId ? ` in guild ${guildId}` : ' globally'}...`);
+    // --guild puts everything in one guild, which is the development path: guild updates are
+    // instant while global ones take up to an hour to propagate.
+    if (guildId) {
+      console.log(`Registering all ${commands.length} slash commands for application ${clientId} in guild ${guildId}...`);
+      const data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
+      console.log(`Successfully registered ${data.length} slash commands to the guild (available immediately).`);
+      return;
+    }
 
-    const route = guildId
-      ? Routes.applicationGuildCommands(clientId, guildId)
-      : Routes.applicationCommands(clientId);
+    // Normal path: everything public goes global, owner-only commands go to one guild.
+    //
+    // This PUT is a full replacement of the global set, so dropping a command from globalCommands
+    // is also what deregisters it. That is how /usage stops being globally visible if it ever was.
+    console.log(`Registering ${globalCommands.length} global slash commands for application ${clientId}...`);
+    const global = await rest.put(Routes.applicationCommands(clientId), { body: globalCommands });
+    console.log(`Successfully registered ${global.length} slash commands globally (may take up to ~1 hour to appear).`);
 
-    const data = await rest.put(route, { body: commands });
+    const ownerGuildId = resolveOwnerGuildId();
+    const ownerNames = ownerGuildCommands.map(c => '/' + c.name).join(', ');
 
-    console.log(`Successfully registered ${data.length} slash commands${guildId ? ' to the guild (available immediately)' : ' globally (may take up to ~1 hour to appear)'}.`);
+    if (!ownerGuildId) {
+      console.warn(`\nWARNING: ${ownerNames} was NOT registered anywhere: no owner guild is configured.`);
+      console.warn('Set "ownerGuild" in common/keys.api (or OWNER_GUILD_ID in the environment) to a server ID, then re-run.');
+      return;
+    }
+
+    // Also a full replacement, of that guild's command set. Nothing else is registered per-guild,
+    // so this leaves exactly the owner-only commands there.
+    const owner = await rest.put(Routes.applicationGuildCommands(clientId, ownerGuildId), { body: ownerGuildCommands });
+    console.log(`Successfully registered ${owner.length} owner-only command(s) to guild ${ownerGuildId} (available immediately): ${ownerNames}.`);
   } catch (error) {
     console.error('Failed to register slash commands:');
     console.error(error);

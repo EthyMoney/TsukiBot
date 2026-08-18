@@ -226,7 +226,9 @@ Translate the provided text to English using Google Translate.
 ## Utility & Info
 
 ### `/stats`
-Show TsukiBot session statistics, including the most requested coin and messages per minute.
+Show TsukiBot statistics: users and servers served, uptime, average commands per minute, and
+the lifetime command count. The throughput figures come from the usage telemetry table, so
+they persist across restarts rather than resetting on every deploy.
 
 ### `/help`
 Get a link to this full commands guide.
@@ -234,6 +236,41 @@ Get a link to this full commands guide.
 ### `/avatar [user]`
 Show a user's avatar.
 + `user` *(optional)* — the user to show the avatar of. Defaults to you.
+
+### `/usage`
+**Bot owner only.** Usage telemetry and metrics for the bot itself. Every reply is ephemeral,
+because these reports name individual users and the servers they use the bot in.
+
+This command is **not registered globally**. It is deployed only to the server named by
+`ownerGuild` in `common/keys.api` (or `OWNER_GUILD_ID` in the environment), so it does not appear
+in any other server or in DMs. Inside that server it is further restricted, and the handler still
+checks that the caller is the application owner (or is listed in `botAdmins`).
+
+Note that `default_member_permissions` alone would not be enough: Discord treats it as a default
+that any server admin can override, and it does not apply in DMs at all.
+
+| Subcommand | What it answers |
+| --- | --- |
+| `/usage overview` | Volume, reach (daily/weekly/monthly actives), error rate, latency percentiles, and a daily trend sparkline. |
+| `/usage commands` | Most used commands, with unique users, average time and error counts. |
+| `/usage users` | Most active users, their favorite command, and how many distinct days each was active. |
+| `/usage servers` | Busiest servers. DM usage is reported separately in `overview`. |
+| `/usage coins` | Most requested coins across every command that names one. |
+| `/usage activity` | When the bot gets used: by hour, by weekday, and a weekday x hour heatmap. Takes a `timezone`. |
+| `/usage command` | Deep dive on one command: subcommand split, which options people actually supply, and the most common values. |
+| `/usage errors` | What is failing, grouped by fault, plus the slowest commands. |
+| `/usage growth` | New vs returning users per day, and how many days users stay active. |
+| `/usage export` | Download raw events as a CSV attachment. |
+| `/usage storage` | Table size, row count, and write-buffer health. |
+| `/usage prune` | Permanently delete events older than a cutoff. Requires `confirm: True`. |
+
+Most subcommands take a `days` window (default 30) and a `limit`. The time-based ones take an IANA
+`timezone` such as `America/Chicago`, since UTC hours do not answer "when are my users awake".
+
+**What gets recorded:** every slash command (with its options), every button press, every
+autocomplete search, and the bot's own automated actions such as a fired price alert or a scheduled
+post. Autocomplete fires once per keystroke, so the keystrokes of one search are collapsed into a
+single row holding the finished query.
 
 ### `/id`
 Get your Discord user ID.

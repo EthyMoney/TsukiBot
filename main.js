@@ -87,7 +87,7 @@ const { AutoPoster } = require('topgg-autoposter');
 let poster;               // Will be initialized upon startup
 
 // Include API things
-const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ApplicationCommandOptionType } = require('discord.js');
+const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ApplicationCommandOptionType, AttachmentBuilder } = require('discord.js');
 const ccxt = require('ccxt');
 const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
@@ -131,6 +131,17 @@ let forexRates = {};
 // Spellcheck
 const didyoumean = require('didyoumean');
 
+// Usage telemetry. Split across three modules because the write path (hot, fire-and-forget) and the
+// read path (cold, admin-only, allowed to be slow) have opposite requirements, and the rendering is
+// pure enough to unit test on its own.
+const telemetry = require('./src/telemetry');
+const telemetryReports = require('./src/telemetry-reports');
+const render = require('./src/telemetry-render');
+
+// The command registry, for /usage command autocomplete. Safe to require: deploy-commands only
+// talks to Discord when run directly, so importing it here just builds the builders.
+const registeredCommandNames = require('./deploy-commands.js').commands.map(c => c.name).sort();
+
 // Connect to database.
 // A pool rather than a fresh client per command: every /tbpa* invocation used to pay TCP and auth
 // setup, connect() errors went unhandled, and any early return leaked the connection. pool.query
@@ -142,9 +153,33 @@ dbPool.on('error', (err) => {
   console.log(pc.red('Postgres pool error: ' + pc.cyan(err.message)));
 });
 
+// Both halves of telemetry share the bot's pool rather than opening their own: the write side is
+// low volume (one batched INSERT every few seconds) and the read side runs only when an admin asks.
+telemetry.init({
+  dbPool,
+  info: (msg) => console.log(pc.green(msg)),
+  error: (msg) => console.log(pc.red(msg))
+});
+telemetryReports.init({ dbPool });
+
+// Who may read usage reports. The application owner is resolved from Discord at startup; anyone
+// else has to be listed explicitly in keys.api as "botAdmins": ["id", ...]. Falling back to the
+// owner means a fresh install has working access control without any configuration.
+const configuredAdmins = new Set(Array.isArray(keys.botAdmins) ? keys.botAdmins.map(String) : []);
+let applicationOwnerIds = new Set();
+
+/**
+ * True when the user may see usage telemetry. Reports expose every user's id and
+ * activity across every server, so this is deliberately owner-only by default
+ * rather than gated on a per-guild permission like Manage Server.
+ * @param {string} userId
+ * @returns {boolean}
+ */
+function isBotAdmin(userId) {
+  return configuredAdmins.has(String(userId)) || applicationOwnerIds.has(String(userId));
+}
+
 // Declare general global variables
-let messageCount = 0;
-let referenceTime = Date.now();
 let chartTagID = 0;
 // Sleep interval between cg cache update queries. A demo/pro key raises the limit to ~30 req/min,
 // which lets a full pass finish in minutes instead of the ~30 the keyless per-IP budget forces.
@@ -2796,12 +2831,18 @@ async function runPriceAlertScan() {
       .setFooter({ text: 'TsukiBot price alert' })
       .setTimestamp();
 
+    // Recorded per alert with how it was delivered, so "are DMs actually reaching people" is
+    // answerable rather than guessed at.
+    let delivery = 'dm';
+    let outcome = 'ok';
+
     try {
       const user = await client.users.fetch(alert.user_id);
       await user.send({ embeds: [embed] });
     }
     catch {
       // DMs are closed or the user is gone. Fall back to the channel the alert was created in.
+      delivery = 'channel';
       try {
         const channel = await client.channels.fetch(alert.channel_id);
         if (channel && channel.isTextBased()) {
@@ -2809,9 +2850,20 @@ async function runPriceAlertScan() {
         }
       }
       catch {
+        delivery = 'failed';
+        outcome = 'error';
         console.log(pc.yellow(`Could not deliver price alert ${alert.alert_id} to user ${alert.user_id}.`));
       }
     }
+
+    telemetry.recordSystemEvent('alert-fired', {
+      userId: alert.user_id,
+      channelId: alert.channel_id,
+      subcommand: alert.direction,
+      params: { symbol: alert.symbol, target: String(alert.target_price), delivery },
+      coins: [String(alert.symbol).toUpperCase()],
+      outcome
+    });
   }
 
   console.log(pc.green(`Delivered ${toDeliver.length} price alert(s).`));
@@ -3479,12 +3531,32 @@ async function runDueScheduledPosts() {
   `);
 
   for (const post of due.rows) {
+    const startedAt = Date.now();
     try {
       await runScheduledPost(post);
       console.log(pc.green(`Posted scheduled job #${post.job_id} (${post.command}) to channel ${post.channel_id}.`));
+      telemetry.recordSystemEvent('scheduled-post', {
+        userId: String(post.created_by || 'system'),
+        guildId: post.guild_id,
+        channelId: post.channel_id,
+        subcommand: post.command,
+        params: { job_id: String(post.job_id), interval_minutes: post.interval_minutes },
+        coins: telemetry.extractCoins('cg', { coins: post.args || '' }),
+        durationMs: Date.now() - startedAt
+      });
     }
     catch (err) {
       console.log(pc.yellow(`Scheduled job #${post.job_id} failed: ${err.message}`));
+      telemetry.recordSystemEvent('scheduled-post', {
+        userId: String(post.created_by || 'system'),
+        guildId: post.guild_id,
+        channelId: post.channel_id,
+        subcommand: post.command,
+        params: { job_id: String(post.job_id) },
+        outcome: 'error',
+        error: err,
+        durationMs: Date.now() - startedAt
+      });
       // A channel the bot can no longer reach (deleted, kicked, permissions revoked) would fail
       // forever, so retire the job rather than logging the same error every cycle.
       if (err.code === 10003 || err.code === 50001 || err.code === 50013) {
@@ -3745,6 +3817,22 @@ client.on('clientReady', () => {
   ensureAlertsTable().catch(logStartupFailure('ensureAlertsTable'));
   ensureHoldingsTable().catch(logStartupFailure('ensureHoldingsTable'));
   ensureSchedulesTable().catch(logStartupFailure('ensureSchedulesTable'));
+  telemetry.ensureTelemetryTable().catch(logStartupFailure('ensureTelemetryTable'));
+
+  // Resolve who owns the application so /usage has an admin list even when keys.api defines none.
+  // Team-owned apps report a team instead of a user, so every team member is accepted.
+  client.application.fetch()
+    .then(app => {
+      const owners = new Set();
+      if (app.owner && app.owner.id) owners.add(String(app.owner.id));
+      if (app.owner && app.owner.members) {
+        for (const member of app.owner.members.values()) owners.add(String(member.id));
+      }
+      applicationOwnerIds = owners;
+      console.log(pc.green('Telemetry admins resolved: ') +
+        pc.cyan(`${owners.size} owner(s), ${configuredAdmins.size} configured`));
+    })
+    .catch(logStartupFailure('resolve application owner'));
 
   // Load CG cache from file first for instant availability
   const cacheLoaded = loadCGCacheFromFile();
@@ -3868,6 +3956,19 @@ function getCoinSuggestions(rawInput) {
 async function handleAutocomplete(interaction) {
   try {
     const focused = interaction.options.getFocused(true);
+
+    // /usage command completes command names, not coins. Handled first because the coin lookup
+    // below would otherwise return tickers for a field that expects a command.
+    if (interaction.commandName === 'usage') {
+      const input = (focused.value || '').trim().toLowerCase();
+      const matches = registeredCommandNames
+        .filter(name => name.includes(input))
+        .slice(0, 25)
+        .map(name => ({ name: '/' + name, value: name }));
+      await interaction.respond(matches);
+      return;
+    }
+
     let suggestions = getCoinSuggestions(focused.value);
 
     // /convert accepts fiat on either side, so offer matching currencies alongside the coins.
@@ -3936,20 +4037,624 @@ function describeCommandOptions(options) {
 }
 
 // This is triggered for every interaction that the bot receives
+/* --------------------------------------------------------------------------
+ *
+ *  /usage - usage telemetry reports
+ *
+ *  Everything here is admin-only and replies ephemerally, because the reports
+ *  name individual users and the servers they use the bot in.
+ *
+ *  Layout note: Discord embeds render in a proportional font, so any column
+ *  that needs to line up has to live inside a code fence. That is why these
+ *  build monospace text through src/telemetry-render.js rather than padding
+ *  strings into plain embed fields.
+ *
+ * -------------------------------------------------------------------------- */
+
+const USAGE_EMBED_COLOR = '#5865F2';
+
+/**
+ * Base embed for every usage report, so the window and timezone a report was
+ * built from are always visible rather than assumed.
+ * @param {string} title
+ * @param {number} days
+ * @param {string} [timezone]
+ * @returns {EmbedBuilder}
+ */
+function usageEmbed(title, days, timezone) {
+  return new EmbedBuilder()
+    .setTitle('📊 ' + title)
+    .setColor(USAGE_EMBED_COLOR)
+    .setFooter({ text: `Last ${days} day${days === 1 ? '' : 's'}` + (timezone ? ` · ${timezone}` : '') + ' · TsukiBot telemetry' })
+    .setTimestamp();
+}
+
+/**
+ * Renders the headline panel: how much the bot is used, by how many people,
+ * how reliably, and how fast.
+ * @param {number} days
+ * @param {string} timezone
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageOverview(days, timezone) {
+  const [stats, series, storage] = await Promise.all([
+    telemetryReports.getOverview(days),
+    telemetryReports.getDailySeries(Math.min(days, 60), timezone),
+    telemetryReports.getStorageStats()
+  ]);
+
+  const events = Number(stats.events) || 0;
+  const embed = usageEmbed('Usage overview', days, timezone);
+
+  const volume = render.renderKeyValue([
+    ['Events', render.compactNumber(events)],
+    ['Commands', render.compactNumber(stats.command_events)],
+    ['Autocomplete', render.compactNumber(stats.autocomplete_events)],
+    ['Buttons', render.compactNumber(stats.button_events)],
+    ['Automated', render.compactNumber(stats.system_events)],
+    ['From DMs', render.compactNumber(stats.dm_events) + ' (' + render.percent(stats.dm_events, events) + ')']
+  ]);
+
+  const reach = render.renderKeyValue([
+    ['Active today', render.compactNumber(stats.dau)],
+    ['Active 7d', render.compactNumber(stats.wau)],
+    ['Active 30d', render.compactNumber(stats.mau)],
+    ['Unique users', render.compactNumber(stats.users)],
+    ['Servers', render.compactNumber(stats.guilds)],
+    ['Commands used', render.compactNumber(stats.commands)]
+  ]);
+
+  const health = render.renderKeyValue([
+    ['Errors', render.compactNumber(stats.errors) + ' (' + render.percent(stats.errors, events) + ')'],
+    ['Avg time', render.formatDuration(stats.avg_ms)],
+    ['Median', render.formatDuration(stats.p50_ms)],
+    ['95th pct', render.formatDuration(stats.p95_ms)],
+    ['Busiest day', stats.busiest ? `${new Date(stats.busiest.day).toISOString().slice(0, 10)} (${render.compactNumber(stats.busiest.events)})` : '-'],
+    ['Events today', render.compactNumber(stats.events_today)]
+  ]);
+
+  embed.addFields(
+    { name: 'Volume', value: render.codeBlock(volume), inline: true },
+    { name: 'Reach', value: render.codeBlock(reach), inline: true },
+    { name: 'Health', value: render.codeBlock(health), inline: false }
+  );
+
+  if (series.length > 1) {
+    const spark = render.renderSparkline(series.map(row => row.events));
+    embed.addFields({
+      name: `Daily volume (${series.length}d)`,
+      value: render.codeBlock(spark + '\n' +
+        `low ${render.compactNumber(Math.min(...series.map(r => Number(r.events))))}` +
+        `   high ${render.compactNumber(Math.max(...series.map(r => Number(r.events))))}`)
+    });
+  }
+
+  const writer = telemetry.getWriterStats();
+  embed.setDescription(
+    `Tracking since **${stats.trackingSince ? new Date(stats.trackingSince).toISOString().slice(0, 10) : 'n/a'}** · ` +
+    `**${render.compactNumber(stats.lifetimeEvents)}** events all time · ` +
+    `**${storage.total_size}** on disk` +
+    (writer.buffered || writer.dropped
+      ? `\nBuffer: ${writer.buffered} queued, ${writer.pendingAutocomplete} searches settling` +
+        (writer.dropped ? `, ⚠️ ${writer.dropped} dropped` : '')
+      : '')
+  );
+
+  return embed;
+}
+
+/**
+ * Most used commands, ordered by invocation count.
+ * @param {number} days
+ * @param {number} limit
+ * @param {boolean} includeAutocomplete
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageCommands(days, limit, includeAutocomplete) {
+  const rows = await telemetryReports.getTopCommands(days, limit, includeAutocomplete);
+  const embed = usageEmbed('Top commands', days);
+
+  if (rows.length === 0) {
+    return embed.setDescription('No commands recorded yet in this window.');
+  }
+
+  const total = rows.reduce((sum, row) => sum + Number(row.uses), 0);
+  const chart = render.renderBarChart(
+    rows.slice(0, 12).map(row => ({ label: row.name, value: Number(row.uses) })),
+    { width: 18 }
+  );
+
+  const table = render.renderTable(rows, [
+    { key: 'name', label: 'Command', width: 18 },
+    { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber },
+    { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber },
+    { key: 'avg_ms', label: 'Avg', align: 'right', width: 7, format: render.formatDuration },
+    { key: 'errors', label: 'Err', align: 'right', width: 5, format: render.compactNumber }
+  ]);
+
+  embed.setDescription(`**${render.compactNumber(total)}** invocations across **${rows.length}** commands.`);
+  embed.addFields(
+    { name: 'Share', value: render.codeBlock(chart) },
+    { name: 'Detail', value: render.codeBlock(table) }
+  );
+  return embed;
+}
+
+/**
+ * Heaviest users. Ids are included because a username is not stable and is not
+ * what any follow-up query would key on.
+ * @param {number} days
+ * @param {number} limit
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageUsers(days, limit) {
+  const rows = await telemetryReports.getTopUsers(days, limit);
+  const embed = usageEmbed('Top users', days);
+
+  if (rows.length === 0) {
+    return embed.setDescription('No users recorded yet in this window.');
+  }
+
+  const table = render.renderTable(rows, [
+    { key: 'username', label: 'User', width: 16 },
+    { key: 'events', label: 'Events', align: 'right', width: 7, format: render.compactNumber },
+    { key: 'active_days', label: 'Days', align: 'right', width: 5 },
+    { key: 'distinct_commands', label: 'Cmds', align: 'right', width: 5 },
+    { key: 'favorite_command', label: 'Favorite', width: 12 },
+    { key: 'last_seen', label: 'Last', width: 9, format: render.formatRelative }
+  ]);
+
+  const chart = render.renderBarChart(
+    rows.slice(0, 10).map(row => ({ label: row.username || row.user_id, value: Number(row.events) })),
+    { width: 16 }
+  );
+
+  embed.setDescription(`**${rows.length}** most active users in this window.`);
+  embed.addFields(
+    { name: 'Activity', value: render.codeBlock(chart) },
+    { name: 'Detail', value: render.codeBlock(table) }
+  );
+  return embed;
+}
+
+/**
+ * Busiest servers.
+ * @param {number} days
+ * @param {number} limit
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageGuilds(days, limit) {
+  const rows = await telemetryReports.getTopGuilds(days, limit);
+  const embed = usageEmbed('Top servers', days);
+
+  if (rows.length === 0) {
+    return embed.setDescription('No server activity recorded yet in this window.');
+  }
+
+  const table = render.renderTable(rows, [
+    { key: 'guild_name', label: 'Server', width: 20 },
+    { key: 'events', label: 'Events', align: 'right', width: 7, format: render.compactNumber },
+    { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber },
+    { key: 'favorite_command', label: 'Favorite', width: 12 },
+    { key: 'last_used', label: 'Last', width: 9, format: render.formatRelative }
+  ]);
+
+  embed.setDescription(`**${rows.length}** servers with activity. DM usage is counted in \`/usage overview\`.`);
+  embed.addFields({ name: 'Detail', value: render.codeBlock(table) });
+  return embed;
+}
+
+/**
+ * Most requested coins.
+ * @param {number} days
+ * @param {number} limit
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageCoins(days, limit) {
+  const rows = await telemetryReports.getTopCoins(days, limit);
+  const embed = usageEmbed('Top coins', days);
+
+  if (rows.length === 0) {
+    return embed.setDescription('No coin lookups recorded yet in this window.');
+  }
+
+  const total = rows.reduce((sum, row) => sum + Number(row.requests), 0);
+  const chart = render.renderBarChart(
+    rows.slice(0, 15).map(row => ({ label: row.coin, value: Number(row.requests) })),
+    { width: 18, labelWidth: 8 }
+  );
+
+  const table = render.renderTable(rows, [
+    { key: 'coin', label: 'Coin', width: 10 },
+    { key: 'requests', label: 'Lookups', align: 'right', width: 8, format: render.compactNumber },
+    { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber },
+    { key: 'via_command', label: 'Mostly via', width: 12 }
+  ]);
+
+  embed.setDescription(`**${render.compactNumber(total)}** coin lookups across **${rows.length}** distinct assets.`);
+  embed.addFields(
+    { name: 'Demand', value: render.codeBlock(chart) },
+    { name: 'Detail', value: render.codeBlock(table) }
+  );
+  return embed;
+}
+
+/**
+ * When the bot gets used: hour of day, day of week, and the two combined as a
+ * heatmap. Rendered in the requested timezone, since UTC hours do not answer
+ * the question anyone is actually asking.
+ * @param {number} days
+ * @param {string} timezone
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageActivity(days, timezone) {
+  const [hourly, weekly, grid] = await Promise.all([
+    telemetryReports.getHourlyActivity(days, timezone),
+    telemetryReports.getWeekdayActivity(days, timezone),
+    telemetryReports.getActivityGrid(days, timezone)
+  ]);
+
+  const embed = usageEmbed('Activity patterns', days, timezone);
+  if (hourly.length === 0) {
+    return embed.setDescription('No activity recorded yet in this window.');
+  }
+
+  // Fill missing hours so a quiet 3am shows as an empty row rather than vanishing.
+  const byHour = new Map(hourly.map(row => [Number(row.hour), Number(row.events)]));
+  const hourItems = Array.from({ length: 24 }, (_, hour) => ({
+    label: String(hour).padStart(2, '0') + ':00',
+    value: byHour.get(hour) || 0
+  }));
+
+  const byWeekday = new Map(weekly.map(row => [Number(row.weekday), Number(row.events)]));
+  const weekdayItems = render.WEEKDAY_NAMES.map((name, index) => ({
+    label: name,
+    value: byWeekday.get(index) || 0
+  }));
+
+  const peakHour = hourItems.reduce((best, item) => item.value > best.value ? item : best, hourItems[0]);
+  const peakDay = weekdayItems.reduce((best, item) => item.value > best.value ? item : best, weekdayItems[0]);
+
+  embed.setDescription(`Busiest hour is **${peakHour.label}** and the busiest day is **${peakDay.label}**, in \`${timezone}\`.`);
+  embed.addFields(
+    { name: 'By hour', value: render.codeBlock(render.renderBarChart(hourItems, { width: 14, labelWidth: 5 })) },
+    { name: 'By weekday', value: render.codeBlock(render.renderBarChart(weekdayItems, { width: 18, labelWidth: 3 })), inline: true },
+    { name: 'Heatmap', value: render.codeBlock(render.renderHeatmap(grid) + '\n' + render.heatmapLegend()) }
+  );
+  return embed;
+}
+
+/**
+ * Deep dive on a single command: which subcommands people reach for, which
+ * options they actually supply, and what values they pass.
+ * @param {string} command
+ * @param {number} days
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageCommandDetail(command, days) {
+  const name = String(command || '').replace(/^\//, '').trim().toLowerCase();
+  const [subcommands, coverage, values] = await Promise.all([
+    telemetryReports.getSubcommandSplit(name, days),
+    telemetryReports.getOptionCoverage(name, days),
+    telemetryReports.getParameterUsage(name, days, 25)
+  ]);
+
+  const embed = usageEmbed(`/${name} usage`, days);
+  const total = subcommands.reduce((sum, row) => sum + Number(row.uses), 0);
+
+  if (total === 0) {
+    return embed.setDescription(`No recorded invocations of \`/${name}\` in this window. Check the spelling, or widen the window.`);
+  }
+
+  embed.setDescription(`**${render.compactNumber(total)}** invocations of \`/${name}\`.`);
+
+  if (subcommands.length > 1 || (subcommands[0] && subcommands[0].subcommand !== '(none)')) {
+    embed.addFields({
+      name: 'Subcommands',
+      value: render.codeBlock(render.renderTable(subcommands, [
+        { key: 'subcommand', label: 'Subcommand', width: 16 },
+        { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber },
+        { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber }
+      ]))
+    });
+  }
+
+  if (coverage.length > 0) {
+    const withShare = coverage.map(row => ({
+      ...row,
+      share: render.percent(row.supplied, row.total_invocations, 0)
+    }));
+    embed.addFields({
+      name: 'Option usage',
+      value: render.codeBlock(render.renderTable(withShare, [
+        { key: 'option', label: 'Option', width: 14 },
+        { key: 'supplied', label: 'Supplied', align: 'right', width: 8, format: render.compactNumber },
+        { key: 'share', label: 'Of runs', align: 'right', width: 8 }
+      ]))
+    });
+  }
+
+  if (values.length > 0) {
+    embed.addFields({
+      name: 'Most common values',
+      value: render.codeBlock(render.renderTable(values, [
+        { key: 'option', label: 'Option', width: 10 },
+        { key: 'value', label: 'Value', width: 20 },
+        { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber }
+      ]))
+    });
+  }
+
+  return embed;
+}
+
+/**
+ * What is failing and what is slow, the two things worth acting on.
+ * @param {number} days
+ * @param {number} limit
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageErrors(days, limit) {
+  const [errors, slowest] = await Promise.all([
+    telemetryReports.getErrors(days, limit),
+    telemetryReports.getSlowestCommands(days, 10)
+  ]);
+
+  const embed = usageEmbed('Errors and latency', days);
+
+  if (errors.length === 0) {
+    embed.setDescription('✅ No command errors recorded in this window.');
+  }
+  else {
+    const total = errors.reduce((sum, row) => sum + Number(row.occurrences), 0);
+    embed.setDescription(`**${render.compactNumber(total)}** failures across **${errors.length}** distinct faults.`);
+    embed.addFields({
+      name: 'Failures',
+      value: render.codeBlock(render.renderTable(errors, [
+        { key: 'command', label: 'Command', width: 12 },
+        { key: 'error_kind', label: 'Error', width: 24 },
+        { key: 'occurrences', label: 'Count', align: 'right', width: 6, format: render.compactNumber },
+        { key: 'last_seen', label: 'Last', width: 9, format: render.formatRelative }
+      ]))
+    });
+  }
+
+  if (slowest.length > 0) {
+    embed.addFields({
+      name: 'Slowest commands (5+ samples)',
+      value: render.codeBlock(render.renderTable(slowest, [
+        { key: 'command', label: 'Command', width: 14 },
+        { key: 'avg_ms', label: 'Avg', align: 'right', width: 8, format: render.formatDuration },
+        { key: 'p95_ms', label: 'p95', align: 'right', width: 8, format: render.formatDuration },
+        { key: 'max_ms', label: 'Max', align: 'right', width: 8, format: render.formatDuration },
+        { key: 'samples', label: 'N', align: 'right', width: 6, format: render.compactNumber }
+      ]))
+    });
+  }
+
+  return embed;
+}
+
+/**
+ * New versus returning users, and how many days people stick around for.
+ * @param {number} days
+ * @param {string} timezone
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageGrowth(days, timezone) {
+  const [growth, retention] = await Promise.all([
+    telemetryReports.getGrowth(days, timezone),
+    telemetryReports.getRetention(days)
+  ]);
+
+  const embed = usageEmbed('Growth and retention', days, timezone);
+  if (growth.length === 0) {
+    return embed.setDescription('No activity recorded yet in this window.');
+  }
+
+  const newTotal = growth.reduce((sum, row) => sum + Number(row.new_users), 0);
+  const returningPeak = Math.max(...growth.map(row => Number(row.returning_users)));
+
+  embed.setDescription(
+    `**${render.compactNumber(newTotal)}** first-time users in this window. ` +
+    `Peak returning users in a day: **${render.compactNumber(returningPeak)}**.`
+  );
+
+  embed.addFields({
+    name: 'Daily active users',
+    value: render.codeBlock(
+      render.renderSparkline(growth.map(row => row.active_users)) + '\n' +
+      'new      ' + render.renderSparkline(growth.map(row => row.new_users))
+    )
+  });
+
+  const recent = growth.slice(-12);
+  embed.addFields({
+    name: 'Recent days',
+    value: render.codeBlock(render.renderTable(recent, [
+      { key: 'day', label: 'Day', width: 10, format: (value) => new Date(value).toISOString().slice(5, 10) },
+      { key: 'active_users', label: 'Active', align: 'right', width: 7, format: render.compactNumber },
+      { key: 'new_users', label: 'New', align: 'right', width: 5, format: render.compactNumber },
+      { key: 'returning_users', label: 'Return', align: 'right', width: 7, format: render.compactNumber }
+    ]))
+  });
+
+  if (retention.length > 0) {
+    embed.addFields({
+      name: 'How many days users stayed active',
+      value: render.codeBlock(render.renderBarChart(
+        retention.map(row => ({ label: row.bucket, value: Number(row.users) })),
+        { width: 16, labelWidth: 16 }
+      ))
+    });
+  }
+
+  return embed;
+}
+
+/**
+ * Dispatches /usage. Kept as one function so the admin gate and the deferral
+ * are applied in exactly one place rather than per subcommand.
+ * @param {object} interaction
+ */
+async function handleUsageCommand(interaction) {
+  if (!isBotAdmin(interaction.user.id)) {
+    await interaction.reply({
+      content: 'That command is restricted to the bot owner. Usage reports expose activity across every server the bot is in.',
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  const sub = interaction.options.getSubcommand();
+  const days = interaction.options.getInteger('days') || 30;
+  const limit = interaction.options.getInteger('limit') || 15;
+  const timezone = telemetryReports.normalizeTimezone(interaction.options.getString('timezone') || 'UTC');
+
+  // Reports are read-only aggregate scans and are always private.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  // Flush first so a report run right after a command reflects it, instead of
+  // missing the last few seconds still sitting in the write buffer.
+  await telemetry.flush();
+
+  switch (sub) {
+    case 'overview':
+      await interaction.editReply({ embeds: [await buildUsageOverview(days, timezone)] });
+      break;
+
+    case 'commands':
+      await interaction.editReply({
+        embeds: [await buildUsageCommands(days, limit, interaction.options.getBoolean('include_searches') || false)]
+      });
+      break;
+
+    case 'users':
+      await interaction.editReply({ embeds: [await buildUsageUsers(days, limit)] });
+      break;
+
+    case 'servers':
+      await interaction.editReply({ embeds: [await buildUsageGuilds(days, limit)] });
+      break;
+
+    case 'coins':
+      await interaction.editReply({ embeds: [await buildUsageCoins(days, limit)] });
+      break;
+
+    case 'activity':
+      await interaction.editReply({ embeds: [await buildUsageActivity(days, timezone)] });
+      break;
+
+    case 'command':
+      await interaction.editReply({
+        embeds: [await buildUsageCommandDetail(interaction.options.getString('name'), days)]
+      });
+      break;
+
+    case 'errors':
+      await interaction.editReply({ embeds: [await buildUsageErrors(days, limit)] });
+      break;
+
+    case 'growth':
+      await interaction.editReply({ embeds: [await buildUsageGrowth(days, timezone)] });
+      break;
+
+    case 'export': {
+      // Capped well under Discord's attachment limit; a full dump belongs in psql, not here.
+      const rows = await telemetryReports.getRecentEvents(days, Math.min(interaction.options.getInteger('rows') || 5000, 50000));
+      if (rows.length === 0) {
+        await interaction.editReply({ content: 'No events to export in that window.' });
+        break;
+      }
+      let csv = render.renderCsv(rows);
+      let exported = rows.length;
+
+      // Discord rejects an oversized attachment outright, which would turn a large export into a
+      // bare error. Trimming to the most recent rows that fit degrades it into a smaller export
+      // instead, and says so rather than pretending the file is complete.
+      const MAX_ATTACHMENT_BYTES = 7 * 1024 * 1024;
+      if (Buffer.byteLength(csv, 'utf8') > MAX_ATTACHMENT_BYTES) {
+        const lines = csv.split('\n');
+        const header = lines[0];
+        let size = Buffer.byteLength(header, 'utf8');
+        const kept = [header];
+        for (const line of lines.slice(1)) {
+          size += Buffer.byteLength(line, 'utf8') + 1;
+          if (size > MAX_ATTACHMENT_BYTES) break;
+          kept.push(line);
+        }
+        csv = kept.join('\n');
+        exported = kept.length - 1;
+      }
+
+      const file = new AttachmentBuilder(Buffer.from(csv, 'utf8'), { name: `tsukibot-usage-${days}d.csv` });
+      await interaction.editReply({
+        content: `Exported **${exported}** events from the last ${days} day(s).` +
+          (exported < rows.length ? ` Trimmed from ${rows.length} to fit Discord's attachment limit.` : ''),
+        files: [file]
+      });
+      break;
+    }
+
+    case 'storage': {
+      const storage = await telemetryReports.getStorageStats();
+      const writer = telemetry.getWriterStats();
+      const embed = usageEmbed('Telemetry storage', days)
+        .setDescription('Nothing is pruned automatically. Use `/usage prune` when the table gets large.')
+        .addFields({
+          name: 'Table', value: render.codeBlock(render.renderKeyValue([
+            ['Rows', render.compactNumber(storage.rows)],
+            ['On disk', String(storage.total_size)],
+            ['Oldest', storage.oldest ? new Date(storage.oldest).toISOString().slice(0, 10) : '-'],
+            ['Buffered', String(writer.buffered)],
+            ['Settling', String(writer.pendingAutocomplete)],
+            ['Dropped', String(writer.dropped)]
+          ]))
+        });
+      await interaction.editReply({ embeds: [embed] });
+      break;
+    }
+
+    case 'prune': {
+      const keepDays = interaction.options.getInteger('keep_days');
+      if (!interaction.options.getBoolean('confirm')) {
+        await interaction.editReply({
+          content: `This would permanently delete every event older than **${keepDays} days**. ` +
+            'Re-run with `confirm: True` if that is what you want.'
+        });
+        break;
+      }
+      const deleted = await telemetryReports.pruneOlderThan(keepDays);
+      console.log(pc.yellow(`Telemetry pruned: ${deleted} events older than ${keepDays} days deleted by ${interaction.user.username}`));
+      await interaction.editReply({ content: `Deleted **${deleted}** events older than ${keepDays} days.` });
+      break;
+    }
+
+    default:
+      await interaction.editReply({ content: 'Unknown usage report.' });
+  }
+}
+
 client.on('interactionCreate', async interaction => {
   // Autocomplete and component interactions arrive here too, and used to be dropped by the
   // chat-input-only guard below.
   if (interaction.isAutocomplete()) {
+    // Recorded before the handler runs, because what the user typed is interesting even when the
+    // lookup finds nothing. Keystrokes of one search are coalesced inside the telemetry module.
+    telemetry.recordAutocomplete(interaction);
     await handleAutocomplete(interaction);
     return;
   }
 
   if (interaction.isButton()) {
+    const buttonStart = Date.now();
     try {
       if (interaction.customId.startsWith('chart:')) await handleChartButton(interaction);
+      telemetry.recordButton(interaction, { durationMs: Date.now() - buttonStart });
     }
     catch (err) {
       console.log(pc.red('Error handling button interaction: ' + pc.cyan(err)));
+      telemetry.recordButton(interaction, { outcome: 'error', error: err, durationMs: Date.now() - buttonStart });
     }
     return;
   }
@@ -3960,6 +4665,7 @@ client.on('interactionCreate', async interaction => {
   const command = interaction.commandName;
   const opts = interaction.options;
   const author = interaction.user;
+  const startedAt = Date.now();
 
   const inputs = describeCommandOptions(opts.data);
   console.log(pc.green('Slash command ') + pc.cyan('/' + command) + pc.green(' used by ') + pc.yellow(author.username) + (inputs ? pc.green(' with ') + pc.cyan(inputs) : ''));
@@ -4044,7 +4750,7 @@ client.on('interactionCreate', async interaction => {
 
       // ---- Session stats ----
       case 'stats':
-        postSessionStats(null, interaction);
+        await postSessionStats(null, interaction);
         break;
 
       // ---- Help ----
@@ -4280,6 +4986,11 @@ client.on('interactionCreate', async interaction => {
         break;
       }
 
+      // ---- Usage telemetry (admin only) ----
+      case 'usage':
+        await handleUsageCommand(interaction);
+        break;
+
       // ---- Discord ID ----
       case 'id':
         await interaction.reply({ content: 'Your ID is `' + author.id + '`.', flags: MessageFlags.Ephemeral });
@@ -4289,6 +5000,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: 'Unknown command. Use `/help` to see all available commands.', flags: MessageFlags.Ephemeral });
         break;
     }
+    telemetry.recordCommand(interaction, { durationMs: Date.now() - startedAt });
   } catch (err) {
     // 10062 "Unknown interaction" means Discord has already discarded this interaction — the bot
     // was restarting, or took longer than the 3 second window to acknowledge it. There is nothing
@@ -4296,10 +5008,14 @@ client.on('interactionCreate', async interaction => {
     if (err && err.code === 10062) {
       console.log(pc.yellow('Interaction for ') + pc.cyan('/' + command) +
         pc.yellow(' expired before it could be acknowledged (bot restarting, or slow to respond). Nothing to reply to.'));
+      // Tracked separately from a real error: an expired interaction says the bot was too slow or
+      // restarting, which is an availability signal rather than a bug in the command.
+      telemetry.recordCommand(interaction, { outcome: 'expired', durationMs: Date.now() - startedAt });
       return;
     }
 
     console.log(pc.red('Error handling slash command ') + pc.cyan('/' + command) + pc.red(': ') + pc.cyan(err));
+    telemetry.recordCommand(interaction, { outcome: 'error', error: err, durationMs: Date.now() - startedAt });
     // Try to let the user know something went wrong, using whichever response method is still available
     try {
       if (interaction.deferred || interaction.replied) {
@@ -4433,19 +5149,69 @@ async function translateEN(channel, message, interaction) {
 // Pauses execution when called within an async function for the given milliseconds
 
 // Send the session stats of the bot
-function postSessionStats(message, interaction) {
-  //console.log(chalk.green('Session stats requested by: ' + chalk.yellow(message.author.username)));
+/* --------------------------------------------------------------------------
+ *
+ *  Throughput for /stats.
+ *
+ *  This used to be derived from an in-memory `messageCount` that nothing had incremented since
+ *  prefix commands were removed, so the figure was permanently zero. It now comes from the usage
+ *  telemetry table, which means it survives restarts instead of resetting to zero on every deploy.
+ *
+ *  /stats is public, so the numbers are cached rather than queried per invocation. The lifetime
+ *  total is a full table scan: cheap today, and not something to run on every button press as the
+ *  table grows. Five minutes of staleness is invisible in a per-minute average.
+ *
+ * -------------------------------------------------------------------------- */
+
+const STATS_THROUGHPUT_CACHE_MS = 5 * 60 * 1000;
+let statsThroughputCache = { at: 0, value: null };
+
+/**
+ * @returns {Promise<{rate: number, total: number, windowLabel: string}|null>} null when telemetry
+ *          has nothing to report or is unavailable, in which case /stats omits the lines.
+ */
+async function getCommandThroughput() {
+  if (statsThroughputCache.at && Date.now() - statsThroughputCache.at < STATS_THROUGHPUT_CACHE_MS) {
+    return statsThroughputCache.value;
+  }
+
+  let value = null;
+  try {
+    const stats = await telemetryReports.getActivityRate();
+    const rate = telemetryReports.perMinuteRate(stats);
+    if (rate !== null) {
+      value = {
+        rate,
+        total: Number(stats.events_total),
+        // Name the window, because a bot with less than a day of history is measured over its
+        // actual runtime rather than over 24 hours.
+        windowLabel: Number(stats.tracked_minutes) >= 1440 ? 'last 24h' : 'since tracking began'
+      };
+    }
+  }
+  catch (err) {
+    // /stats has to keep working with the database unreachable; the throughput lines drop out.
+    console.log(pc.yellow('Could not read command throughput for /stats: ' + pc.cyan(err.message)));
+  }
+
+  statsThroughputCache = { at: Date.now(), value };
+  return value;
+}
+
+async function postSessionStats(message, interaction) {
   let users = (client.guilds.cache.reduce(function (sum, guild) { return sum + guild.memberCount; }, 0));
   users = numberWithCommas(users);
   const guilds = numberWithCommas(client.guilds.cache.size);
-  const messagesPerSecond = Math.trunc(messageCount * 1000 * 60 / (Date.now() - referenceTime));
-  //const topCrypto   = coinArrayMax(requestCounter);
-  //const popCrypto   = coinArrayMax(mentionCounter);
+
+  const throughput = await getCommandThroughput();
+  const throughputLines = throughput
+    ? '⇒ Average commands per minute: `' + render.formatRate(throughput.rate) + '` (' + throughput.windowLabel + ').\n' +
+    '⇒ Commands served all time: `' + numberWithCommas(throughput.total) + '`.\n'
+    : '';
+
   const messageHeader = ('Serving `' + users + '` users from `' + guilds + '` servers.\n' +
     '⇒ Current uptime: `' + Math.trunc(client.uptime / (3600000)) + 'hr`.\n' +
-    '⇒ Average messages per minute: `' + messagesPerSecond + '`.\n' +
-    // + (topCrypto[1] > 0 ? "⇒ Top requested crypto: `" + topCrypto[0] + "` with `" + topCrypto[1] + "%` dominance.\n" : "")
-    // + (popCrypto[1] > 0 ? "⇒ Top mentioned crypto: `" + popCrypto[0] + "` with `" + popCrypto[1] + "%` dominance.\n" : "")
+    throughputLines +
     '⇒ Join the support server! (https://discord.gg/VWNUbR5)\n' +
     '`⇒ ETH donations appreciated at: 0x169381506870283cbABC52034E4ECc123f3FAD02`');
 
@@ -5967,6 +6733,31 @@ client.on('error', (err) => {
   console.log(pc.red(pc.bold('General bot client Error. ' + pc.cyan('(Likely a connection interruption, check network connection) Here is the details:'))));
   console.error(err);
 });
+
+// Telemetry lives in a memory buffer between flushes, so a restart would otherwise lose the last
+// few seconds of activity. pm2 sends SIGINT on restart and SIGTERM on stop; both drain the buffer
+// before exiting. The timeout is the point: a database that is refusing writes must not turn a
+// restart into a hang, so the drain gets a bounded window and then the process leaves anyway.
+let shuttingDown = false;
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, async () => {
+    if (shuttingDown) return; // a second Ctrl-C should not start a second drain
+    shuttingDown = true;
+    console.log(pc.yellow(`\nReceived ${signal}, flushing telemetry before exit...`));
+    try {
+      const written = await Promise.race([
+        telemetry.shutdown(),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 3000))
+      ]);
+      if (written === 'timeout') console.log(pc.yellow('Telemetry flush timed out, exiting anyway.'));
+      else console.log(pc.green(`Telemetry flushed (${written} events written).`));
+    }
+    catch (err) {
+      console.log(pc.red('Telemetry flush failed on shutdown: ' + pc.cyan(err && err.message)));
+    }
+    process.exit(0);
+  });
+}
 
 process.on('unhandledRejection', err => {
   // If the error is a chromium restart failure from within puppeteer, we will restart the whole bot process because puppeteer will stop working if we don't.

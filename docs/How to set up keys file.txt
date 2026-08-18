@@ -100,3 +100,38 @@ Two more environment variables control Chromium, used for chart rendering:
                         Chromium's sandbox. It is on by default, and it is what
                         contains a compromised chart page, so leave it alone if
                         you can.
+
+
+BOT ADMINS (optional)
+
+  "botAdmins": ["123456789012345678", "234567890123456789"]
+
+Who may run /usage, the usage telemetry reports. These reports span every server
+the bot is in and name individual users, so they are owner-only by default.
+
+You do not need to set this. On startup the bot asks Discord who owns the
+application and grants access to that account (or to every member of the team,
+for a team-owned app). This list is only for granting access to someone who is
+not an owner.
+
+Note that this is an array of user ID strings, unlike every other entry in this
+file. Turn on Developer Mode in Discord to copy a user ID.
+
+
+OWNER GUILD (required for /usage)
+
+  "ownerGuild": "567970908451635200"
+
+The server that owner-only commands are registered to. Right now that is just
+/usage, the telemetry reports.
+
+This exists because a globally registered command cannot really be hidden. Discord
+treats default_member_permissions as a default that any server admin can override
+in their integration settings, and it does not apply to DMs at all, so a global
+/usage would be visible to every server admin and to anyone who DMs the bot.
+Registering it to one guild means it does not exist anywhere else.
+
+Set it before running "npm run deploy". If it is missing, deployment still succeeds
+but warns that /usage was not registered anywhere.
+
+Can also be supplied as the OWNER_GUILD_ID environment variable.

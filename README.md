@@ -60,6 +60,13 @@ A few things worth knowing:
   minutes, because the rate limit becomes per-key instead of per-IP.
 + **Any key can come from the environment** instead of `keys.api`, which is what makes the Docker
   setup work without baking secrets into an image.
++ **Usage telemetry** records every interaction to `tsukibot.usage_events` and is read back with
+  `/usage`. The table creates itself on first start. Access is limited to the Discord application
+  owner, resolved automatically; add others with `"botAdmins": ["id", ...]` in `keys.api`. Nothing
+  is pruned automatically, so run `/usage prune` if the table ever outgrows its usefulness.
++ **`/usage` is not a global command.** It deploys only to the server set as `ownerGuild` in
+  `keys.api`, because a global command is visible to every server admin and to everyone in DMs no
+  matter what `default_member_permissions` says. Set that field before `npm run deploy`.
 + `npm test` runs the unit test suite.
 
 <br>

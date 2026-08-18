@@ -19,7 +19,7 @@ const path = require('node:path');
 
   -------------------------------------------- */
 
-const { commands } = require('../deploy-commands.js');
+const { commands, globalCommands, ownerGuildCommands, OWNER_ONLY_COMMANDS } = require('../deploy-commands.js');
 const mainSource = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
 
 // Pull the command names the interactionCreate switch actually handles.
@@ -166,4 +166,60 @@ test('main.js decodes chart customIds with a rejoining split, not a bare destruc
     'handleChartButton uses a destructuring split, which truncates exchange-qualified pairs');
   assert.match(handlerBody, /slice\(2\)\.join\(':'\)/,
     'handleChartButton should rejoin the query tail after splitting on colons');
+});
+
+/* --------------------------------------------
+
+    Registration scope.
+
+    /usage reports activity across every server the bot is in, so it must not be a global command.
+    default_member_permissions is not a substitute: Discord treats it as a default that any server
+    admin can override in their integration settings, and it does not apply in DMs at all, where an
+    unset dm_permission defaults to true. A global /usage would therefore be visible to every admin
+    everywhere and to everyone in DMs.
+
+    Scoping it to a single guild is what actually restricts it, and these tests keep it that way.
+
+  -------------------------------------------- */
+
+test('owner-only commands are excluded from the global registration', () => {
+  for (const name of OWNER_ONLY_COMMANDS) {
+    assert.ok(!globalCommands.some(c => c.name === name),
+      `/${name} is owner-only but would be registered globally, making it visible to every ` +
+      'server admin and to everyone in DMs');
+  }
+});
+
+test('owner-only commands are registered to the owner guild instead', () => {
+  const scoped = ownerGuildCommands.map(c => c.name);
+  for (const name of OWNER_ONLY_COMMANDS) {
+    assert.ok(scoped.includes(name), `/${name} is owner-only but is not registered anywhere`);
+  }
+});
+
+test('the two registration sets partition the full command list', () => {
+  // Neither dropped nor double-registered: a command in both would exist twice in the owner guild.
+  assert.equal(globalCommands.length + ownerGuildCommands.length, commands.length);
+
+  const overlap = globalCommands.filter(g => ownerGuildCommands.some(o => o.name === g.name));
+  assert.deepEqual(overlap.map(c => c.name), [], 'a command must not be in both sets');
+
+  const covered = new Set([...globalCommands, ...ownerGuildCommands].map(c => c.name));
+  const missing = commands.map(c => c.name).filter(n => !covered.has(n));
+  assert.deepEqual(missing, [], `not registered anywhere: ${missing.join(', ')}`);
+});
+
+test('/usage is the command being scoped', () => {
+  // Guards against OWNER_ONLY_COMMANDS being emptied and these tests passing vacuously.
+  assert.ok(OWNER_ONLY_COMMANDS.has('usage'), '/usage must stay owner-only');
+  assert.ok(OWNER_ONLY_COMMANDS.size > 0);
+});
+
+test('owner-only commands still carry a restrictive permission default', () => {
+  // Belt and braces: guild scoping is the real gate, but inside that one guild the command should
+  // not be offered to every member either.
+  for (const command of ownerGuildCommands) {
+    assert.ok(command.default_member_permissions,
+      `/${command.name} should still set default_member_permissions inside the owner guild`);
+  }
 });
