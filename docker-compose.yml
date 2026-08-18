@@ -1,0 +1,146 @@
+# ---------------------------------------------------------------------------
+#  TsukiBot + PostgreSQL
+#
+#  Quick start:
+#    1. Fill in common/keys.api (see "docs/How to set up keys file.txt").
+#    2. In keys.api set   "dbAddress": "postgres"   -- main.js builds its
+#       connection string as
+#         postgres://bigboi:<keys.tsukibot>@<keys.dbAddress>:5432/tsukibot
+#       and "postgres" is this compose service's hostname on the bot network.
+#    3. Put the SAME password in the environment as POSTGRES_PASSWORD, e.g. an
+#       .env file next to this file containing:
+#         POSTGRES_PASSWORD=<same value as the "tsukibot" field in keys.api>
+#       (it is required, not defaulted: a silent mismatch would surface only as
+#       a confusing auth failure at query time.)
+#    4. docker compose up -d --build
+#    5. Register slash commands once:  docker compose run --rm bot npm run deploy
+# ---------------------------------------------------------------------------
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Must match the owner of ./common on a Linux host, otherwise the
+        # bot's cache writes into that bind mount fail with EACCES.
+        # Override with APP_UID/APP_GID in .env or the environment.
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    image: tsukibot:local
+    restart: unless-stopped
+
+    # Reap the Chromium/zygote processes the puppeteer cluster leaves behind;
+    # node is not a good pid 1 for a process tree this busy.
+    init: true
+
+    # Chromium's default /dev/shm of 64MB is not enough for several concurrent
+    # TradingView pages (maxConcurrency is 6). Raising it is the correct fix;
+    # --disable-dev-shm-usage is the workaround for hosts that cannot.
+    shm_size: "1gb"
+
+    # -----------------------------------------------------------------------
+    #  Why seccomp is relaxed here
+    #
+    #  main.js keeps Chromium's sandbox enabled unless CHROME_NO_SANDBOX=true,
+    #  and the image runs as a non-root user precisely so that sandbox can
+    #  work. But Chromium's namespace sandbox calls clone(CLONE_NEWUSER), and
+    #  docker's DEFAULT seccomp profile denies that -- verified on this host:
+    #  `unshare --user` returns EPERM under the default profile and succeeds
+    #  under unconfined. Without this line Chromium cannot start and every
+    #  chart/heatmap command fails.
+    #
+    #  The trade is deliberate: give up docker's syscall filter and keep
+    #  Chromium's own sandbox, which is the layer that actually contains the
+    #  renderer parsing attacker-influenceable chart input.
+    #
+    #  Stricter alternative: ship a chrome-tuned seccomp profile (the widely
+    #  used chrome.json) and point at it instead:
+    #      security_opt:
+    #        - seccomp:./chrome.json
+    #  Last resort only, if the host cannot do user namespaces at all: drop
+    #  this block and set CHROME_NO_SANDBOX=true below. That runs an
+    #  unsandboxed browser -- prefer the two options above.
+    # -----------------------------------------------------------------------
+    security_opt:
+      - seccomp:unconfined
+
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-UTC}
+      # CHROME_PATH=/usr/bin/chromium is already set in the image.
+      # CHROME_NO_SANDBOX: "true"          # see the note above; not recommended
+      # NODE_OPTIONS: "--max-old-space-size=6144"   # mirrors process.json (pm2)
+      # COINGECKO_API_KEY / COINGECKO_PRO_API_KEY can be set here instead of
+      # in keys.api if you prefer env-supplied keys.
+
+    volumes:
+      # keys.api is MOUNTED, never baked into the image (.dockerignore excludes
+      # common/ from the build context entirely). Read-write on purpose: the
+      # bot rewrites metadata.json, coinsCG.json, coinsCGtickers.json,
+      # cgCache.json, msg_id and serverPerms.json in here.
+      - ./common:/app/common
+      # Optional: keep per-server tags across rebuilds.
+      # - ./tags.json:/app/tags.json
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    # No `ports:` on purpose. The chart server (127.0.0.1:8080) and the prices
+    # API (127.0.0.1:3330) bind to loopback by design -- they are internal
+    # plumbing for puppeteer, not public endpoints. Publishing them would not
+    # even work: a loopback-bound listener is unreachable from outside the
+    # container's network namespace.
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      # These three have to line up with the connection string main.js builds:
+      #   user bigboi / db tsukibot / password = keys.tsukibot
+      POSTGRES_USER: bigboi
+      POSTGRES_DB: tsukibot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD (e.g. in a .env file) to the same value as the "tsukibot" field in common/keys.api}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # A fresh volume self-initializes from the author's dump. Mounted with a
+      # .sql target name because the entrypoint only executes *.sql, *.sql.gz,
+      # *.sql.xz and *.sh -- mounted under its own extensionless name the file
+      # is silently ignored. Read-only: this is a source artifact, not state.
+      - ./docs/TsukiBotDB_Schema:/docker-entrypoint-initdb.d/10-tsukibot-schema.sql:ro
+    configs:
+      - source: pg_dump_compat
+        target: /docker-entrypoint-initdb.d/00-roles.sql
+        mode: 0444
+    healthcheck:
+      # The bot's pool would otherwise race the very first startup and log
+      # connection errors until the DB finishes initdb + the schema import.
+      test: ["CMD-SHELL", "pg_isready -U bigboi -d tsukibot"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    # Not published either: only the bot needs it, over the compose network.
+    # Uncomment for psql from the host (binds loopback only):
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+configs:
+  # docs/TsukiBotDB_Schema was dumped from a database that had BOTH a `postgres`
+  # superuser and a `bigboi` owner. This cluster is initialized with bigboi as
+  # the superuser (that is who main.js connects as), so the dump's
+  # "ALTER SCHEMA tsukibot OWNER TO postgres" would abort init with
+  # "role postgres does not exist". That failure is nastier than it looks: the
+  # entrypoint runs psql with ON_ERROR_STOP=1, initdb has already populated
+  # PGDATA by then, so on restart the container skips initialization entirely
+  # and the schema never gets created -- with no error to explain it.
+  # A NOLOGIN placeholder role lets the unmodified dump apply cleanly. NOLOGIN
+  # because nothing should ever authenticate as it; it exists only to own the
+  # schema object.
+  pg_dump_compat:
+    content: |
+      CREATE ROLE postgres NOLOGIN;
+
+volumes:
+  pgdata:

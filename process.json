@@ -4,7 +4,7 @@
       "name": "tsuki",
       "script": "main.js",
       "log_date_format": "YYYY-MM-DD HH:mm",
-      "ignoreWatch": [
+      "ignore_watch": [
         "node_modules",
         "common",
         "public",

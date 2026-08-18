@@ -5,6 +5,8 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 TsukiBot uses Discord **slash commands**. To run any command, type `/` in a channel, pick **TsukiBot** from the list, and Discord will show every command along with its inputs and descriptions. All commands and their options are listed below for reference.
 
+Most coin inputs **autocomplete** as you type: start typing a ticker or name and the bot suggests matching coins ranked by market cap, which saves guessing at which of several coins sharing a symbol you meant.
+
 To resolve permissions issues, kick the bot and add it back using [THIS INVITE LINK](https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664) and keep the requested permissions checked. These permissions are **REQUIRED** for the bot to work correctly. If you need help, join the support server using the link at the bottom of this page.
 
 <br>
@@ -17,7 +19,7 @@ Get CoinGecko prices for one or more coins. This is the fastest and most commonl
 
 ### `/price <exchange> <coin> [vs]`
 Get a real-time price for a coin directly from a specific exchange.
-+ `exchange` *(required)* — choose from: **Coinbase, Binance, Kraken, Bitfinex, BitMEX, Poloniex, Graviex**
++ `exchange` *(required)* — choose from: **Coinbase, Binance, Kraken, Bitfinex, BitMEX, Poloniex**
 + `coin` *(required)* — base coin ticker, e.g. `eth`
 + `vs` *(optional)* — quote currency, e.g. `usd`. Defaults to USD/BTC depending on the exchange if omitted.
 
@@ -48,6 +50,8 @@ Example: `/convert amount:100 from:eth to:usd`
 
 ## TradingView Charts
 
+Every chart comes with timeframe buttons underneath it (15M, 1H, 4H, 1D, 1W). Click one to re-render the same chart at that interval without retyping the command.
+
 ### `/c <query>`
 Generate a TradingView chart and post it as an image in the channel. The `query` is very flexible — provide a pair, then optionally an exchange, an interval, and one or more indicators, all in the same field.
 + `query` *(required)* — pair plus optional exchange / interval / indicators, e.g. `ethusd binance 4h rsi macd`
@@ -74,14 +78,30 @@ Get a coin's description and purpose.
 ### `/movers`
 Show the biggest 24h gainers and losers (filtered to coins with a valid market cap and 24h volume over 10k USD).
 
+### `/brief`
+Get a short written summary of what the market is doing right now — what moved, the overall tone, and where sentiment sits. Composed from the same data the other commands use, and refreshed every 20 minutes.
+
+### `/trending`
+Show the coins people are searching for most on CoinGecko right now, with live prices from the bot's cache.
+
+### `/ath <coin>`
+Show a coin's all-time high and low, how far below its ATH it currently sits, and the multiple it would take to get back there.
++ `coin` *(required)* — coin ticker, name, or rank.
+
+### `/compare <coin1> <coin2>`
+Compare two coins side by side, including the classic "what would X be worth at Y's market cap" calculation.
++ `coin1` *(required)* — first coin.
++ `coin2` *(required)* — second coin.
+
 ### `/hmap`
 Show the Coin360 crypto market heatmap image.
 
 ### `/fg`
 Show the current crypto Fear & Greed index.
 
-### `/funding`
-Show BitMEX XBTUSD perpetual swap funding data.
+### `/funding [coin]`
+Show perpetual swap funding rates side by side across Binance, Bybit, OKX, and BitMEX, with the annualized rate and the time until the next funding payment.
++ `coin` *(optional)* — coin ticker, e.g. `eth`. Defaults to BTC.
 
 ### `/ls`
 Show Binance BTC long/short position ratios.
@@ -115,6 +135,60 @@ Remove one or more coins from your personal price array.
 
 <br>
 
+## Price Alerts
+Get a direct message when a coin reaches a price you pick. Alerts fire once and are then removed. Everything here is private to you.
+
+### `/alert add <coin> <price>`
+Set an alert. Whether it waits for the price to rise or fall is worked out automatically from where the price is now.
++ `coin` *(required)* — coin ticker or name.
++ `price` *(required)* — target price in USD.
+
+### `/alert list`
+Show your active alerts, each with its current price and ID.
+
+### `/alert remove <id>`
+Remove one of your alerts.
++ `id` *(required)* — the alert ID from `/alert list`.
+
+> Keep your DMs open for this server, otherwise the bot falls back to pinging you in the channel where you created the alert.
+
+<br>
+
+## Portfolio
+Track how much of each coin you hold and what it is worth. Only you can see these replies.
+
+### `/portfolio show`
+Show your holdings, each one's share of the book, and your total value with its 24h change.
+
+### `/portfolio set <coin> <amount>`
+Set how much of a coin you hold. Setting the amount to `0` removes it.
++ `coin` *(required)* — coin ticker or name.
++ `amount` *(required)* — how much you hold, e.g. `2.5`.
+
+### `/portfolio clear`
+Remove every holding.
+
+<br>
+
+## Scheduled Posts
+Have the bot post market updates into a channel on a repeating schedule. Requires the **Manage Server** permission.
+
+### `/schedule create <command> <channel> <every> [coins]`
+Schedule a recurring post.
++ `command` *(required)* — market heatmap, Fear & Greed index, biggest movers, trending coins, top 10 coins, or prices for specific coins.
++ `channel` *(required)* — the channel to post in.
++ `every` *(required)* — every 30 minutes, hourly, every 4 hours, every 12 hours, or daily.
++ `coins` *(optional)* — only for "prices for specific coins", e.g. `btc eth sol`.
+
+### `/schedule list`
+Show this server's scheduled posts and when each last ran.
+
+### `/schedule delete <id>`
+Remove a scheduled post.
++ `id` *(required)* — the job ID from `/schedule list`.
+
+<br>
+
 ## Server Tags
 Server tags let you store links and images under a name you choose, so you can pull them back up later. Works for direct links to pictures, videos, and webpages.
 
@@ -133,6 +207,7 @@ View a tag.
 List all tags in this server.
 
 ### `/tag delete <name>`
+Only the person who created a tag can delete it, or a moderator with the **Manage Messages** permission.
 Delete a tag.
 + `name` *(required)* — tag name
 

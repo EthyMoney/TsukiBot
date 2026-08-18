@@ -5,6 +5,15 @@ common/admin.json
 common/bannedWords.json
 common/coinsCG.json
 common/keys.api
+# Anything derived from the keys file is just as sensitive as the file itself.
+# The bare path above does not cover keys.api.bak / .backup-<date> / .old etc.
+common/keys.api.*
+# Credential material and env files, wherever they land in the tree.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
 common/shortcuts.json
 common/metadata.json
 common/coinsCGtickers.json

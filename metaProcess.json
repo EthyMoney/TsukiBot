@@ -4,17 +4,18 @@
       "name": "cg-meta-cache",
       "script": "getCoinMeta.js",
       "log_date_format": "YYYY-MM-DD HH:mm",
-      "ignoreWatch": [
+      "_comment_autorestart": "The metadata crawl is a single long pass (roughly 70 hours at one coin every 15s), not a service. autorestart and watch must be real pm2 options here: '--no-autorestart' used to sit in args, where pm2 passes it to the script as argv and ignores it, so the crawl restarted the moment it finished and looped forever against the shared CoinGecko rate limit. watch:true additionally killed it mid-pass on any file change.",
+      "autorestart": false,
+      "watch": false,
+      "ignore_watch": [
         "node_modules",
         "common",
         "public",
         "chartscreens",
         "stuff"
       ],
-      "watch": true,
       "args": [
-	"--no-autorestart",
-	"--color"
+        "--color"
       ],
       "env": {
         "DEBUG_COLORS": true

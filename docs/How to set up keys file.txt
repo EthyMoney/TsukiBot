@@ -2,16 +2,22 @@ Create a file named keys.api in the common folder. Put the following structure i
 
 
 {
-    "name": "TsukiBot",
+    "token": "",
+    "devToken": "",
+    "tsukibot": "",
+    "dbAddress": "",
+    "dbl": "no",
+    "dbots": "",
     "etherscan": "",
     "infura": "",
-    "coinbase": "",
-    "apisecret": "",
-    "tsukibot": "",
-    "stex": "",
-    "stexSecret": "",
-    "token": "",
-    "dbl": "no",
+    "finnhub": "",
+    "coinalyze": "",
+    "cryptocompare": "",
+    "coingecko": "",
+    "anthropic": "",
+    "openexchangerates.org": "",
+    "googleCloudProjectID": "",
+    "googleCloudProjectKeyPath": "",
     "coinmarketcap1": "",
     "coinmarketcap2": "",
     "coinmarketcap3": "",
@@ -24,25 +30,73 @@ Create a file named keys.api in the common folder. Put the following structure i
     "coinmarketcap10": "",
     "coinmarketcap11": "",
     "coinmarketcap12": "",
-    "coinmarketcapfailover": "",
-    "coinmarketcapfailover2": "",
-    "coingecko": "",
-    "finnhub": ""
+    "coinmarketcapfailover": ""
 }
 
 
-This is where you put your api keys and other various keys and passwords that will be plugged into the bot during initialization. Put your own keys inside the empty quotes next to each field. Leave the name and dbl feilds alone.
+This is where you put your api keys and other various keys and passwords that will be plugged into the bot during initialization. Put your own keys inside the empty quotes next to each field. Leave the dbl field alone unless you are posting stats to top.gg.
+
+Every field above is read by the code. Keys for services the bot no longer uses have been removed from
+this template: Graviex and STEX (support dropped), Alpha Vantage (stocks moved to Finnhub),
+exchangeratesapi.io (superseded by openexchangerates.org), and the authenticated Coinbase pair
+(only Coinbase's public endpoints are used). If your existing keys file still has them, they are
+dead weight — and worth revoking at the provider rather than only deleting.
 
 
-For reference, here's what a few of those actually are:
+REQUIRED to start at all:
 
-"tsukibot"   -> your postgresql database password
 "token"      -> your bot's token from the discord dev portal
-"alpha"      -> your api key for alpha vantage (stocks)
-"coingecko"  -> your optional free CoinGecko Demo API key for /cg contract-address lookups
+"tsukibot"   -> your postgresql database password
+"dbAddress"  -> the hostname or IP of your postgresql server
 
-For a CoinGecko Pro key, use "coingeckoPro" instead of "coingecko". You can also
-set COINGECKO_API_KEY (Demo) or COINGECKO_PRO_API_KEY (Pro) in the environment.
-If no key is configured, contract lookups automatically use CoinGecko's public
-GeckoTerminal API with its lower public rate limit.
+The bot checks these three on startup and exits with a clear message naming any that
+are missing, rather than failing later inside a command. If you start with -d (dev
+mode) you also need "devToken".
 
+
+For reference, here's what a few of the others actually are:
+
+"etherscan"  -> your api key for etherscan (/eth and /gas)
+"infura"     -> your infura project key (ENS lookups)
+"finnhub"    -> your api key for finnhub (/stocks)
+"coinalyze"  -> your api key for coinalyze (/ls). Without it, /ls says it is not configured.
+"anthropic"  -> your Anthropic api key (/brief). Without it, /brief says it is not configured.
+"coingecko"  -> your optional free CoinGecko Demo API key
+"openexchangerates.org" -> your app id for openexchangerates (fiat rates used by /convert)
+
+Commands whose key is missing report that they are not configured instead of
+failing silently, so you only need keys for the features you actually want.
+
+
+ABOUT THE COINGECKO KEY (worth doing):
+
+A free CoinGecko Demo key moves the rate limit from per-IP to per-key, which cuts
+the full market cache refresh from roughly 30 minutes down to a few. It also applies
+to /cg contract-address lookups. For a Pro key, use "coingeckoPro" instead.
+
+If no key is configured, contract lookups automatically fall back to CoinGecko's
+public GeckoTerminal API with its lower public rate limit.
+
+
+ENVIRONMENT VARIABLES
+
+Every key above can also be supplied through the environment, which takes priority
+over this file. That is what lets the Docker setup run without a keys file at all.
+The names are:
+
+  TSUKIBOT_TOKEN, TSUKIBOT_DEV_TOKEN, TSUKIBOT_DB_PASSWORD, TSUKIBOT_DB_ADDRESS,
+  ETHERSCAN_API_KEY, INFURA_API_KEY, FINNHUB_API_KEY, CRYPTOCOMPARE_API_KEY,
+  COINALYZE_API_KEY, OPENEXCHANGERATES_APP_ID, COINGECKO_API_KEY,
+  COINGECKO_PRO_API_KEY, GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_KEY_PATH
+
+The Anthropic key is read from ANTHROPIC_API_KEY, which is the standard name their
+SDK already looks for.
+
+Two more environment variables control Chromium, used for chart rendering:
+
+  CHROME_PATH        -> path to your Chromium/Chrome executable, if it is not in
+                        the usual place. Detected automatically otherwise.
+  CHROME_NO_SANDBOX  -> set to "true" only if your host genuinely cannot run
+                        Chromium's sandbox. It is on by default, and it is what
+                        contains a compromised chart page, so leave it alone if
+                        you can.

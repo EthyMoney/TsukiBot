@@ -161,6 +161,11 @@ async function lookupOnchainToken(contractAddress, options = {}) {
     throw new CoinGeckoOnchainError('That does not look like a valid token contract address.');
   }
 
+  // isLikelyContractAddress validates the trimmed value, so trim here too. Otherwise a padded
+  // address passes validation and is then sent with %20 escapes, which can never match a token
+  // and surfaces a misleading "no pool found" error.
+  contractAddress = contractAddress.trim();
+
   const fetchImpl = options.fetchImpl || global.fetch;
   if (typeof fetchImpl !== 'function') {
     throw new CoinGeckoOnchainError('This Node.js version does not provide fetch support.');

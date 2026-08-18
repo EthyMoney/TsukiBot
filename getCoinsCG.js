@@ -9,11 +9,23 @@ const pc = require('picocolors');
 //
 //
 
-// Make API call and do JSON build operation
-var update = async () => {
+// Make API call and do JSON build operation.
+//
+// apiConfig is { baseUrl, headers } as produced by getCGRestConfig() in main.js. Passing it in keeps
+// this module free of any key handling of its own while still getting the demo/pro rate limit —
+// without it, this call was the one part of the refresh path still going out unauthenticated.
+var update = async (apiConfig) => {
+  const baseUrl = (apiConfig && apiConfig.baseUrl) || 'https://api.coingecko.com/api/v3';
+  // CoinGecko returns 403 without a descriptive User-Agent.
+  const headers = {
+    accept: 'application/json',
+    'user-agent': 'TsukiBot/1.0 (+https://github.com/EthyMoney/TsukiBot)',
+    ...((apiConfig && apiConfig.headers) || {})
+  };
+
   let data, tickers = [];
   try {
-    const response = await fetch('https://api.coingecko.com/api/v3/coins/list?include_platform=false');
+    const response = await fetch(baseUrl + '/coins/list?include_platform=false', { headers });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -26,16 +38,18 @@ var update = async () => {
     }
   } catch (err) {
     console.log(pc.red(`Unable to grab list of all CG coins: ${err.message}`));
+    // Bail out rather than falling through to the writes below. On a failed fetch `data` is
+    // undefined, and JSON.stringify(undefined) returns undefined, which makes writeFileSync throw.
+    return false;
   }
 
-  //console.log(data);
-
   // Write the identification JSON to file
-  fs.writeFileSync('./common/coinsCG.json', JSON.stringify(data));
-  fs.writeFileSync('./common/coinsCGtickers.json', JSON.stringify(tickers));
-  //console.log("CoinGecko coin list complete!");
+  await fs.promises.writeFile('./common/coinsCG.json', JSON.stringify(data));
+  await fs.promises.writeFile('./common/coinsCGtickers.json', JSON.stringify(tickers));
+  return true;
 };
 
-update();
+// Note: deliberately no update() call at import time. Requiring this module used to kick off a
+// fetch as a side effect, which duplicated the startup call and burned rate-limit budget.
 
 exports.update = update;

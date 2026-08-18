@@ -32,16 +32,23 @@
 //       IMPORTANT STEPS FOR FIRST RUN
 // -------------------------------------------
 
-// 1. Make sure you have node.js and npm installed and ready to use. Node version 14.x or newer is required.
-// 2. Open a terminal in the project directory and run the command "npm install" to install all required dependencies.
+// 1. Make sure you have node.js and npm installed and ready to use. Node version 22.x or newer is required.
+// 2. Open a terminal in the project directory and run the command "npm ci" to install all required dependencies.
 // 3. Create a keys.api file in the common folder to include all of your own keys, tokens, and passwords that are needed for normal operation of all services.
 //    You can find the template keys.api file to reference in the "How to set up keys file" text file within the docs folder. Just fill in the blanks!
-// 4. Head down toward the bottom of this file and take note of the comment in the getChart function. You may need to comment out that executable path for 
-//    chromium depending on your environment. The commend there tells you whether you need to do it or not. (charts may not work if you don't check this!)
-//    For details on how to structure this file and what you need in it, check the "How to set up keys file" guide in the docs folder.
-// 5. Set up your PostgreSQL database according to the schema defined in the docs folder.
-// 6. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
+//    Every key can also be supplied as an environment variable instead (see applyEnvironmentOverrides below), which is how the Docker setup avoids a keys file.
+// 4. Chromium is located automatically: the bundled one everywhere, /usr/bin/chromium on Linux. Set CHROME_PATH if yours is somewhere else.
+//    No source editing needed. The Chromium sandbox stays on; only set CHROME_NO_SANDBOX=true if your host genuinely cannot run it.
+// 5. Set up your PostgreSQL database according to the schema defined in the docs folder. The alerts, holdings, and scheduled_posts
+//    tables create themselves on first start, so only tsukibot.profiles needs to come from the schema file.
+// 6. Register the slash commands once with "npm run deploy" (this talks to Discord, so only run it when your commands change).
+// 7. You are now ready to start the bot! Go ahead and run this file to start up. EX: "node main.js"
 //    If you have any questions or issues, feel free to contact me in the support discord server and I'll try to help you out. Link: https://discordapp.com/invite/VWNUbR5
+//
+// Prefer containers? "docker compose up -d" does steps 1, 2, 4, and 5 for you. See the README.
+//
+// Tip: a free CoinGecko demo key (keys.api "coingecko", or COINGECKO_API_KEY) moves the rate limit from
+// per-IP to per-key, which cuts the full market cache refresh from ~30 minutes down to a few.
 
 // Alright the hard part is over. Carry on :)
 
@@ -79,15 +86,9 @@ initializeFiles();
 const { AutoPoster } = require('topgg-autoposter');
 let poster;               // Will be initialized upon startup
 
-// HTTP stuff
-const WebSocket = require('ws');
-
 // Include API things
-const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder } = require('discord.js');
-const cc = require('cryptocompare');
-const CoinMarketCap = require('coinmarketcap-api');
+const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ApplicationCommandOptionType } = require('discord.js');
 const ccxt = require('ccxt');
-const CoinGecko = require('coingecko-api');
 const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
 const { Web3 } = require('web3');
@@ -117,7 +118,6 @@ let cluster;
 chartsProcessingCluster();
 
 // CMC/CG Cache
-let cmcArray = {};
 let cmcArrayDict = {};
 let cgArrayDictParsed = [];
 let cgArrayDict = {};
@@ -131,19 +131,32 @@ let forexRates = {};
 // Spellcheck
 const didyoumean = require('didyoumean');
 
-// Connect to database
+// Connect to database.
+// A pool rather than a fresh client per command: every /tbpa* invocation used to pay TCP and auth
+// setup, connect() errors went unhandled, and any early return leaked the connection. pool.query
+// acquires and releases around each query, so there is no connection bookkeeping to get wrong.
 const conString = 'postgres://bigboi:' + keys.tsukibot + '@' + keys.dbAddress + ':5432/tsukibot';
+const dbPool = new pg.Pool({ connectionString: conString, max: 10, idleTimeoutMillis: 30000 });
+dbPool.on('error', (err) => {
+  // Idle clients can be dropped by the server or network; the pool replaces them automatically.
+  console.log(pc.red('Postgres pool error: ' + pc.cyan(err.message)));
+});
 
 // Declare general global variables
 let messageCount = 0;
 let referenceTime = Date.now();
 let chartTagID = 0;
-let globalCGSleepTimeout = 25000; // used to set sleep interval between cg cache update queries
+// Sleep interval between cg cache update queries. A demo/pro key raises the limit to ~30 req/min,
+// which lets a full pass finish in minutes instead of the ~30 the keyless per-IP budget forces.
+let globalCGSleepTimeout = cgHasApiKey() ? 2500 : 25000;
+const CG_SLEEP_CAP = 120000;      // never back off further than this between pages
+const CG_PAGE_ATTEMPTS = 5;       // retries for a single page before the pass gives up
+let cgUpdateInProgress = false;   // in-flight guard, separate from the cacheUpdateRunning startup gate
+let cgRetryScheduled = false;
 
 // Initialize api things
 const clientKraken = new ccxt.kraken();
 const bitmex = new ccxt.bitmex();
-const CoinGeckoClient = new CoinGecko();
 const clientPoloniex = new ccxt.poloniex();
 // Binance's main API host (api.binance.com) geo-restricts some server locations with HTTP 451. The public
 // market-data host (data-api.binance.vision) serves the same read-only spot endpoints (exchangeInfo, tickers)
@@ -152,28 +165,48 @@ const clientPoloniex = new ccxt.poloniex();
 const clientBinance = new ccxt.binance({ options: { fetchMarkets: { types: ['spot'] } }, urls: { api: { public: 'https://data-api.binance.vision/api/v3' } } });
 const clientBitfinex = new ccxt.bitfinex();
 const clientCoinbase = new ccxt.coinbase();
+// Derivatives clients, used for perpetual funding rates. Kept separate from clientBinance above
+// because that one is deliberately pinned to spot-only public market data.
+const clientBinanceFutures = new ccxt.binance({ options: { defaultType: 'swap' } });
+const clientBybit = new ccxt.bybit();
+const clientOkx = new ccxt.okx();
 const finnhubClient = new finnhub.DefaultApi(keys.finnhub);
 const translate = new Translate({ projectId: googleProjectID, keyFilename: googleProjectApiKeyPath });
 const web3eth = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
-//clientcmc will be re-initialized upon bot startup, key selection will be automatic and this selected key here is temporary
-let clientcmc = new CoinMarketCap(keys.coinmarketcapfailover);
-cc.setApiKey(keys.cryptocompare);
 
 // Reload Coins
 const reloaderCG = require('./getCoinsCG');
 
+// Shared formatting and string helpers. First extracted module of the main.js split: these are
+// pure functions with no dependency on the caches, Discord, or any API client.
+const {
+  abbreviateNumber, capitalizeFirstLetter, chunkString, formatUsd, formatUsdAmount,
+  isAlphaNumeric, numberWithCommas, sleep, trimDecimalPlaces, validURL
+} = require('./src/util/format');
+
 // Donation and footer stuff
 const quote = 'Enjoying TsukiBot? Tell your friends!';
-const botInviteAdd = '\nAdd the bot to other servers by using  `.tb invite`  for the link  :)';
+const botInviteAdd = '\nAdd the bot to other servers by using  `/invite`  for the link  :)';
 const inviteLink = 'https://discordapp.com/oauth2/authorize?client_id=506918730790600704&scope=bot&permissions=268823664';
 
 // Scheduled Actions for normal operation
 if (!devMode) {
-  schedule.scheduleJob('*/10 * * * *', getCMCData);      // fetch every 10 min
-  schedule.scheduleJob('*/30 * * * *', getCGData);       // fetch every 30 min
-  schedule.scheduleJob('0 12 * * *', updateCoins);      // update at 12 am and pm every day
-  schedule.scheduleJob('*/30 * * * *', getCoin360Heatmap);   // fetch every 30 min
-  schedule.scheduleJob('0 */6 * * *', updateExchangeRates); // update every 6 hours
+  // Each job is wrapped so a rejection is logged against its job name rather than surfacing as a
+  // bare unhandled rejection. The explicit arrow wrappers also stop node-schedule from passing its
+  // fireDate in as the function's first argument.
+  const scheduledTask = (name, task) => () => {
+    task().catch(err => {
+      console.log(pc.red(`Scheduled task ${name} failed: ` + pc.cyan(err && err.message ? err.message : err)));
+    });
+  };
+
+  schedule.scheduleJob('*/10 * * * *', scheduledTask('getCMCData', getCMCData));           // fetch every 10 min
+  schedule.scheduleJob('*/30 * * * *', scheduledTask('getCGData', () => getCGData('background'))); // fetch every 30 min
+  schedule.scheduleJob('0 12 * * *', scheduledTask('updateCoins', updateCoins));           // update at 12 am and pm every day
+  schedule.scheduleJob('*/30 * * * *', scheduledTask('getCoin360Heatmap', getCoin360Heatmap)); // fetch every 30 min
+  schedule.scheduleJob('0 */6 * * *', scheduledTask('updateExchangeRates', updateExchangeRates)); // update every 6 hours
+  schedule.scheduleJob('* * * * *', scheduledTask('checkPriceAlerts', checkPriceAlerts));  // price alerts every minute
+  schedule.scheduleJob('* * * * *', scheduledTask('runDueScheduledPosts', runDueScheduledPosts)); // due recurring posts
   schedule.scheduleJob('1 */1 * * *', function () {  // update cmc key on the first minute after every hour
     updateCmcKey(); // explicit call without arguments to prevent the scheduler fireDate from being sent as a key override.
   });
@@ -213,8 +246,11 @@ async function getPriceCoinbase(channel, coin1, coin2) {
   if (typeof coin2 === 'undefined') {
     coin2 = 'BTC';
   }
+  // toLowerCase() ignores any argument and returns a non-empty string, so the last two terms here
+  // used to be unconditionally true: /price coinbase btc eth and btc usdc silently answered in USD.
   if (coin2.toLowerCase() === 'usd' || coin1.toLowerCase() === 'btc' && (coin2.toLowerCase() !== 'gbp' &&
-    coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase('eth') && coin2.toLowerCase('usdc'))) {
+    coin2.toLowerCase() !== 'eur' && coin2.toLowerCase() !== 'dai' && coin2.toLowerCase() !== 'eth' &&
+    coin2.toLowerCase() !== 'usdc')) {
     coin2 = 'USD';
   }
 
@@ -242,11 +278,17 @@ async function getPriceCoinbase(channel, coin1, coin2) {
 
 async function getPriceCoinGecko(coin, coin2, channel, action, author) {
 
+  // The conversion command calls this with a null channel and handles its own output, so every
+  // user-facing send in here has to tolerate that. It previously crashed on the error paths.
+  const notify = (text) => {
+    if (channel) channel.send(text);
+  };
+
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning && !devMode) {
-    channel.send(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    notify(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
     console.log(pc.magentaBright('Attempted use of CG command prior to initialization. Notification sent to user.'));
-    return;
+    return null;
   }
 
   // determine whether or not the call was from the conversion command to determine if we need to return the values
@@ -313,26 +355,11 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
     // normal cg price call, so we need to check pairing currencies
     else {
       if (foundCount == 2)
-        data = await CoinGeckoClient.simple.price({
-          ids: [coinID, coinID1],
-          vs_currencies: ['usd', coin2.toLowerCase()],
-          include_24hr_vol: [true],
-          include_24hr_change: [true]
-        });
+        data = await cgSimplePrice([coinID, coinID1], ['usd', coin2.toLowerCase()]);
       if (foundCount == 3)
-        data = await CoinGeckoClient.simple.price({
-          ids: [coinID, coinID1, coinID2],
-          vs_currencies: ['usd', coin2.toLowerCase()],
-          include_24hr_vol: [true],
-          include_24hr_change: [true]
-        });
+        data = await cgSimplePrice([coinID, coinID1, coinID2], ['usd', coin2.toLowerCase()]);
       if (foundCount == 4)
-        data = await CoinGeckoClient.simple.price({
-          ids: [coinID, coinID1, coinID2, coinID3],
-          vs_currencies: ['usd', coin2.toLowerCase()],
-          include_24hr_vol: [true],
-          include_24hr_change: [true]
-        });
+        data = await cgSimplePrice([coinID, coinID1, coinID2, coinID3], ['usd', coin2.toLowerCase()]);
     }
 
 
@@ -344,7 +371,8 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
       arr = data;
     }
     else {
-      arr = Object.entries(data.data);
+      // cgSimplePrice returns the API response directly, keyed by coin id.
+      arr = Object.entries(data);
     }
     let conversionArray1 = [];
     let conversionArray2 = [];
@@ -405,19 +433,14 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
         c = parseFloat(data[0].price_change_percentage_24h).toFixed(2);
       }
       else {
-        data = await CoinGeckoClient.simple.price({
-          ids: [coinID],
-          vs_currencies: ['usd', coin2.toLowerCase()],
-          include_24hr_vol: [true],
-          include_24hr_change: [true]
-        });
-        s = parseFloat(data.data[coinID][coin2]).toFixed(8);
-        c = Math.round(data.data[coinID][coin2.toLowerCase() + '_24h_change'] * 100) / 100;
+        data = await cgSimplePrice([coinID], ['usd', coin2.toLowerCase()]);
+        s = parseFloat(data[coinID][coin2]).toFixed(8);
+        c = Math.round(data[coinID][coin2.toLowerCase() + '_24h_change'] * 100) / 100;
       }
       s = trimDecimalPlaces(s);
       if (isNaN(s) || !s) { // looking for NaN, making sure price is valid
-        channel.send('**' + coin.toUpperCase() + '** was found, but the pairing currency **' + coin2.toUpperCase() + '** was not found. Try another pairing!');
-        return;
+        notify('**' + coin.toUpperCase() + '** was found, but the pairing currency **' + coin2.toUpperCase() + '** was not found. Try another pairing!');
+        return null;
       }
       if (!noSend) {
         channel.send('__CoinGecko__ Price for **' + coin.toUpperCase() + '-' + coin2.toUpperCase() + '** is: `' +
@@ -428,7 +451,8 @@ async function getPriceCoinGecko(coin, coin2, channel, action, author) {
       }
     }
     else {
-      channel.send('Provided coin **' + coin.toUpperCase() + '** was not found!');
+      notify('Provided coin **' + coin.toUpperCase() + '** was not found!');
+      return null;
     }
   }
 }
@@ -818,7 +842,7 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
       return;
     }
     else {
-      channel.send('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `.tb pa` to see how to do this.');
+      channel.send('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `/tbpa-remove` to do this.');
       console.log(pc.magenta('Oversize tbpa notification sent to user above. Size overflow message: ') + pc.cyan(message.length));
       return;
     }
@@ -851,10 +875,12 @@ function getPriceCC(coins, channel, ext = 'd') {
   let query = coins.concat(['BTC']);
 
   // Get the spot price of the pair and send it to general
-  cc.priceFull(query.map(function (c) { return c.toUpperCase(); }), ['USD', 'BTC'])
+  ccPriceFull(query.map(function (c) { return c.toUpperCase(); }), ['USD', 'BTC'])
     .then(prices => {
       let message = '__CryptoCompare__ Price for:\n';
-      let bpchg = parseFloat(cmcArrayDict.BTC.percent_change_24h);
+      // CMC nests its 24h change under quote.USD (see getPriceCMC). Reading it off the top level
+      // produced NaN in every CMC-fallback line, and threw outright when the cache was empty.
+      let bpchg = parseFloat(cmcArrayDict.BTC?.quote?.USD?.percent_change_24h) || 0;
 
       for (let i = 0; i < coins.length; i++) {
         let bp, up;
@@ -881,7 +907,11 @@ function getPriceCC(coins, channel, ext = 'd') {
       }
       channel.send(message);
     })
-    .catch(console.log);
+    .catch(err => {
+      // A bare console.log here left the deferred /cc interaction hanging until Discord gave up.
+      console.log(pc.red('CryptoCompare price lookup failed: ' + pc.cyan(err)));
+      channel.send('Sorry, CryptoCompare price data is unavailable right now. Please try again shortly.');
+    });
 }
 
 
@@ -1323,62 +1353,98 @@ async function getFearGreedIndex(channel, author, interaction) {
 //------------------------------------------
 //------------------------------------------
 
-// Function for grabbing Bitmex swap contract funding data
+// Perpetual swap funding rates, read across several exchanges.
+//
+// This used to open a BitMEX realtime websocket per invocation, count to the 4th message, and never
+// close the socket. That leaked a live connection on every call, and because no 'error' listener was
+// attached, an unhandled 'error' event would take down the whole process. ccxt's unified
+// fetchFundingRate is one REST call per exchange with nothing to clean up, and it lets us cover the
+// venues that actually carry the open interest instead of BitMEX alone.
 
-async function getMexFunding(channel, message, interaction) {
+const FUNDING_EXCHANGES = [
+  { name: 'Binance', client: () => clientBinanceFutures, symbols: base => [`${base}/USDT:USDT`] },
+  { name: 'Bybit', client: () => clientBybit, symbols: base => [`${base}/USDT:USDT`] },
+  { name: 'OKX', client: () => clientOkx, symbols: base => [`${base}/USDT:USDT`] },
+  // BitMEX lists both a linear USDT perp and the classic inverse contract, so try both shapes.
+  { name: 'BitMEX', client: () => bitmex, symbols: base => [`${base}/USDT:USDT`, `${base}/USD:${base}`] }
+];
 
-  //console.log(chalk.green('BitMEX funding stats requested by ' + chalk.yellow(message.author.username)));
-
-  let messageNumber = 0;
-  //create websocket listener
-  const ws = new WebSocket('wss://www.bitmex.com/realtime?subscribe=instrument,orderBook:XBTUSD', {
-    perMessageDeflate: false
-  });
-
-  ws.on('message', function incoming(data) {
-    messageNumber++;
-    if (messageNumber === 4) {
-      let btc = '';
-      let eth = '';
-
-      //find the btc and eth objects
-      const dataJSON = JSON.parse(data).data;
-      for (let i = 0; i < dataJSON.length; i++) {
-        if (dataJSON[i].symbol === 'XBTUSD') {
-          btc = dataJSON[i];
-        }
-        if (dataJSON[i].symbol === 'ETHUSD') {
-
-          eth = dataJSON[i];
-        }
-      }
-
-      const text = 'Current Rate: `' + parseFloat(btc.fundingRate * 100).toFixed(4) + '%` \n' +
-        'Predicted Rate: `' + parseFloat(btc.indicativeFundingRate * 100).toFixed(4) + '%`';
-      const text2 = 'Current Rate: `' + parseFloat(eth.fundingRate * 100).toFixed(4) + '%` \n' +
-        'Predicted Rate: `' + parseFloat(eth.indicativeFundingRate * 100).toFixed(4) + '%`';
-
-      const embed = new EmbedBuilder()
-        .setAuthor({ name: 'BitMEX Perpetual Swap Contract Funding Stats' })
-        .addFields(
-          { name: 'XBT/USD:', value: text },
-          { name: 'ETH/USD:', value: text2 }
-        )
-        .setThumbnail('https://firebounty.com/image/751-bitmex')
-        .setColor('#1b51be')
-        .setFooter({ text: 'BitMEX Real-Time', iconURL: 'https://firebounty.com/image/751-bitmex' });
-
-      if (interaction) {
-        interaction.editReply({ embeds: [embed] });
-      }
-      else {
-        channel.send({ embeds: [embed] }).catch(function (reject) {
-          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-          console.log(pc.red('Error sending bitmex funding! : ' + pc.cyan(reject)));
-        });
+async function fetchFundingRateFrom(exchange, base) {
+  for (const symbol of exchange.symbols(base)) {
+    try {
+      const rate = await exchange.client().fetchFundingRate(symbol);
+      if (rate && rate.fundingRate != null) {
+        return { exchange: exchange.name, symbol: symbol, ...rate };
       }
     }
+    catch {
+      // This exchange doesn't list that symbol shape (or is unreachable). Try the next shape, and
+      // if none work this venue is simply left out of the embed rather than failing the command.
+    }
+  }
+  return null;
+}
+
+async function getFundingRates(coin, channel, interaction) {
+
+  const base = (coin || 'BTC').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const responder = interaction ? null : channel;
+
+  const results = (await Promise.all(
+    FUNDING_EXCHANGES.map(exchange => fetchFundingRateFrom(exchange, base))
+  )).filter(Boolean);
+
+  if (results.length === 0) {
+    const notFound = `No perpetual funding data found for **${base}** on any of the supported exchanges (Binance, Bybit, OKX, BitMEX).`;
+    if (interaction) await interaction.editReply(notFound);
+    else if (responder) responder.send(notFound);
+    return;
+  }
+
+  const fields = results.map(result => {
+    const ratePercent = (result.fundingRate * 100);
+    const arrow = ratePercent >= 0 ? '🟢' : '🔴';
+
+    // Funding intervals are not universally 8 hours: plenty of alt perps settle every 4h or 1h, so
+    // assuming 3 payments a day overstates or understates the annualized figure badly. ccxt reports
+    // the interval as a string like "8h" when the venue provides it; fall back to 8h only if absent.
+    const intervalHours = (() => {
+      const match = /^(\d+)h$/.exec(result.interval || '');
+      if (match) return Number(match[1]);
+      return 8;
+    })();
+    const paymentsPerYear = (24 / intervalHours) * 365;
+    const annualized = (ratePercent * paymentsPerYear).toFixed(1);
+
+    const nextFunding = result.fundingTimestamp || result.nextFundingTimestamp;
+    const nextLine = nextFunding
+      ? `\nNext: <t:${Math.floor(nextFunding / 1000)}:R>`
+      : '';
+    return {
+      name: `${arrow} ${result.exchange}`,
+      value: '`' + ratePercent.toFixed(4) + `%\` every ${intervalHours}h\n(${annualized}%/yr)` + nextLine,
+      inline: true
+    };
   });
+
+  const averageRate = results.reduce((sum, r) => sum + r.fundingRate, 0) / results.length;
+
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: `${base} Perpetual Swap Funding Rates` })
+    .setDescription(averageRate >= 0
+      ? 'Positive funding: longs are paying shorts.'
+      : 'Negative funding: shorts are paying longs.')
+    .addFields(fields)
+    .setColor(averageRate >= 0 ? '#2ee08a' : '#ff5a76')
+    .setFooter({ text: 'Funding rates via ccxt' })
+    .setTimestamp();
+
+  if (interaction) {
+    await interaction.editReply({ embeds: [embed] });
+  }
+  else if (responder) {
+    responder.send({ embeds: [embed] });
+  }
 }
 
 
@@ -1559,6 +1625,18 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
           cgData2 = await getPriceCoinGecko(coin2, 'usd', channel, 'convert');
         }
 
+        // A coin can be listed but have no usable cached price (de-listed or inactive listings carry
+        // a null current_price). Report that instead of computing with NaN.
+        const missingCoin = (!isForexPairingCoin1 && !cgData) ? coin1
+          : (!isForexPairingCoin2 && !cgData2) ? coin2
+            : null;
+        if (missingCoin) {
+          const noPriceMessage = `Sorry, no current price is available for **${missingCoin}**. It may be de-listed or inactive on CoinGecko.`;
+          if (interaction) await interaction.editReply(noPriceMessage);
+          else if (channel) channel.send(noPriceMessage);
+          return;
+        }
+
         let builtMessage = '';
         let amount2;
         if (cgData2) {
@@ -1581,19 +1659,29 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
         }
 
         if (interaction) {
-          interaction.editReply(builtMessage);
+          await interaction.editReply(builtMessage);
         }
         else {
           channel.send(builtMessage);
         }
-      })();
+      })().catch(err => {
+        // This IIFE is detached from the try/catch around it, so without this the deferred reply
+        // would simply never be edited and the command would appear to hang.
+        console.error('Issue with currency conversion command! Details: ' + err);
+        if (interaction) {
+          interaction.editReply('Sorry, there was an issue processing the conversion command at this time. Try again later!').catch(() => { });
+        }
+        else if (channel) {
+          channel.send('Sorry, there was an issue processing the conversion command at this time. Try again later!');
+        }
+      });
     }
     else {
       if (interaction) {
         interaction.editReply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
       }
       else {
-        channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, just use `.tb cv` to see the guide for this command.');
+        channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, use `/help` to see the guide for this command.');
       }
     }
   }
@@ -1616,7 +1704,39 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
 
 // Tags handler function
 
-function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink) {
+// Persist the tags cache. tagsJSON is already the source of truth in memory, so the old
+// write-then-read-it-straight-back-in round trip was pure overhead on every mutation.
+//
+// Writes are chained rather than run concurrently: two tag edits landing together would otherwise
+// race on the same temp file, and one rename could publish a half-written snapshot. The unique
+// temp name makes that impossible even if a write somehow escapes the chain.
+let tagsSaveChain = Promise.resolve();
+let tagsSaveCounter = 0;
+
+async function writeTagsSnapshot() {
+  const finalPath = 'tags.json';
+  const tempPath = `${finalPath}.${process.pid}.${tagsSaveCounter++}.tmp`;
+  // Serialized inside the chained task, so each write persists the state current at its turn.
+  const json = JSON.stringify(tagsJSON);
+  try {
+    await fs.promises.writeFile(tempPath, json, 'utf8');
+    await fs.promises.rename(tempPath, finalPath);
+  }
+  catch (err) {
+    await fs.promises.unlink(tempPath).catch(() => { /* no temp file to clean up */ });
+    throw err;
+  }
+}
+
+function saveTagsToFile() {
+  const result = tagsSaveChain.then(writeTagsSnapshot);
+  // The chain we hold onto must always settle successfully. Storing the rejected promise instead
+  // would make every later .then() skip its write, so one failed save would disable saving entirely.
+  tagsSaveChain = result.catch(() => { });
+  return result;
+}
+
+function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink, memberPermissions) {
 
   console.log(pc.green('Tags engine called by ' + pc.yellow(author.username) + ' with command:tagname:link ' + pc.cyan(command) + ':' + pc.cyan(tagName) + ':' + pc.cyan(tagLink)));
 
@@ -1669,9 +1789,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
         tagName: name,
         tagLink: tag
       }); //add a fresh tag
-      let json = JSON.stringify(obj); //convert it back to json
-      fs.writeFileSync('tags.json', json, 'utf8');
-      tagsJSON = JSON.parse(fs.readFileSync('tags.json', 'utf8')); //read and reload the tags cache
+      tagsJSON = obj;
+      saveTagsToFile().catch(err => console.log(pc.red('Failed to save tags: ' + pc.cyan(err))));
       console.log(pc.blue('Tag ' + '"' + tagName + '"' + ' created!'));
       channel.send('Tag ' + '"' + tagName + '"' + ' created!');
     }
@@ -1681,18 +1800,28 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
     for (let i = 0; i < tags.length; i++) {
       if (tags[i].guild === guild.id) {
         if (tagName.toString().toLowerCase() === tags[i].tagName) {
+          // Only the tag's creator or a moderator may delete it. Matching on guild + name alone let
+          // any member of the server delete anyone else's tag.
+          const isOwner = tags[i].authorId && tags[i].authorId === author.id;
+          const isModerator = memberPermissions
+            ? (memberPermissions.has(PermissionFlagsBits.ManageMessages) || memberPermissions.has(PermissionFlagsBits.ManageGuild))
+            : false;
+          if (!isOwner && !isModerator) {
+            channel.send(`Only the creator of "${tags[i].tagName}" (or a moderator with Manage Messages) can delete it.`);
+            return;
+          }
+
           resultName = tags[i].tagName;
           tags.splice(i, 1);
           tagsJSON.tags = tags;
-          let json = JSON.stringify(tagsJSON); //convert it back to json
-          fs.writeFileSync('tags.json', json, 'utf8');
-          tagsJSON = JSON.parse(fs.readFileSync('tags.json', 'utf8')); //read and reload the tags cache
+          saveTagsToFile().catch(err => console.log(pc.red('Failed to save tags: ' + pc.cyan(err))));
           channel.send('Tag ' + '"' + resultName + '"' + ' deleted.');
           console.log(pc.blue('Tag ' + '"' + pc.yellow(tagName) + '"' + ' deleted!'));
           return;
         }
       }
     }
+    channel.send(`No tag named "${tagName}" exists in this server.`);
 
   } else if (command === 'taglist') {
     let tags = tagsJSON.tags;
@@ -1704,7 +1833,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
       }
     }
     if (!found) {
-      channel.send('There are no tags in this server! Feel free to make one using `.tb createtag <tag name here> <tag link here>`');
+      channel.send('There are no tags in this server! Feel free to make one using `/tag create`');
     }
     else {
       let message = '';
@@ -1721,7 +1850,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
             { name: 'Available tags in this server: ', value: message.substring(0, message.length - 2), inline: false }
           )
           .setColor('#1b51be')
-          .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
+          .setFooter({ text: 'To see a tag, use  /tag view' });
 
         channel.send({ embeds: [embed] }).catch(function (reject) {
           channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
@@ -1742,7 +1871,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
                 { name: 'Available tags in this server (PAGE ' + blockCursor + '): ', value: element.substring(0, element.length - 2), inline: false }
               )
               .setColor('#1b51be')
-              .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
+              .setFooter({ text: 'To see a tag, use  /tag view' });
 
             channel.send({ embeds: [embed] }).catch(function (reject) {
               channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
@@ -1757,7 +1886,7 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
                 { name: 'Available tags in this server (PAGE ' + blockCursor + '): ', value: element, inline: false }
               )
               .setColor('#1b51be')
-              .setFooter({ text: 'To see a tag, use  .tb tag <tag name here>' });
+              .setFooter({ text: 'To see a tag, use  /tag view' });
 
             channel.send({ embeds: [embed] }).catch(function (reject) {
               channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
@@ -1822,10 +1951,10 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 
   } else {
     channel.send('**Here\'s how to use Tsuki tags:**\n ' +
-      ':small_blue_diamond: To make a new tag, use the createtag command: `.tb createtag <tag name here> <tag link(URL) here>`\n' +
-      ':small_blue_diamond: To view a tag, use the tag command: `.tb tag <tag name here>`\n' +
-      ':small_blue_diamond: To view all available tags in the server, use the taglist command: `.tb taglist\n`' +
-      ':small_blue_diamond: To delete a tag, use the deletetag command: `.tb deletetag <tag name here>`');
+      ':small_blue_diamond: To make a new tag: `/tag create name:<name> link:<url>`\n' +
+      ':small_blue_diamond: To view a tag: `/tag view name:<name>`\n' +
+      ':small_blue_diamond: To list every tag in this server: `/tag list`\n' +
+      ':small_blue_diamond: To delete a tag you created: `/tag delete name:<name>`');
     return;
   }
 }
@@ -1841,8 +1970,8 @@ function tagsEngine(channel, author, timestamp, guild, command, tagName, tagLink
 async function getEtherBalance(author, address, channel, action = 'b') {
 
   if (action === 'b') {
-    console.log(pc.green(`Etherscan balance lookup called in: ${pc.cyan(channel.guild.name)} by ${pc.yellow(author.username)}`));
-    const res = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=${address}&tag=latest&apikey=${keys.etherscan}`);
+    console.log(pc.green(`Etherscan balance lookup called in: ${pc.cyan(describeGuild(channel))} by ${pc.yellow(author.username)}`));
+    const res = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=${encodeURIComponent(address)}&tag=latest&apikey=${keys.etherscan}`);
     if (res.ok) {
       const balance = await res.json();
       if (balance.status === '1' && !isNaN(balance.result)) {
@@ -1860,30 +1989,40 @@ async function getEtherBalance(author, address, channel, action = 'b') {
       return;
     }
   } else if (action === 'ens') {
-    web3eth.eth.ens.getOwner(address).then(function (owner) {
-      // check for unregistered ENS name, and then send not found notification and ENS link to potentially register that name
-      if (owner == '0x0000000000000000000000000000000000000000') {
-        console.log(pc.green(`Etherscan ENS registration sent for ${pc.yellow(address)} in ${pc.cyan(channel.guild.name)}`));
-        const addy = 'https://app.ens.domains/name/' + address;
-        const embed = new EmbedBuilder()
-          .setTitle('That ENS name is not yet registered!')
-          .setDescription(`Want to make it yours?  [CLICK HERE!](${addy})`)
-          .setThumbnail('https://imgur.com/jUMEIgL.png')
-          .setColor('#1b51be');
-        channel.send({ embeds: [embed] }).catch(function (reject) {
-          channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
-          console.log(pc.red(`Error sending etherscan command's ENS not found message embed! : ${pc.cyan(reject)}`));
-        });
-      }
-      else {
-        getEtherBalance(author, owner, channel);
-      }
-    });
+    // Awaited with a catch: an unreachable Infura endpoint or a malformed name used to reject with
+    // nothing attached, which left the caller's deferred reply hanging forever.
+    let owner;
+    try {
+      owner = await web3eth.eth.ens.getOwner(address);
+    }
+    catch (err) {
+      console.log(pc.red('ENS lookup failed: ' + pc.cyan(err && err.message ? err.message : err)));
+      channel.send('Sorry, I couldn\'t look up that ENS name right now. Please try again later.');
+      return;
+    }
+
+    // check for unregistered ENS name, and then send not found notification and ENS link to potentially register that name
+    if (owner == '0x0000000000000000000000000000000000000000') {
+      console.log(pc.green(`Etherscan ENS registration sent for ${pc.yellow(address)} in ${pc.cyan(describeGuild(channel))}`));
+      const addy = 'https://app.ens.domains/name/' + encodeURIComponent(address);
+      const embed = new EmbedBuilder()
+        .setTitle('That ENS name is not yet registered!')
+        .setDescription(`Want to make it yours?  [CLICK HERE!](${addy})`)
+        .setThumbnail('https://imgur.com/jUMEIgL.png')
+        .setColor('#1b51be');
+      channel.send({ embeds: [embed] }).catch(function (reject) {
+        channel.send('Sorry, I was unable to process this command. Make sure that I have full send permissions for embeds and messages and then try again!');
+        console.log(pc.red(`Error sending etherscan command's ENS not found message embed! : ${pc.cyan(reject)}`));
+      });
+    }
+    else {
+      await getEtherBalance(author, owner, channel);
+    }
   }
   else {
-    console.log(pc.green(`Etherscan txn lookup called in: ${pc.cyan(channel.guild.name)} by ${pc.yellow(author.username)}`));
+    console.log(pc.green(`Etherscan txn lookup called in: ${pc.cyan(describeGuild(channel))} by ${pc.yellow(author.username)}`));
     const res = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_blockNumber&apikey=${keys.etherscan}`);
-    const res2 = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${address}&apikey=${keys.etherscan}`);
+    const res2 = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=${encodeURIComponent(address)}&apikey=${keys.etherscan}`);
     if (res.ok && res2.ok) {
       const block = await res.json();
       const tx = await res2.json();
@@ -1996,9 +2135,11 @@ function getBiggestMovers(channel, author) {
     return;
   }
 
-  // filter out coins that don't have BOTH a valid mc rank AND 24h % change
+  // filter out coins that don't have BOTH a valid mc rank AND 24h % change.
+  // The field is price_change_percentage_24h; testing the (non-existent) price_change_percentage
+  // meant the check always passed, letting null-change coins reach the comparator below as NaN.
   const cgdatatemp = cgArrayDictParsed.filter(function (value) {
-    return value.market_cap_rank !== null && value.price_change_percentage !== null && value.total_volume >= 10000;
+    return value.market_cap_rank != null && value.price_change_percentage_24h != null && value.total_volume >= 10000;
   });
   // now sort the result by 24 % change in descending order
   cgdatatemp.sort(function (a, b) {
@@ -2014,7 +2155,7 @@ function getBiggestMovers(channel, author) {
   });
   getPriceCG(idArr, channel, 'm');
 
-  console.log(pc.green('CoinGecko biggest movers command called in: ' + pc.yellow(channel.guild.name) + ' by ' + pc.yellow(author.username)));
+  console.log(pc.green('CoinGecko biggest movers command called in: ' + pc.yellow(describeGuild(channel)) + ' by ' + pc.yellow(author.username)));
 }
 
 
@@ -2029,11 +2170,17 @@ function sendCoin360Heatmap(message, interaction) {
   // Hmap image is cached in 30 min cycles by scheduler, we just need to send it here
 
   if (interaction) {
+    // The cached image is missing until the first successful capture (and after a failed one), so
+    // this can reject. Without the catch the user is left with a spinner and no reply at all.
     interaction.reply({
       files: [{
         attachment: 'chartscreens/generated-charts/hmap.png',
         name: 'hmap.png'
       }]
+    }).catch(function (error) {
+      console.log(pc.red('Error sending hmap image: ' + error));
+      interaction.reply('Sorry, the heatmap image isn\'t available right now. It refreshes every 30 minutes, so please try again shortly.')
+        .catch(() => interaction.editReply('Sorry, the heatmap image isn\'t available right now. Please try again shortly.').catch(() => { }));
     });
   }
   else {
@@ -2072,8 +2219,10 @@ async function getMarketCap(message, interaction) {
     }
   }
 
-  await CoinGeckoClient.global().then((data) => {
-    const mcTotalUSD = data.data.data.total_market_cap.usd;
+  await cgGlobal().then((data) => {
+    // One .data level, not two: the old package added an envelope on top of the API's own
+    // { data: ... } response. cgGlobal returns the API response as-is.
+    const mcTotalUSD = data.data.total_market_cap.usd;
     let ethMarketCap;
     for (let i = 0; i < cgArrayDictParsed.length; i++) { if (cgArrayDictParsed[i].id == 'ethereum') { ethMarketCap = cgArrayDictParsed[i].market_cap; break; } }
     const btcDominance = parseFloat((cgArrayDict.BTC.market_cap / mcTotalUSD) * 100).toFixed(2);
@@ -2099,7 +2248,7 @@ function getMarketCapSpecific(message, interaction) {
   //don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning) {
     if (interaction) {
-      interaction.reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+      interaction.editReply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
       return;
     }
     else {
@@ -2206,7 +2355,8 @@ function getMarketCapSpecific(message, interaction) {
         //send it
 
         if (interaction) {
-          interaction.reply({ embeds: [embed] });
+          await interaction.editReply({ embeds: [embed] });
+          success = true;
         }
         else {
           try {
@@ -2218,26 +2368,1139 @@ function getMarketCapSpecific(message, interaction) {
             console.log(pc.red('Error sending MC response embed: ' + pc.cyan(reject)));
           }
         }
+        // Duplicate tickers are common on CoinGecko. Stop at the first (highest ranked) match rather
+        // than replying once per match, which rejected on every reply after the first.
+        break;
       }
     }
     if (!success) {
       if (interaction) {
-        interaction.reply('Sorry, I was unable to find that coin.');
+        await interaction.editReply('Sorry, I was unable to find that coin.');
       }
       else {
         message.channel.send('Failed to find a CoinGecko coin associated with that input.\nTry again with either the full name, or the ticker symbol.');
         console.log(pc.red(`Failed to find matching coin for input to mc command of: ${pc.cyan(cur)}`));
       }
     }
-  })();
+  })().catch(err => {
+    console.log(pc.red('Error in getMarketCapSpecific: ' + pc.cyan(err)));
+    if (interaction) {
+      interaction.editReply('Sorry, something went wrong looking up that coin.').catch(() => { });
+    }
+  });
 }
 
 
 //------------------------------------------
 //------------------------------------------
 
-// This function handles users personal coin 
-// lists. Setting, displaying, and editing 
+/* --------------------------------------------
+
+    Market math commands (/ath and /compare).
+
+    Both are answered entirely from the in-memory CoinGecko cache, so they cost no API calls.
+
+  -------------------------------------------- */
+
+// Guild name for log lines. Commands can be run in a DM, where there is no guild at all, so
+// reading channel.guild.name directly throws and takes the whole command down with it.
+function describeGuild(channel) {
+  return (channel && channel.guild && channel.guild.name) ? channel.guild.name : 'a DM';
+}
+
+// The ten highest ranked coins, as ticker symbols. The cache is rank-sorted but can carry
+// unranked entries ahead of rank 1, so this walks forward from wherever rank 1 actually sits.
+function getTop10Symbols() {
+  let cursor = 0;
+  cgArrayDictParsed.forEach((coin, index) => {
+    if (coin.market_cap_rank && coin.market_cap_rank == 1) {
+      cursor = index;
+    }
+  });
+  const top10 = [];
+  for (let i = 0; i < 10; i++) {
+    if (cgArrayDictParsed[cursor + i]) top10.push(cgArrayDictParsed[cursor + i].symbol);
+  }
+  return top10;
+}
+
+// Look a coin up by its CoinGecko id. Stored rows keep the id precisely because ticker symbols
+// collide (several coins share "BTC"), so pricing a saved holding or alert by symbol can silently
+// value it against a different coin than the user picked.
+function findCachedCoinById(coinId) {
+  if (!coinId) return null;
+  for (const coin of cgArrayDictParsed) {
+    if (coin && coin.id === coinId) return coin;
+  }
+  return null;
+}
+
+// Resolve user input (ticker, full name, or market cap rank) to a cached coin. Prefers an exact
+// ticker match, since that is what people almost always mean when symbols collide.
+function findCachedCoin(input) {
+  const query = (input || '').trim().toLowerCase();
+  if (!query) return null;
+
+  let nameMatch = null;
+  let rankMatch = null;
+  for (const coin of cgArrayDictParsed) {
+    if (!coin || !coin.symbol) continue;
+    if (coin.symbol.toLowerCase() === query) return coin;
+    if (!nameMatch && (coin.name || '').toLowerCase() === query) nameMatch = coin;
+    if (!rankMatch && String(coin.market_cap_rank) === query) rankMatch = coin;
+  }
+  return nameMatch || rankMatch;
+}
+
+
+async function getAllTimeHigh(coinInput, channel, interaction) {
+  const reply = async (payload) => {
+    if (interaction) return interaction.editReply(payload);
+    if (channel) return channel.send(payload);
+  };
+
+  if (cacheUpdateRunning) {
+    await reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    return;
+  }
+
+  const coin = findCachedCoin(coinInput);
+  if (!coin) {
+    await reply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    return;
+  }
+
+  const downFromAth = coin.ath_change_percentage;
+  const upFromAtl = coin.atl_change_percentage;
+  const athDate = coin.ath_date ? `<t:${Math.floor(new Date(coin.ath_date).getTime() / 1000)}:R>` : 'unknown';
+  const atlDate = coin.atl_date ? `<t:${Math.floor(new Date(coin.atl_date).getTime() / 1000)}:R>` : 'unknown';
+
+  // Distance back to the all-time high, expressed as the multiple the price would have to do.
+  const multipleToAth = (coin.current_price && coin.ath) ? (coin.ath / coin.current_price) : null;
+
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: `${coin.name} (${coin.symbol.toUpperCase()})`, iconURL: coin.image || null })
+    .addFields(
+      { name: 'Current price', value: formatUsd(coin.current_price), inline: true },
+      { name: 'All-time high', value: `${formatUsd(coin.ath)}\n${athDate}`, inline: true },
+      {
+        name: 'Down from ATH',
+        value: downFromAth == null ? 'n/a' : `\`${downFromAth.toFixed(1)}%\`` +
+          (multipleToAth ? `\n needs a **${multipleToAth.toFixed(2)}x**` : ''),
+        inline: true
+      },
+      { name: 'All-time low', value: `${formatUsd(coin.atl)}\n${atlDate}`, inline: true },
+      { name: 'Up from ATL', value: upFromAtl == null ? 'n/a' : `\`+${numberWithCommas(upFromAtl.toFixed(0))}%\``, inline: true },
+      { name: 'Rank', value: coin.market_cap_rank ? `#${coin.market_cap_rank}` : 'unranked', inline: true }
+    )
+    .setColor(downFromAth != null && downFromAth > -25 ? '#2ee08a' : '#ff5a76')
+    .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
+
+  await reply({ embeds: [embed] });
+}
+
+async function compareCoins(coin1Input, coin2Input, channel, interaction) {
+  const reply = async (payload) => {
+    if (interaction) return interaction.editReply(payload);
+    if (channel) return channel.send(payload);
+  };
+
+  if (cacheUpdateRunning) {
+    await reply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    return;
+  }
+
+  const coinA = findCachedCoin(coin1Input);
+  const coinB = findCachedCoin(coin2Input);
+  const missing = !coinA ? coin1Input : !coinB ? coin2Input : null;
+  if (missing) {
+    await reply(`Couldn't find **${missing}** on CoinGecko. Try the ticker symbol or the full name.`);
+    return;
+  }
+  if (coinA.id === coinB.id) {
+    await reply('Those are the same coin! Pick two different ones to compare.');
+    return;
+  }
+
+  // The classic "what would X be worth at Y's market cap" calculation.
+  let projection = 'n/a';
+  if (coinA.market_cap && coinB.market_cap && coinA.current_price) {
+    const multiple = coinB.market_cap / coinA.market_cap;
+    const projectedPrice = coinA.current_price * multiple;
+    projection = `**${coinA.symbol.toUpperCase()}** at **${coinB.symbol.toUpperCase()}**'s market cap would be worth\n` +
+      `### ${formatUsd(projectedPrice)}\n` +
+      `a **${multiple.toFixed(2)}x** from here`;
+  }
+
+  const statLine = (coin) =>
+    `Price: \`${formatUsd(coin.current_price)}\`\n` +
+    `Cap: \`$${abbreviateNumber(coin.market_cap, 2)}\`\n` +
+    `Volume: \`$${abbreviateNumber(coin.total_volume, 2)}\`\n` +
+    `Rank: \`${coin.market_cap_rank ? '#' + coin.market_cap_rank : 'unranked'}\`\n` +
+    `24h: \`${coin.price_change_percentage_24h == null ? 'n/a' : coin.price_change_percentage_24h.toFixed(2) + '%'}\``;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${coinA.symbol.toUpperCase()} vs ${coinB.symbol.toUpperCase()}`)
+    .setDescription(projection)
+    .addFields(
+      { name: `${coinA.name}`, value: statLine(coinA), inline: true },
+      { name: `${coinB.name}`, value: statLine(coinB), inline: true }
+    )
+    .setThumbnail(coinA.image || null)
+    .setColor('#9d8dff')
+    .setFooter({ text: 'Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' });
+
+  await reply({ embeds: [embed] });
+}
+
+// Trending searches on CoinGecko. Prices are resolved from the local cache where possible so the
+// embed stays useful even if the trending endpoint returns coins we have no market data for.
+async function getTrendingCoins(channel, interaction) {
+  const reply = async (payload) => {
+    if (interaction) return interaction.editReply(payload);
+    if (channel) return channel.send(payload);
+  };
+
+  try {
+    const res = await cgFetch('/search/trending');
+    if (!res.ok) {
+      await reply('Sorry, CoinGecko trending data is unavailable right now. Please try again shortly.');
+      return;
+    }
+    const data = await res.json();
+    const trending = (data.coins || []).slice(0, 10);
+    if (trending.length === 0) {
+      await reply('CoinGecko returned no trending coins right now. Try again shortly.');
+      return;
+    }
+
+    let description = '';
+    trending.forEach((entry, index) => {
+      const item = entry.item || {};
+      const cached = cgArrayDict[(item.symbol || '').toUpperCase()];
+      const price = cached ? formatUsd(cached.current_price) : 'n/a';
+      const change = cached && cached.price_change_percentage_24h != null
+        ? `${cached.price_change_percentage_24h >= 0 ? '🟢 +' : '🔴 '}${cached.price_change_percentage_24h.toFixed(2)}%`
+        : '';
+      const rank = item.market_cap_rank ? `#${item.market_cap_rank}` : 'unranked';
+      description += `**${index + 1}.** **${(item.symbol || '?').toUpperCase()}** — ${item.name || 'Unknown'} (${rank})\n` +
+        `\u2003${price} ${change}\n`;
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle('Trending on CoinGecko')
+      .setDescription(description)
+      .setThumbnail(trending[0]?.item?.large || null)
+      .setColor('#9d8dff')
+      .setFooter({ text: 'Most searched in the last 24h · Powered by CoinGecko', iconURL: 'https://i.imgur.com/EnWbbrN.png' })
+      .setTimestamp();
+
+    await reply({ embeds: [embed] });
+  }
+  catch (err) {
+    console.log(pc.red('Error fetching trending coins: ' + pc.cyan(err)));
+    await reply('Sorry, there was a problem fetching trending coins. Please try again shortly.');
+  }
+}
+
+
+/* --------------------------------------------
+
+    Price alerts.
+
+    Users register a target price; a job checks live prices every minute and DMs them when the
+    target is crossed. Alerts are one row per alert (rather than a JSON blob per user) so the
+    scan can select only what it needs and expiry can be pruned in SQL.
+
+  -------------------------------------------- */
+
+const MAX_ALERTS_PER_USER = 25;
+
+async function ensureAlertsTable() {
+  // Created on startup so a fresh deployment needs no manual migration step.
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS tsukibot.pricealerts (
+      alert_id     BIGSERIAL PRIMARY KEY,
+      user_id      VARCHAR(45)  NOT NULL,
+      coin_id      VARCHAR(120) NOT NULL,
+      symbol       VARCHAR(32)  NOT NULL,
+      coin_name    VARCHAR(200) NOT NULL,
+      target_price NUMERIC      NOT NULL,
+      direction    VARCHAR(5)   NOT NULL,
+      channel_id   VARCHAR(45),
+      created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      expires_at   TIMESTAMPTZ
+    );
+  `);
+  await dbPool.query('CREATE INDEX IF NOT EXISTS pricealerts_user_id_idx ON tsukibot.pricealerts (user_id);');
+  console.log(pc.green('Price alerts table ready.'));
+}
+
+async function addPriceAlert(interaction, coinInput, targetPrice) {
+  const coin = findCachedCoin(coinInput);
+  if (!coin) {
+    await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    return;
+  }
+  if (!(targetPrice > 0)) {
+    await interaction.editReply('Please provide a target price greater than zero.');
+    return;
+  }
+  if (coin.current_price == null) {
+    await interaction.editReply(`No current price is available for **${coin.symbol.toUpperCase()}**, so an alert can't be set on it.`);
+    return;
+  }
+
+  const countResult = await dbPool.query('SELECT COUNT(*) FROM tsukibot.pricealerts WHERE user_id = $1;', [interaction.user.id]);
+  if (Number(countResult.rows[0].count) >= MAX_ALERTS_PER_USER) {
+    await interaction.editReply(`You already have ${MAX_ALERTS_PER_USER} alerts, which is the maximum. Remove one with \`/alert remove\` first.`);
+    return;
+  }
+
+  // Direction is inferred from where the price sits now, which is what people mean in practice:
+  // a target above the current price is a "rises to" alert, below it is a "falls to" alert.
+  const direction = targetPrice > coin.current_price ? 'above' : 'below';
+
+  const inserted = await dbPool.query(
+    `INSERT INTO tsukibot.pricealerts (user_id, coin_id, symbol, coin_name, target_price, direction, channel_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING alert_id;`,
+    [interaction.user.id, coin.id, coin.symbol.toUpperCase(), coin.name, targetPrice, direction, interaction.channelId]
+  );
+
+  const movePercent = ((targetPrice - coin.current_price) / coin.current_price) * 100;
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: `Alert set for ${coin.name} (${coin.symbol.toUpperCase()})`, iconURL: coin.image || null })
+    .setDescription(
+      `I'll DM you when **${coin.symbol.toUpperCase()}** goes **${direction}** ${formatUsd(targetPrice)}.\n\n` +
+      `Currently ${formatUsd(coin.current_price)} — that's a **${movePercent >= 0 ? '+' : ''}${movePercent.toFixed(2)}%** move away.`
+    )
+    .setColor(direction === 'above' ? '#2ee08a' : '#ff5a76')
+    .setFooter({ text: `Alert #${inserted.rows[0].alert_id} · make sure your DMs are open` });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+async function listPriceAlerts(interaction) {
+  const result = await dbPool.query(
+    'SELECT alert_id, coin_id, symbol, coin_name, target_price, direction FROM tsukibot.pricealerts WHERE user_id = $1 ORDER BY alert_id;',
+    [interaction.user.id]
+  );
+
+  if (result.rows.length === 0) {
+    await interaction.editReply('You have no price alerts set. Create one with `/alert add`.');
+    return;
+  }
+
+  const lines = [];
+  for (const row of result.rows) {
+    // Priced by coin_id, not symbol: duplicate tickers would otherwise show the wrong coin's price.
+    const cached = findCachedCoinById(row.coin_id);
+    const current = cached && cached.current_price != null ? formatUsd(cached.current_price) : 'n/a';
+    lines.push(`\`#${row.alert_id}\` **${row.symbol}** ${row.direction} ${formatUsd(Number(row.target_price))} — now ${current}\n`);
+  }
+  const description = fitEmbedDescription(lines, '\n*…and {n} more alerts. Remove some with /alert remove.*');
+
+  const embed = new EmbedBuilder()
+    .setTitle('Your price alerts')
+    .setDescription(description)
+    .setColor('#9d8dff')
+    .setFooter({ text: 'Remove one with /alert remove id:<number>' });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+async function removePriceAlert(interaction, alertId) {
+  // Scoped to the requesting user, so one person can never delete another's alert by guessing an id.
+  const result = await dbPool.query(
+    'DELETE FROM tsukibot.pricealerts WHERE alert_id = $1 AND user_id = $2 RETURNING symbol, target_price, direction;',
+    [alertId, interaction.user.id]
+  );
+
+  if (result.rows.length === 0) {
+    await interaction.editReply(`No alert \`#${alertId}\` found on your account. Use \`/alert list\` to see your alerts.`);
+    return;
+  }
+
+  const removed = result.rows[0];
+  await interaction.editReply(`Removed alert \`#${alertId}\`: **${removed.symbol}** ${removed.direction} ${formatUsd(Number(removed.target_price))}.`);
+}
+
+// Runs on a timer. One batched price call covers every coin anyone is watching.
+//
+// The single-run guard matters because the scan awaits network calls between reading the alerts and
+// deleting the triggered ones: a slow CoinGecko response could otherwise let the next minute's run
+// select the same rows and deliver every alert twice.
+let alertScanRunning = false;
+
+async function checkPriceAlerts() {
+  if (alertScanRunning) return;
+  alertScanRunning = true;
+  try {
+    await runPriceAlertScan();
+  }
+  finally {
+    alertScanRunning = false;
+  }
+}
+
+async function runPriceAlertScan() {
+  await dbPool.query('DELETE FROM tsukibot.pricealerts WHERE expires_at IS NOT NULL AND expires_at < NOW();');
+
+  const alerts = await dbPool.query('SELECT * FROM tsukibot.pricealerts;');
+  if (alerts.rows.length === 0) return;
+
+  const coinIds = [...new Set(alerts.rows.map(row => row.coin_id))];
+
+  // CoinGecko accepts a comma-separated id list, so all watched coins cost one request. Chunked
+  // to keep the URL a sane length if the bot ever ends up watching hundreds of coins.
+  const prices = {};
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < coinIds.length; i += CHUNK_SIZE) {
+    const chunk = coinIds.slice(i, i + CHUNK_SIZE);
+    const res = await cgFetch(`/simple/price?ids=${encodeURIComponent(chunk.join(','))}&vs_currencies=usd`);
+    if (!res.ok) {
+      console.log(pc.yellow(`Price alert check skipped a chunk (status ${res.status}).`));
+      continue;
+    }
+    Object.assign(prices, await res.json());
+  }
+
+  const triggered = [];
+  for (const alert of alerts.rows) {
+    const price = prices[alert.coin_id]?.usd;
+    if (price == null) continue;
+    const target = Number(alert.target_price);
+    if ((alert.direction === 'above' && price >= target) || (alert.direction === 'below' && price <= target)) {
+      triggered.push({ alert, price });
+    }
+  }
+
+  if (triggered.length === 0) return;
+
+  // Claim the rows by deleting them, and act only on what this process actually removed.
+  // DELETE ... RETURNING is atomic, so if a second instance of the bot is running, exactly one
+  // of them delivers each alert rather than both DMing the user. Deleting before notifying also
+  // means a failed DM cannot leave an alert to re-fire every minute.
+  const claimed = await dbPool.query(
+    'DELETE FROM tsukibot.pricealerts WHERE alert_id = ANY($1::bigint[]) RETURNING alert_id;',
+    [triggered.map(t => t.alert.alert_id)]);
+  const claimedIds = new Set(claimed.rows.map(row => String(row.alert_id)));
+  const toDeliver = triggered.filter(t => claimedIds.has(String(t.alert.alert_id)));
+  if (toDeliver.length === 0) return;
+
+  for (const { alert, price } of toDeliver) {
+    const embed = new EmbedBuilder()
+      .setTitle(`${alert.symbol} is ${alert.direction} ${formatUsd(Number(alert.target_price))}`)
+      .setDescription(`**${alert.coin_name}** is now **${formatUsd(price)}**.`)
+      .setColor(alert.direction === 'above' ? '#2ee08a' : '#ff5a76')
+      .setFooter({ text: 'TsukiBot price alert' })
+      .setTimestamp();
+
+    try {
+      const user = await client.users.fetch(alert.user_id);
+      await user.send({ embeds: [embed] });
+    }
+    catch {
+      // DMs are closed or the user is gone. Fall back to the channel the alert was created in.
+      try {
+        const channel = await client.channels.fetch(alert.channel_id);
+        if (channel && channel.isTextBased()) {
+          await channel.send({ content: `<@${alert.user_id}>`, embeds: [embed] });
+        }
+      }
+      catch {
+        console.log(pc.yellow(`Could not deliver price alert ${alert.alert_id} to user ${alert.user_id}.`));
+      }
+    }
+  }
+
+  console.log(pc.green(`Delivered ${toDeliver.length} price alert(s).`));
+}
+
+
+/* --------------------------------------------
+
+    Portfolio tracking.
+
+    Deliberately a separate table from tsukibot.profiles rather than an extra column on it: the
+    tbpa watchlist stores its coins as a single delimited string, and bolting amounts onto that
+    format would make both features harder to read. /tbpa stays the quick watchlist; /portfolio
+    is the one that carries amounts.
+
+  -------------------------------------------- */
+
+const MAX_HOLDINGS_PER_USER = 50;
+
+async function ensureHoldingsTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS tsukibot.holdings (
+      user_id   VARCHAR(45)  NOT NULL,
+      coin_id   VARCHAR(120) NOT NULL,
+      symbol    VARCHAR(32)  NOT NULL,
+      coin_name VARCHAR(200) NOT NULL,
+      amount    NUMERIC      NOT NULL,
+      PRIMARY KEY (user_id, coin_id)
+    );
+  `);
+  console.log(pc.green('Portfolio holdings table ready.'));
+}
+
+async function setHolding(interaction, coinInput, amount) {
+  const coin = findCachedCoin(coinInput);
+  if (!coin) {
+    await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    return;
+  }
+
+  // An amount of zero is the natural way to say "I no longer hold this", so treat it as a removal.
+  if (amount === 0) {
+    await dbPool.query('DELETE FROM tsukibot.holdings WHERE user_id = $1 AND coin_id = $2;', [interaction.user.id, coin.id]);
+    await interaction.editReply(`Removed **${coin.symbol.toUpperCase()}** from your portfolio.`);
+    return;
+  }
+  if (!(amount > 0)) {
+    await interaction.editReply('Please provide an amount greater than zero (or exactly 0 to remove a holding).');
+    return;
+  }
+
+  const countResult = await dbPool.query('SELECT COUNT(*) FROM tsukibot.holdings WHERE user_id = $1;', [interaction.user.id]);
+  if (Number(countResult.rows[0].count) >= MAX_HOLDINGS_PER_USER) {
+    const existing = await dbPool.query('SELECT 1 FROM tsukibot.holdings WHERE user_id = $1 AND coin_id = $2;', [interaction.user.id, coin.id]);
+    if (existing.rows.length === 0) {
+      await interaction.editReply(`You already track ${MAX_HOLDINGS_PER_USER} coins, which is the maximum. Remove one first with \`/portfolio set amount:0\`.`);
+      return;
+    }
+  }
+
+  await dbPool.query(
+    `INSERT INTO tsukibot.holdings (user_id, coin_id, symbol, coin_name, amount)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id, coin_id) DO UPDATE SET amount = $5, symbol = $3, coin_name = $4;`,
+    [interaction.user.id, coin.id, coin.symbol.toUpperCase(), coin.name, amount]
+  );
+
+  const value = coin.current_price != null ? formatUsd(coin.current_price * amount) : 'n/a';
+  await interaction.editReply(`Set **${amount} ${coin.symbol.toUpperCase()}** in your portfolio — currently worth **${value}**.`);
+}
+
+// Renders the portfolio chart page to a PNG buffer via the existing puppeteer cluster.
+// Returns null on any failure: the chart is a bonus, and must never take the command down with it.
+async function renderPortfolioChart(payload) {
+  if (!cluster) return null;
+
+  const id = stashPortfolioChart(payload);
+  const url = `http://127.0.0.1:${devMode ? 8086 : 8080}/portfolio/${id}`;
+
+  try {
+    return await cluster.execute(url, async ({ page, data }) => {
+      // Portrait and full-page: the card's height varies with how many holdings there are.
+      await page.setViewport({ width: 520, height: 390, deviceScaleFactor: 2 });
+      // 'load' rather than 'networkidle0': the page is entirely inline CSS and SVG with no
+      // subresources, and waiting for network idle on a page that makes no requests can stall.
+      await page.goto(data, { waitUntil: 'load', timeout: 15000 });
+      const shot = await page.screenshot({ type: 'png' });
+      // Release the page's memory before it goes back to the pool.
+      await page.goto('about:blank');
+      return shot;
+    });
+  }
+  catch (err) {
+    console.log(pc.yellow('Portfolio chart render failed, sending the embed without it: ' + err.message));
+    return null;
+  }
+  finally {
+    portfolioChartPayloads.delete(id);
+  }
+}
+
+// Portfolio-level change over a timeframe, derived by backing each holding's prior value out of
+// its own percentage move. Holdings missing that timeframe are excluded from both sides so they
+// cannot skew the result.
+function weightedChange(priced, field) {
+  let now = 0;
+  let before = 0;
+  for (const holding of priced) {
+    if (holding.value == null || holding[field] == null) continue;
+    const prior = holding.value / (1 + holding[field] / 100);
+    if (!Number.isFinite(prior) || prior <= 0) continue;
+    now += holding.value;
+    before += prior;
+  }
+  if (before <= 0) return null;
+  return { percent: ((now - before) / before) * 100, amount: now - before };
+}
+
+async function showPortfolio(interaction) {
+  const holdings = await dbPool.query(
+    'SELECT coin_id, symbol, coin_name, amount FROM tsukibot.holdings WHERE user_id = $1;',
+    [interaction.user.id]
+  );
+
+  if (holdings.rows.length === 0) {
+    await interaction.editReply('Your portfolio is empty. Add a holding with `/portfolio set coin:eth amount:2.5`.');
+    return;
+  }
+
+  // Every timeframe used below is already in the market cache, so none of this costs an API call.
+  const priced = [];
+  let totalValue = 0;
+
+  for (const row of holdings.rows) {
+    // By coin_id for the same reason as alerts: symbols are not unique on CoinGecko.
+    const coin = findCachedCoinById(row.coin_id);
+    const amount = Number(row.amount);
+    if (!coin || coin.current_price == null) {
+      priced.push({ symbol: row.symbol, amount, value: null, change24h: null });
+      continue;
+    }
+    const value = coin.current_price * amount;
+    totalValue += value;
+    priced.push({
+      symbol: row.symbol,
+      amount,
+      value,
+      price: coin.current_price,
+      image: coin.image,
+      change1h: coin.price_change_percentage_1h_in_currency,
+      change24h: coin.price_change_percentage_24h_in_currency ?? coin.price_change_percentage_24h,
+      change7d: coin.price_change_percentage_7d_in_currency,
+      change30d: coin.price_change_percentage_30d_in_currency,
+      athChange: coin.ath_change_percentage
+    });
+  }
+
+  priced.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+  // Discord embeds render in a proportional font, so padding with spaces does nothing there.
+  // Everything tabular below therefore lives in a code block, which is the only way to get
+  // columns to actually line up. Lines are kept under ~34 characters so they do not wrap on a
+  // phone, which is what pushed "30d" onto its own line before.
+  // Discord embeds render in a proportional font, so padding with spaces does nothing there.
+  // The holdings table therefore lives in a code block, which is the only way to get columns
+  // to actually line up.
+  const move = (pct) => pct == null ? '  --  ' : `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+
+  const symbolWidth = Math.max(4, ...priced.map(h => h.symbol.length));
+  const valueWidth = Math.max(6, ...priced.map(h => h.value == null ? 0 : formatUsdAmount(h.value).length));
+
+  const holdingBlocks = priced.map(holding => {
+    if (holding.value == null) {
+      return `${holding.symbol.padEnd(symbolWidth)}  no price available`;
+    }
+    const share = totalValue > 0 ? (holding.value / totalValue) * 100 : 0;
+    // The @ price keeps full precision (sub-cent coins need it); the dollar value does not.
+    return `${holding.symbol.padEnd(symbolWidth)} ${(share.toFixed(1) + '%').padStart(6)} ` +
+      `${formatUsdAmount(holding.value).padStart(valueWidth)}\n` +
+      `  ${holding.amount} @ ${formatUsd(holding.price)}`;
+  });
+
+  // Portfolio-level performance across every timeframe the cache carries.
+  const timeframes = [
+    { label: '1h', field: 'change1h' },
+    { label: '24h', field: 'change24h' },
+    { label: '7d', field: 'change7d' },
+    { label: '30d', field: 'change30d' }
+  ].map(t => ({ ...t, result: weightedChange(priced, t.field) })).filter(t => t.result);
+
+  const dayChange = timeframes.find(t => t.label === '24h');
+
+  // Render the chart before building the embed, because what the embed needs to say depends on
+  // whether the chart is there to say it. With a chart, repeating the total and every timeframe
+  // in text just prints the same figures twice a few pixels apart.
+  const chartSlices = priced
+    .filter(h => h.value != null && totalValue > 0)
+    .slice(0, 8)
+    .map(h => ({ symbol: h.symbol, share: (h.value / totalValue) * 100, value: formatUsdAmount(h.value) }));
+
+  let chart = null;
+  if (chartSlices.length > 0 && timeframes.length > 0) {
+    chart = await renderPortfolioChart({
+      slices: chartSlices,
+      timeframes: timeframes.map(t => ({
+        label: t.label,
+        percent: t.result.percent,
+        amount: t.result.amount,
+        amountLabel: formatUsdAmount(Math.abs(t.result.amount))
+      })),
+      totalLabel: formatUsdAmount(totalValue)
+    });
+  }
+
+  // Fit as many holdings as the description allows, leaving room for the fences and the note.
+  const FENCE_OVERHEAD = 10;
+  let descriptionBody = '';
+  let shown = 0;
+  for (const block of holdingBlocks) {
+    if (descriptionBody.length + block.length + FENCE_OVERHEAD > EMBED_DESCRIPTION_LIMIT - 140) break;
+    descriptionBody += (shown > 0 ? '\n\n' : '') + block;
+    shown++;
+  }
+  const hiddenCount = holdingBlocks.length - shown;
+  const description = '```\n' + descriptionBody + '\n```' +
+    (hiddenCount > 0 ? `\n*…and ${hiddenCount} more holdings (the total below includes them).*` : '');
+
+  const embed = new EmbedBuilder()
+    .setTitle('Your portfolio')
+    .setDescription(description)
+    .setColor(dayChange && dayChange.result.percent < 0 ? '#ff5a76' : '#2ee08a')
+    .setFooter({ text: 'Prices from the CoinGecko cache · only you can see this' })
+    .setTimestamp();
+
+  if (chart) {
+    // The chart carries the total and every timeframe, so the text only anchors the total.
+    embed.addFields({ name: 'Total value', value: '```\n' + formatUsdAmount(totalValue) + '\n```' });
+  }
+  else {
+    // No chart: the embed has to carry the performance table itself.
+    const amountWidth = Math.max(7, ...timeframes.map(t =>
+      ((t.result.amount >= 0 ? '+' : '-') + formatUsdAmount(Math.abs(t.result.amount))).length));
+    const performanceLines = timeframes.map(t => {
+      const percent = `${t.result.percent >= 0 ? '+' : ''}${t.result.percent.toFixed(2)}%`;
+      const amount = `${t.result.amount >= 0 ? '+' : '-'}${formatUsdAmount(Math.abs(t.result.amount))}`;
+      return `${(t.label + ':').padEnd(5)}${percent.padStart(8)}${amount.padStart(amountWidth + 2)}`;
+    }).join('\n');
+    const totalRow = `${'total:'.padEnd(5)}${formatUsdAmount(totalValue).padStart(amountWidth + 10)}`;
+    embed.addFields({
+      name: 'Total value',
+      value: '```\n' + totalRow + '\n' + (performanceLines || 'no performance data') + '\n```'
+    });
+  }
+
+  // Best and worst 24h movers, only meaningful once there is more than one holding to compare.
+  const withChange = priced.filter(h => h.value != null && h.change24h != null);
+  if (withChange.length >= 2) {
+    const sortedByChange = [...withChange].sort((a, b) => b.change24h - a.change24h);
+    const best = sortedByChange[0];
+    const worst = sortedByChange[sortedByChange.length - 1];
+    embed.addFields(
+      { name: 'Best 24h', value: `**${best.symbol}** ${move(best.change24h)}`, inline: true },
+      { name: 'Worst 24h', value: `**${worst.symbol}** ${move(worst.change24h)}`, inline: true }
+    );
+
+    // With a single holding this is just that coin's ATH distance, which /ath answers better.
+    const withAth = priced.filter(h => h.value != null && h.athChange != null);
+    if (withAth.length > 0) {
+      const furthest = [...withAth].sort((a, b) => a.athChange - b.athChange)[0];
+      embed.addFields({
+        name: 'Furthest below ATH',
+        value: `**${furthest.symbol}** ${furthest.athChange.toFixed(1)}%`,
+        inline: true
+      });
+    }
+  }
+
+  // Largest holding's icon, as a small visual anchor.
+  const largest = priced.find(h => h.image);
+  if (largest) embed.setThumbnail(largest.image);
+
+  const reply = { embeds: [embed] };
+  if (chart) {
+    embed.setImage('attachment://portfolio.png');
+    reply.files = [{ attachment: chart, name: 'portfolio.png' }];
+  }
+
+  await interaction.editReply(reply);
+}
+
+async function clearPortfolio(interaction) {
+  const result = await dbPool.query('DELETE FROM tsukibot.holdings WHERE user_id = $1;', [interaction.user.id]);
+  await interaction.editReply(result.rowCount > 0
+    ? `Cleared your portfolio (${result.rowCount} holding${result.rowCount === 1 ? '' : 's'} removed).`
+    : 'Your portfolio was already empty.');
+}
+
+
+/* --------------------------------------------
+
+    AI market brief.
+
+    Composes the data the bot already caches into one glanceable summary. The result is cached
+    globally for 20 minutes: the underlying market data is identical for every server, so there is
+    no reason to pay for the same summary twice.
+
+    Gracefully unavailable when no Anthropic key is configured, matching how /ls handles a missing
+    Coinalyze key.
+
+  -------------------------------------------- */
+
+const BRIEF_CACHE_MS = 20 * 60 * 1000;
+let briefCache = { text: null, generatedAt: 0 };
+
+// Discord rejects an embed whose description exceeds 4096 characters. A user with dozens of
+// holdings or alerts can generate more than that, so lists are trimmed to fit with a note saying so.
+const EMBED_DESCRIPTION_LIMIT = 4096;
+
+function fitEmbedDescription(lines, overflowNote) {
+  let description = '';
+  let shown = 0;
+  for (const line of lines) {
+    // Leave room for the overflow note we may still need to append.
+    if (description.length + line.length > EMBED_DESCRIPTION_LIMIT - 120) break;
+    description += line;
+    shown++;
+  }
+  if (shown < lines.length) {
+    description += overflowNote.replace('{n}', String(lines.length - shown));
+  }
+  return description;
+}
+
+function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY || keys.anthropic;
+  if (!apiKey) return null;
+  const Anthropic = require('@anthropic-ai/sdk');
+  const AnthropicClient = Anthropic.default || Anthropic;
+  return new AnthropicClient({ apiKey: apiKey });
+}
+
+// Gather the market data the brief is written from, entirely out of the existing caches.
+async function collectMarketSnapshot() {
+  const topCoins = cgArrayDictParsed
+    .filter(coin => coin && coin.market_cap_rank && coin.market_cap_rank <= 10)
+    .sort((a, b) => a.market_cap_rank - b.market_cap_rank)
+    .map(coin => `${coin.symbol.toUpperCase()}: ${formatUsd(coin.current_price)} ` +
+      `(24h ${coin.price_change_percentage_24h == null ? 'n/a' : coin.price_change_percentage_24h.toFixed(2) + '%'})`);
+
+  const movable = cgArrayDictParsed.filter(coin =>
+    coin.market_cap_rank != null && coin.price_change_percentage_24h != null && coin.total_volume >= 1000000);
+  const sorted = [...movable].sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h);
+  const describeMover = coin => `${coin.symbol.toUpperCase()} ${coin.price_change_percentage_24h.toFixed(1)}%`;
+
+  let fearGreed = 'unavailable';
+  try {
+    const res = await fetch('https://api.alternative.me/fng/?limit=1');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.data && data.data[0]) {
+        fearGreed = `${data.data[0].value} (${data.data[0].value_classification})`;
+      }
+    }
+  }
+  catch {
+    // Non-fatal: the brief simply omits sentiment.
+  }
+
+  let globalStats = 'unavailable';
+  try {
+    const res = await cgFetch('/global');
+    if (res.ok) {
+      const { data } = await res.json();
+      globalStats = `total market cap $${abbreviateNumber(data.total_market_cap.usd, 2)}, ` +
+        `24h volume $${abbreviateNumber(data.total_volume.usd, 2)}, ` +
+        `BTC dominance ${data.market_cap_percentage.btc.toFixed(1)}%, ` +
+        `market cap 24h change ${data.market_cap_change_percentage_24h_usd.toFixed(2)}%`;
+    }
+  }
+  catch {
+    // Non-fatal.
+  }
+
+  return [
+    `Global: ${globalStats}`,
+    `Fear & Greed index: ${fearGreed}`,
+    `Top 10 by market cap: ${topCoins.join('; ')}`,
+    `Biggest 24h gainers: ${sorted.slice(0, 5).map(describeMover).join(', ')}`,
+    `Biggest 24h losers: ${sorted.slice(-5).reverse().map(describeMover).join(', ')}`
+  ].join('\n');
+}
+
+async function getMarketBrief(interaction) {
+  const client = getAnthropicClient();
+  if (!client) {
+    await interaction.editReply('Sorry, the market brief command is not configured. The bot administrator needs to add an Anthropic API key.');
+    return;
+  }
+
+  if (cacheUpdateRunning) {
+    await interaction.editReply(`I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`);
+    return;
+  }
+
+  const now = Date.now();
+  let briefText = null;
+  let cached = false;
+
+  if (briefCache.text && (now - briefCache.generatedAt) < BRIEF_CACHE_MS) {
+    briefText = briefCache.text;
+    cached = true;
+  }
+  else {
+    const snapshot = await collectMarketSnapshot();
+
+    const response = await client.beta.messages.create({
+      model: 'claude-opus-5',
+      max_tokens: 8000,
+      // Summarizing numbers that are already gathered is a simple task, so low effort keeps this
+      // fast and cheap. Raise it if you want more interpretation in the write-up.
+      output_config: { effort: 'low' },
+      // Safety classifiers can decline a request; letting the API re-run it on a fallback model
+      // server-side means a decline recovers instead of surfacing as a failed command.
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      // The embed already carries a "Market Brief" title, so the model is told to open on its first
+      // observation. Saying "no markdown headers" alone was not enough — it complied literally and
+      // wrote a plain-text title instead, which read as a duplicate of the embed's own.
+      system: 'You write short crypto market briefs for a Discord bot. ' +
+        'The message already has a title, so open with your first observation about the market. ' +
+        'Keep the whole brief under about 120 words, in two or three short paragraphs of plain prose. ' +
+        'Use only the data you are given, and never invent numbers, prices, or news. ' +
+        'Say what moved and what the overall tone is. Prefer the specific over the general: ' +
+        'name the coins and the figures rather than describing the market in the abstract. ' +
+        'No headings, no bullet lists, no greeting, no sign-off, and no financial advice.',
+      messages: [{
+        role: 'user',
+        content: `Here is the current crypto market data. Write the brief.\n\n${snapshot}`
+      }]
+    });
+
+    if (response.stop_reason === 'refusal') {
+      console.log(pc.yellow('Market brief request was declined by safety classifiers.'));
+      await interaction.editReply('Sorry, I could not generate a market brief right now. Please try again later.');
+      return;
+    }
+
+    briefText = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('')
+      .trim();
+
+    if (!briefText) {
+      await interaction.editReply('Sorry, I could not generate a market brief right now. Please try again later.');
+      return;
+    }
+
+    briefCache = { text: briefText, generatedAt: now };
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('Market Brief')
+    .setDescription(briefText.slice(0, 4000))
+    .setColor('#9d8dff')
+    .setFooter({ text: cached ? 'Cached · refreshes every 20 minutes' : 'Generated just now · data from CoinGecko' })
+    .setTimestamp(new Date(briefCache.generatedAt));
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+
+/* --------------------------------------------
+
+    Recurring scheduled posts.
+
+    A stored job is just {command, args, channel, interval} replayed through the same functions the
+    slash commands use. Those functions already accept a Discord channel for their non-interaction
+    path, so a real TextChannel can be handed straight to them with no adapter.
+
+    Due jobs are found by polling once a minute rather than by registering a node-schedule entry
+    per job. That keeps the schedule in the database as the single source of truth, so nothing has
+    to be rehydrated on restart and a job can never be silently lost.
+
+  -------------------------------------------- */
+
+const SCHEDULABLE_COMMANDS = {
+  hmap: 'Market heatmap',
+  fg: 'Fear & Greed index',
+  movers: 'Biggest 24h movers',
+  trending: 'Trending coins',
+  pop: 'Top 10 coins',
+  cg: 'Prices for specific coins'
+};
+
+const SCHEDULE_INTERVALS = {
+  '30m': 30,
+  '1h': 60,
+  '4h': 240,
+  '12h': 720,
+  daily: 1440
+};
+
+const MAX_SCHEDULES_PER_GUILD = 10;
+
+async function ensureSchedulesTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS tsukibot.scheduled_posts (
+      job_id           BIGSERIAL PRIMARY KEY,
+      guild_id         VARCHAR(45)  NOT NULL,
+      channel_id       VARCHAR(45)  NOT NULL,
+      command          VARCHAR(32)  NOT NULL,
+      args             VARCHAR(200),
+      interval_minutes INTEGER      NOT NULL,
+      created_by       VARCHAR(45)  NOT NULL,
+      last_run         TIMESTAMPTZ
+    );
+  `);
+  await dbPool.query('CREATE INDEX IF NOT EXISTS scheduled_posts_guild_idx ON tsukibot.scheduled_posts (guild_id);');
+  console.log(pc.green('Scheduled posts table ready.'));
+}
+
+async function createSchedule(interaction, command, channel, intervalKey, args) {
+  if (!SCHEDULABLE_COMMANDS[command]) {
+    await interaction.editReply('That command cannot be scheduled.');
+    return;
+  }
+  const intervalMinutes = SCHEDULE_INTERVALS[intervalKey];
+  if (!intervalMinutes) {
+    await interaction.editReply('That interval is not supported.');
+    return;
+  }
+  if (command === 'cg' && !args) {
+    await interaction.editReply('Scheduling `cg` needs a list of coins. Add them with the `coins` option, e.g. `coins: btc eth`.');
+    return;
+  }
+
+  if (!channel.isTextBased()) {
+    await interaction.editReply('Please choose a text channel.');
+    return;
+  }
+
+  // Check up front that the bot can actually post there, rather than failing silently every cycle.
+  const botPermissions = channel.permissionsFor(interaction.guild.members.me);
+  if (!botPermissions || !botPermissions.has(PermissionFlagsBits.SendMessages) || !botPermissions.has(PermissionFlagsBits.EmbedLinks)) {
+    await interaction.editReply(`I need permission to send messages and embed links in ${channel} before I can post there.`);
+    return;
+  }
+
+  const countResult = await dbPool.query('SELECT COUNT(*) FROM tsukibot.scheduled_posts WHERE guild_id = $1;', [interaction.guildId]);
+  if (Number(countResult.rows[0].count) >= MAX_SCHEDULES_PER_GUILD) {
+    await interaction.editReply(`This server already has ${MAX_SCHEDULES_PER_GUILD} scheduled posts, which is the maximum. Remove one with \`/schedule delete\` first.`);
+    return;
+  }
+
+  const inserted = await dbPool.query(
+    `INSERT INTO tsukibot.scheduled_posts (guild_id, channel_id, command, args, interval_minutes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING job_id;`,
+    [interaction.guildId, channel.id, command, args || null, intervalMinutes, interaction.user.id]
+  );
+
+  await interaction.editReply(
+    `Scheduled **${SCHEDULABLE_COMMANDS[command]}**${args ? ` (\`${args}\`)` : ''} in ${channel}, every **${intervalKey}**.\n` +
+    `Job \`#${inserted.rows[0].job_id}\` — the first post goes out within a minute.`
+  );
+}
+
+async function listSchedules(interaction) {
+  const result = await dbPool.query(
+    'SELECT job_id, channel_id, command, args, interval_minutes, last_run FROM tsukibot.scheduled_posts WHERE guild_id = $1 ORDER BY job_id;',
+    [interaction.guildId]
+  );
+
+  if (result.rows.length === 0) {
+    await interaction.editReply('This server has no scheduled posts. Create one with `/schedule create`.');
+    return;
+  }
+
+  const intervalName = (minutes) =>
+    Object.keys(SCHEDULE_INTERVALS).find(key => SCHEDULE_INTERVALS[key] === minutes) || `${minutes}m`;
+
+  let description = '';
+  for (const row of result.rows) {
+    const lastRun = row.last_run ? `<t:${Math.floor(new Date(row.last_run).getTime() / 1000)}:R>` : 'never';
+    description += `\`#${row.job_id}\` **${SCHEDULABLE_COMMANDS[row.command] || row.command}**` +
+      `${row.args ? ` (\`${row.args}\`)` : ''} in <#${row.channel_id}>\n` +
+      ` every ${intervalName(row.interval_minutes)} · last posted ${lastRun}\n`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('Scheduled posts')
+    .setDescription(description)
+    .setColor('#9d8dff')
+    .setFooter({ text: 'Remove one with /schedule delete id:<number>' });
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+async function deleteSchedule(interaction, jobId) {
+  // Scoped to this guild so an admin can never delete another server's schedule by guessing an id.
+  const result = await dbPool.query(
+    'DELETE FROM tsukibot.scheduled_posts WHERE job_id = $1 AND guild_id = $2 RETURNING command;',
+    [jobId, interaction.guildId]
+  );
+
+  if (result.rows.length === 0) {
+    await interaction.editReply(`No scheduled post \`#${jobId}\` found in this server. Use \`/schedule list\` to see them.`);
+    return;
+  }
+  await interaction.editReply(`Removed scheduled post \`#${jobId}\` (${SCHEDULABLE_COMMANDS[result.rows[0].command] || result.rows[0].command}).`);
+}
+
+// Replays one stored job into its channel using the same functions the slash commands call.
+async function runScheduledPost(post) {
+  const channel = await client.channels.fetch(post.channel_id);
+  if (!channel || !channel.isTextBased()) {
+    throw new Error(`channel ${post.channel_id} is not a text channel`);
+  }
+
+  // Most of the command functions below send to the channel and handle their own send errors, so a
+  // revoked permission would otherwise fail silently and re-fail every cycle forever. Checking here
+  // turns that into a thrown error the caller can act on, and the codes below retire the job.
+  const botPermissions = channel.guild ? channel.permissionsFor(channel.guild.members.me) : null;
+  if (botPermissions && (!botPermissions.has(PermissionFlagsBits.SendMessages) || !botPermissions.has(PermissionFlagsBits.EmbedLinks))) {
+    const err = new Error(`missing send or embed permission in channel ${post.channel_id}`);
+    err.code = 50013; // Discord's "Missing Permissions", so the caller retires this job
+    throw err;
+  }
+
+  switch (post.command) {
+    case 'hmap':
+      await channel.send({ files: [{ attachment: 'chartscreens/generated-charts/hmap.png', name: 'hmap.png' }] });
+      break;
+    case 'fg':
+      await getFearGreedIndex(channel, client.user, null);
+      break;
+    case 'movers':
+      await getBiggestMovers(channel, client.user);
+      break;
+    case 'trending':
+      await getTrendingCoins(channel, null);
+      break;
+    case 'pop':
+      await getPriceCG(getTop10Symbols(), channel, 'p');
+      break;
+    case 'cg':
+      await getPriceCG((post.args || '').split(' ').filter(v => v !== ''), channel, '-', 'd');
+      break;
+    default:
+      throw new Error(`unknown scheduled command "${post.command}"`);
+  }
+}
+
+async function runDueScheduledPosts() {
+  // Claim due jobs by stamping last_run in the same statement that selects them, so a slow post
+  // can never be picked up twice by the next tick.
+  const due = await dbPool.query(`
+    UPDATE tsukibot.scheduled_posts
+    SET last_run = NOW()
+    WHERE job_id IN (
+      SELECT job_id FROM tsukibot.scheduled_posts
+      WHERE last_run IS NULL OR last_run + (interval_minutes * INTERVAL '1 minute') <= NOW()
+    )
+    RETURNING *;
+  `);
+
+  for (const post of due.rows) {
+    try {
+      await runScheduledPost(post);
+      console.log(pc.green(`Posted scheduled job #${post.job_id} (${post.command}) to channel ${post.channel_id}.`));
+    }
+    catch (err) {
+      console.log(pc.yellow(`Scheduled job #${post.job_id} failed: ${err.message}`));
+      // A channel the bot can no longer reach (deleted, kicked, permissions revoked) would fail
+      // forever, so retire the job rather than logging the same error every cycle.
+      if (err.code === 10003 || err.code === 50001 || err.code === 50013) {
+        await dbPool.query('DELETE FROM tsukibot.scheduled_posts WHERE job_id = $1;', [post.job_id]);
+        console.log(pc.yellow(`Removed scheduled job #${post.job_id}: its channel is gone or unreadable.`));
+      }
+    }
+  }
+}
+
+
+//------------------------------------------
+//------------------------------------------
+
+// This function handles users personal coin
+// lists. Setting, displaying, and editing
 // of lists is handled here.
 
 function getCoinArray(id, channel, message, coins = '', action = '', interaction) {
@@ -2255,9 +3518,6 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
     }
   }
 
-  const conn = new pg.Client(conString);
-  conn.connect();
-
   // delete .tbpa command after 5 min (optional)
   // message.delete({ timeout: 300000 });
 
@@ -2271,7 +3531,7 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
 
   // .tbpa call (display action)
   if (coins === '') {
-    conn.query('SELECT * FROM tsukibot.profiles where id = $1;', [id], (err, res) => {
+    dbPool.query('SELECT * FROM tsukibot.profiles where id = $1;', [id], (err, res) => {
       if (err) { console.log(pc.red(pc.bold((err + '------TBPA query select error')))); }
       else {
         //Check if current user array is empty or not and exit if it is
@@ -2306,7 +3566,6 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
           }
         }
       }
-      conn.end();
     });
 
 
@@ -2316,12 +3575,12 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
     if (coins.length == 0) {
       // help message for when no input is given to modification command
       channel.send('**Here\'s how to set up or modify your tbpa:**\n' +
-        ':small_blue_diamond: To set a new tbpa or overwrite an existing one, use `.tb pa <coins list>`.' +
-        '\n          **Example:** `.tb pa eth btc glm ...`\n' +
+        ':small_blue_diamond: To add coins to your list, use `/tbpa-add coins:<coins>`.' +
+        '\n          **Example:** `/tbpa-add coins: eth btc glm`\n' +
         ':small_blue_diamond: To add or remove from an existing tbpa, simply put a + or - right after the "pa".' +
-        '\n          **Example:**  Add: `.tb pa+ dot xlm fil ...`  Remove: `.tb pa- dot eth ...`\n\n' +
+        '\n          **Example:**  Add: `/tbpa-add coins: dot xlm fil`  Remove: `/tbpa-remove coins: dot eth`\n\n' +
         ':notepad_spiral: You can set/modify one coin, or even multiple coins at a time (as seen above).' +
-        ' For any further questions, use `.tb help` to see the more detailed commands guide and examples.');
+        ' For any further questions, use `/help` to see the more detailed commands guide and examples.');
       return;
     }
     // filter out any invalid cg coins and other input and notify user of them accordingly
@@ -2334,16 +3593,15 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
 
     if (action === '') {
       coins = `{${cleanedCoins}}`;
-      conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, coins.toLowerCase()], (err) => {
+      dbPool.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, coins.toLowerCase()], (err) => {
         if (err) { console.log(pc.red(pc.bold((err + '------TB PA query insert error')))); }
         else { channel.send('Personal array set: `' + coins.toLowerCase() + '` for <@' + id + '>.' + invalidCoinsMessage); }
-        conn.end();
       });
 
       // edit existing tbpa list
     } else {
       const command = (action === '-') ? 'REMOVE' : 'ADD';
-      conn.query('SELECT * FROM tsukibot.profiles where id = $1;', [id], (err, res) => {
+      dbPool.query('SELECT * FROM tsukibot.profiles where id = $1;', [id], (err, res) => {
         if (err) { console.log(pc.red(pc.bold(err + '------TB PA query select error'))); }
         else {
           let inStr = '';
@@ -2382,7 +3640,7 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
               inStr = inStr.replace('{,}', '{}'); //remove lingering commas
               inStr = inStr.replace(/\{+/g, ''); //remove left bracket
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
-              conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
+              dbPool.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(pc.red(pc.bold(err + '------TB PA remove insert query error'))); }
                 else {
                   if (interaction) {
@@ -2392,7 +3650,6 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
                     channel.send('Personal array modified successfully.');
                   }
                 }
-                conn.end();
               });
             }
           }
@@ -2400,7 +3657,7 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
             coins = cleanedCoins;
             //Check if user has an entry in the DB
             if (typeof inStr === 'undefined') {
-              channel.send('There is no tbpa entry found yet for your profile, create one by using the command `.tb pa <coins list>` Example: `.tb pa btc eth xrp glm .....`');
+              channel.send('You don\'t have a saved list yet. Create one with `/tbpa-add coins: btc eth xrp`');
               //console.log(chalk.red.bold('TBPA add action aborted on null tbpa. The user does not have a DB entry yet! Request was sent by: ' + chalk.yellow(message.author.username)));
             } else {
               //String processing
@@ -2410,7 +3667,7 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
               inStr = inStr.replace('{,', '{'); //remove starting comma
               inStr = inStr.replace(/\{+/g, ''); //remove left bracket
               inStr = inStr.replace(/\}+/g, ''); //remove right bracket
-              conn.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
+              dbPool.query(('INSERT INTO tsukibot.profiles(id, coins) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET coins = $2;'), [id, '{' + inStr + '}'], (err) => {
                 if (err) { console.log(pc.red(pc.bold(err + '------TB PA add insert query error'))); }
                 else {
                   if (coins.length > 0) {
@@ -2430,7 +3687,6 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
                     }
                   }
                 }
-                conn.end();
               });
             }
           }
@@ -2476,63 +3732,48 @@ client.on('clientReady', () => {
   // Display help command on bot's status
   client.user.setActivity('/help', { type: ActivityType.Watching });
 
-  // First run of scheduled executions
-  updateExchangeRates();
-  updateCoins();
+  // First run of scheduled executions.
+  // Each of these is fire-and-forget, so each needs its own catch: an unhandled rejection here used
+  // to be logged by the global handler and then silently skipped, with no retry until the next tick.
+  const logStartupFailure = (name) => (err) => {
+    console.log(pc.red(`Startup task ${name} failed: ` + pc.cyan(err && err.message ? err.message : err)));
+  };
+
+  updateExchangeRates().catch(logStartupFailure('updateExchangeRates'));
   updateCmcKey();
-  getCMCData();
+  getCMCData().catch(logStartupFailure('getCMCData'));
+  ensureAlertsTable().catch(logStartupFailure('ensureAlertsTable'));
+  ensureHoldingsTable().catch(logStartupFailure('ensureHoldingsTable'));
+  ensureSchedulesTable().catch(logStartupFailure('ensureSchedulesTable'));
 
   // Load CG cache from file first for instant availability
   const cacheLoaded = loadCGCacheFromFile();
 
-  // Then run the update in the background to get fresh data
-  if (cacheLoaded) {
+  // Raise the startup gate before kicking off the first pass, not after. getCGData suspends at its
+  // first await, so setting this afterwards left a window where commands saw the gate down.
+  if (!cacheLoaded) {
+    cacheUpdateRunning = true;
+  }
+  else {
     console.log(pc.cyan('Starting background CoinGecko cache update...'));
   }
-  getCGData(cacheLoaded ? 'background' : 'firstrun');
-  if (!cacheLoaded) {
-    cacheUpdateRunning = true; // prevents the scheduler from creating an overlapping process with the first run
-  }
-  getCoin360Heatmap();
+
+  // Then run the update in the background to get fresh data
+  getCGData(cacheLoaded ? 'background' : 'firstrun').catch(logStartupFailure('getCGData'));
+
+  // Staggered: getCGData already hits /coins/list, and firing both at once against the keyless
+  // per-IP budget is a reliable way to start life rate limited.
+  setTimeout(() => {
+    updateCoins().catch(logStartupFailure('updateCoins'));
+  }, 60000).unref();
+
+  getCoin360Heatmap().catch(logStartupFailure('getCoin360Heatmap'));
 });
 
-// DM's the command list to the caller
-function postHelp(message, author, code, interaction) {
-
+// Links the caller to the full command guide
+function postHelp(interaction) {
   const link = 'https://github.com/EthyMoney/TsukiBot/blob/master/common/commands.md';
-
-  if (interaction) {
-    interaction.reply('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link);
-    return;
-  }
-
-  code = code || 'none';
-  let fail = false;
-  if (code === 'ask') {
-    author.send('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link).catch(function () {
-      console.log(pc.yellow('Failed to send help text to ' + author.username + ' via DM, sent link in server instead.'));
-      message.reply('I tried to DM you the commands but you don\'t allow DMs. Hey, it\'s cool, I\'ll just leave the link for you here instead: \n' + link).then(function () {
-        fail = true;
-      });
-    });
-    // wait for promises to resolve
-    setTimeout(function () {
-      if (!fail) {
-        message.reply('I sent you a DM with a link to my commands!').catch(function () {
-          console.log(pc.red('Failed to reply to tbhelp message in chat!'));
-          fail = true;
-        });
-      }
-    }, 1000);
-    setTimeout(function () {
-      if (!fail) {
-        console.log(pc.green('Successfully sent help message to: ' + pc.yellow(author.username)));
-      }
-    }, 1800);
-  } else {
-    message.channel.send('Command not recognized. Use `.tb help` to see the commands and their usage. \n' +
-      'Keep in mind that commands follow this format: `.tb <command> <parameter(s)>`');
-  }
+  return interaction.reply('Hi there! Here\'s a link to the fancy help document that lists every command and how to use them: \n' + link);
 }
 
 // Runs the new-server join procedure when the bot is added to a guild
@@ -2580,8 +3821,139 @@ function makeResponder(interaction) {
   };
 }
 
-// This is triggered for every slash command that the bot receives
+/*
+  Ticker autocomplete.
+
+  Suggestions come straight out of the in-memory CoinGecko cache, which is already sorted by market
+  cap rank, so the most relevant coins surface first with no extra API calls. Exact ticker matches
+  are promoted above name matches, which is what disambiguates the many duplicated symbols.
+*/
+function getCoinSuggestions(rawInput) {
+  const input = (rawInput || '').trim().toLowerCase();
+  const exactTickerMatches = [];
+  const tickerPrefixMatches = [];
+  const nameMatches = [];
+
+  for (const coin of cgArrayDictParsed) {
+    if (!coin || !coin.symbol) continue;
+    const symbol = coin.symbol.toLowerCase();
+    const name = (coin.name || '').toLowerCase();
+
+    if (input === '') {
+      tickerPrefixMatches.push(coin);
+    }
+    else if (symbol === input) {
+      exactTickerMatches.push(coin);
+    }
+    else if (symbol.startsWith(input)) {
+      tickerPrefixMatches.push(coin);
+    }
+    else if (name.includes(input)) {
+      nameMatches.push(coin);
+    }
+
+    // The cache is rank-sorted, so once we have comfortably more than a full page of results
+    // from the highest-ranked coins there is nothing better further down the list.
+    if (exactTickerMatches.length + tickerPrefixMatches.length >= 25) break;
+  }
+
+  return [...exactTickerMatches, ...tickerPrefixMatches, ...nameMatches]
+    .slice(0, 25)
+    .map(coin => ({
+      name: `${coin.symbol.toUpperCase()} — ${coin.name}${coin.market_cap_rank ? ` (#${coin.market_cap_rank})` : ''}`.slice(0, 100),
+      value: coin.symbol.toLowerCase().slice(0, 100)
+    }));
+}
+
+async function handleAutocomplete(interaction) {
+  try {
+    const focused = interaction.options.getFocused(true);
+    let suggestions = getCoinSuggestions(focused.value);
+
+    // /convert accepts fiat on either side, so offer matching currencies alongside the coins.
+    if (interaction.commandName === 'convert') {
+      const input = (focused.value || '').trim().toUpperCase();
+      const fiatMatches = Object.keys(forexRates)
+        .filter(code => code.startsWith(input))
+        .slice(0, 5)
+        .map(code => ({ name: `${code} — fiat currency`, value: code.toLowerCase() }));
+      suggestions = [...fiatMatches, ...suggestions].slice(0, 25);
+    }
+
+    await interaction.respond(suggestions);
+  }
+  catch {
+    // Autocomplete responses expire after 3 seconds and cannot be retried. Failing quietly is
+    // correct here: the user simply types the ticker themselves.
+  }
+}
+
+// Re-render a chart at a different timeframe when one of the buttons under it is clicked.
+async function handleChartButton(interaction) {
+  // Split on the first two colons only: an exchange-qualified pair (e.g. "binance:btcusdt") contains
+  // colons of its own, and a plain destructure would drop everything after the first one.
+  const parts = interaction.customId.split(':');
+  const timeframe = parts[1];
+  const baseQuery = parts.slice(2).join(':');
+  if (!timeframe || !baseQuery) return;
+
+  if (!cluster) {
+    await interaction.reply({ content: 'Chart rendering is unavailable right now.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  // deferUpdate (rather than deferReply) means the existing chart message is edited in place,
+  // so the timeframe swap happens on the original post instead of spawning a new one.
+  await interaction.deferUpdate();
+
+  if (chartTagID > 25) chartTagID = 1;
+  const newQuery = swapChartInterval(baseQuery, timeframe);
+  cluster.queue({
+    message: '',
+    interaction: interaction,
+    args: ('.tbc ' + newQuery).split(' ').filter(v => v !== ''),
+    originalQuery: baseQuery,
+    activeInterval: timeframe,
+    chartMessage: '',
+    attempt: 1,
+    chartID: ++chartTagID
+  });
+}
+
+// Renders a command's options for the log line.
+//
+// Subcommands and subcommand groups carry nested options rather than a value of their own, so
+// reading .value on them printed "show: undefined". Recursing gives "show" and "set coin: eth".
+function describeCommandOptions(options) {
+  return (options || []).map(option => {
+    if (option.type === ApplicationCommandOptionType.Subcommand ||
+      option.type === ApplicationCommandOptionType.SubcommandGroup) {
+      const nested = describeCommandOptions(option.options);
+      return nested ? `${option.name} ${nested}` : option.name;
+    }
+    return `${option.name}: ${option.value}`;
+  }).filter(Boolean).join(', ');
+}
+
+// This is triggered for every interaction that the bot receives
 client.on('interactionCreate', async interaction => {
+  // Autocomplete and component interactions arrive here too, and used to be dropped by the
+  // chat-input-only guard below.
+  if (interaction.isAutocomplete()) {
+    await handleAutocomplete(interaction);
+    return;
+  }
+
+  if (interaction.isButton()) {
+    try {
+      if (interaction.customId.startsWith('chart:')) await handleChartButton(interaction);
+    }
+    catch (err) {
+      console.log(pc.red('Error handling button interaction: ' + pc.cyan(err)));
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return; // only handle slash commands
   if (interaction.user.bot) return; // ignore bots
 
@@ -2589,7 +3961,7 @@ client.on('interactionCreate', async interaction => {
   const opts = interaction.options;
   const author = interaction.user;
 
-  const inputs = opts.data.map(o => `${o.name}: ${o.value}`).join(', ');
+  const inputs = describeCommandOptions(opts.data);
   console.log(pc.green('Slash command ') + pc.cyan('/' + command) + pc.green(' used by ') + pc.yellow(author.username) + (inputs ? pc.green(' with ') + pc.cyan(inputs) : ''));
 
   try {
@@ -2598,12 +3970,17 @@ client.on('interactionCreate', async interaction => {
       // ---- TradingView charts ----
       case 'c': {
         await interaction.deferReply();
+        if (!cluster) {
+          await interaction.editReply('Sorry, chart rendering is unavailable right now. Please try again later.');
+          break;
+        }
         if (chartTagID > 25) chartTagID = 1;
         const query = (opts.getString('query') || '').toLowerCase();
         const data = {
           message: '',
           interaction: interaction,
           args: ('.tbc ' + query).split(' ').filter(v => v !== ''),
+          originalQuery: query,
           chartMessage: '',
           attempt: 1,
           chartID: ++chartTagID
@@ -2672,7 +4049,7 @@ client.on('interactionCreate', async interaction => {
 
       // ---- Help ----
       case 'help':
-        postHelp(null, null, null, interaction);
+        await postHelp(interaction);
         break;
 
       // ---- Fear/Greed index ----
@@ -2680,10 +4057,10 @@ client.on('interactionCreate', async interaction => {
         getFearGreedIndex(null, author, interaction);
         break;
 
-      // ---- BitMEX funding ----
+      // ---- Perpetual swap funding rates ----
       case 'funding':
         await interaction.deferReply();
-        getMexFunding(null, null, interaction);
+        await getFundingRates(opts.getString('coin') || 'BTC', null, interaction);
         break;
 
       // ---- Binance longs/shorts ----
@@ -2708,6 +4085,84 @@ client.on('interactionCreate', async interaction => {
         getBiggestMovers(makeResponder(interaction), author);
         break;
 
+      // ---- All-time high/low ----
+      case 'ath':
+        await interaction.deferReply();
+        await getAllTimeHigh(opts.getString('coin'), null, interaction);
+        break;
+
+      // ---- Side-by-side coin comparison ----
+      case 'compare':
+        await interaction.deferReply();
+        await compareCoins(opts.getString('coin1'), opts.getString('coin2'), null, interaction);
+        break;
+
+      // ---- CoinGecko trending ----
+      case 'trending':
+        await interaction.deferReply();
+        await getTrendingCoins(null, interaction);
+        break;
+
+      // ---- AI market brief ----
+      case 'brief':
+        await interaction.deferReply();
+        await getMarketBrief(interaction);
+        break;
+
+      // ---- Recurring scheduled posts ----
+      case 'schedule': {
+        if (!interaction.guildId) {
+          await interaction.reply({ content: 'Scheduled posts can only be set up inside a server.', flags: MessageFlags.Ephemeral });
+          break;
+        }
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const scheduleSub = opts.getSubcommand();
+        if (scheduleSub === 'create') {
+          await createSchedule(
+            interaction,
+            opts.getString('command'),
+            opts.getChannel('channel'),
+            opts.getString('every'),
+            opts.getString('coins')
+          );
+        } else if (scheduleSub === 'list') {
+          await listSchedules(interaction);
+        } else if (scheduleSub === 'delete') {
+          await deleteSchedule(interaction, opts.getInteger('id'));
+        }
+        break;
+      }
+
+      // ---- Portfolio ----
+      case 'portfolio': {
+        // Holdings are private, so every response here is ephemeral.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const portfolioSub = opts.getSubcommand();
+        if (portfolioSub === 'set') {
+          await setHolding(interaction, opts.getString('coin'), opts.getNumber('amount'));
+        } else if (portfolioSub === 'show') {
+          await showPortfolio(interaction);
+        } else if (portfolioSub === 'clear') {
+          await clearPortfolio(interaction);
+        }
+        break;
+      }
+
+      // ---- Price alerts ----
+      case 'alert': {
+        // Alerts are personal, so keep the whole exchange private to the user who ran it.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const alertSub = opts.getSubcommand();
+        if (alertSub === 'add') {
+          await addPriceAlert(interaction, opts.getString('coin'), opts.getNumber('price'));
+        } else if (alertSub === 'list') {
+          await listPriceAlerts(interaction);
+        } else if (alertSub === 'remove') {
+          await removePriceAlert(interaction, opts.getInteger('id'));
+        }
+        break;
+      }
+
       // ---- Coin info/description ----
       case 'info':
         await interaction.deferReply();
@@ -2720,6 +4175,9 @@ client.on('interactionCreate', async interaction => {
         if (!mcCoin) {
           getMarketCap(null, interaction); // global market cap
         } else {
+          // Deferred because the specific-coin path downloads the coin's logo to pick an embed
+          // color, which can easily outlast Discord's 3 second acknowledgement window.
+          await interaction.deferReply();
           getMarketCapSpecific(mcCoin.toUpperCase(), interaction); // specific coin market cap
         }
         break;
@@ -2741,12 +4199,16 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply();
         const responder = makeResponder(interaction);
         const queryEth = opts.getString('query').trim();
-        if (queryEth.length === 42) {
-          getEtherBalance(author, queryEth, responder, 'b');
-        } else if (queryEth.length === 66) {
-          getEtherBalance(author, queryEth, responder, 'tx');
-        } else if (queryEth.toLowerCase().includes('.eth')) {
-          getEtherBalance(author, queryEth, responder, 'ens');
+        // Dispatch on shape, not just length. This value is interpolated into outbound Etherscan
+        // URLs and into a Discord markdown link, so characters like & # ? and ) must never reach it.
+        // Awaited so a failure lands in the handler's catch rather than leaving the deferred
+        // interaction hanging until Discord times it out.
+        if (/^0x[0-9a-fA-F]{40}$/.test(queryEth)) {
+          await getEtherBalance(author, queryEth, responder, 'b');
+        } else if (/^0x[0-9a-fA-F]{64}$/.test(queryEth)) {
+          await getEtherBalance(author, queryEth, responder, 'tx');
+        } else if (/^[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})*\.eth$/.test(queryEth.toLowerCase())) {
+          await getEtherBalance(author, queryEth.toLowerCase(), responder, 'ens');
         } else {
           await interaction.editReply('Please provide a valid ETH address (0x... 42 chars), transaction hash (0x... 66 chars), or ENS name (name.eth).');
         }
@@ -2756,17 +4218,7 @@ client.on('interactionCreate', async interaction => {
       // ---- Top 10 popular coins ----
       case 'pop': {
         await interaction.deferReply();
-        let cursor = 0;
-        cgArrayDictParsed.forEach((coin, index) => {
-          if (coin.market_cap_rank && coin.market_cap_rank == 1) {
-            cursor = index;
-          }
-        });
-        const top10 = [];
-        for (let i = 0; i < 10; i++) {
-          if (cgArrayDictParsed[cursor + i]) top10.push(cgArrayDictParsed[cursor + i].symbol);
-        }
-        getPriceCG(top10, makeResponder(interaction), 'p');
+        getPriceCG(getTop10Symbols(), makeResponder(interaction), 'p');
         break;
       }
 
@@ -2793,7 +4245,7 @@ client.on('interactionCreate', async interaction => {
         } else if (sub === 'create') {
           tagsEngine(responder, author, ts, interaction.guild, 'createtag', opts.getString('name'), opts.getString('link'));
         } else if (sub === 'delete') {
-          tagsEngine(responder, author, ts, interaction.guild, 'deletetag', opts.getString('name'));
+          tagsEngine(responder, author, ts, interaction.guild, 'deletetag', opts.getString('name'), null, interaction.memberPermissions);
         } else if (sub === 'list') {
           tagsEngine(responder, author, ts, interaction.guild, 'taglist');
         }
@@ -2830,24 +4282,38 @@ client.on('interactionCreate', async interaction => {
 
       // ---- Discord ID ----
       case 'id':
-        await interaction.reply({ content: 'Your ID is `' + author.id + '`.', ephemeral: true });
+        await interaction.reply({ content: 'Your ID is `' + author.id + '`.', flags: MessageFlags.Ephemeral });
         break;
 
       default:
-        await interaction.reply({ content: 'Unknown command. Use `/help` to see all available commands.', ephemeral: true });
+        await interaction.reply({ content: 'Unknown command. Use `/help` to see all available commands.', flags: MessageFlags.Ephemeral });
         break;
     }
   } catch (err) {
+    // 10062 "Unknown interaction" means Discord has already discarded this interaction — the bot
+    // was restarting, or took longer than the 3 second window to acknowledge it. There is nothing
+    // left to reply to, so attempting one only produces a second, more confusing error.
+    if (err && err.code === 10062) {
+      console.log(pc.yellow('Interaction for ') + pc.cyan('/' + command) +
+        pc.yellow(' expired before it could be acknowledged (bot restarting, or slow to respond). Nothing to reply to.'));
+      return;
+    }
+
     console.log(pc.red('Error handling slash command ') + pc.cyan('/' + command) + pc.red(': ') + pc.cyan(err));
     // Try to let the user know something went wrong, using whichever response method is still available
     try {
       if (interaction.deferred || interaction.replied) {
-        await interaction.followUp({ content: 'Sorry, something went wrong while processing that command. Please try again later.', ephemeral: true });
+        await interaction.followUp({ content: 'Sorry, something went wrong while processing that command. Please try again later.', flags: MessageFlags.Ephemeral });
       } else {
-        await interaction.reply({ content: 'Sorry, something went wrong while processing that command. Please try again later.', ephemeral: true });
+        await interaction.reply({ content: 'Sorry, something went wrong while processing that command. Please try again later.', flags: MessageFlags.Ephemeral });
       }
     } catch (innerErr) {
-      console.log(pc.red('Also failed to send error notification to user: ' + pc.cyan(innerErr)));
+      // Also unknown/expired: the user is already gone, so log quietly rather than as a second error.
+      if (innerErr && innerErr.code === 10062) {
+        console.log(pc.yellow('Could not notify the user: the interaction had already expired.'));
+      } else {
+        console.log(pc.red('Also failed to send error notification to user: ' + pc.cyan(innerErr)));
+      }
     }
   }
 });
@@ -2865,9 +4331,6 @@ client.on('interactionCreate', async interaction => {
 
 
 // Capitalize names and titles
-function capitalizeFirstLetter(string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
-}
 
 // TODO: Used in future for scheduled action stuff
 // Validate HH:MM time and 00:05 minimum
@@ -2960,71 +4423,14 @@ async function translateEN(channel, message, interaction) {
 }
 
 // Split up large strings by length provided without breaking words or links within them
-function chunkString(str, len) {
-  const input = respectBracketsSpaceSplit(str.trim());
-  let [index, output] = [0, []];
-  output[index] = '';
-  input.forEach(word => {
-    let temp = `${output[index]} ${word}`.trim();
-    if (temp.length <= len) {
-      output[index] = temp;
-    } else {
-      index++;
-      output[index] = word;
-    }
-  });
-  return output;
-}
 
 // Valid string checker
-function isAlphaNumeric(str) {
-  let code, i, len;
-  for (i = 0, len = str.length; i < len; i++) {
-    code = str.charCodeAt(i);
-    if (!(code > 47 && code < 58) && // numeric (0-9)
-      !(code > 64 && code < 91) && // upper alpha (A-Z)
-      !(code > 96 && code < 123)) { // lower alpha (a-z)
-      return false;
-    }
-  }
-  return true;
-}
 
 // Split a string by spaces while keeping strings within brackets intact as one chunk (this assists the chunkString function)
-function respectBracketsSpaceSplit(input) {
-  let i = 0, stack = [], parts = [], part = '';
-  while (i < input.length) {
-    let c = input[i]; i++;  // get character
-    if (c == ' ' && stack.length == 0) {
-      parts.push(part.replace(/"/g, '\\"'));  // append part
-      part = '';  // reset part accumulator
-      continue;
-    }
-    if (c == '[') stack.push(c);  // begin square brace
-    else if (c == ']' && stack[stack.length - 1] == '[') stack.pop();  // end square brace
-    part += c; // append character to current part
-  }
-  if (part.length > 0) parts.push(part.replace(/"/g, '\\"'));  // append remaining part
-  return parts;
-}
 
 // Check if string is a valid URL
-function validURL(str) {
-  const pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
-    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
-    '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
-    '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + // port and path
-    '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
-    '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
-  return !!pattern.test(str);
-}
 
 // Pauses execution when called within an async function for the given milliseconds
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 // Send the session stats of the bot
 function postSessionStats(message, interaction) {
@@ -3059,27 +4465,112 @@ function postSessionStats(message, interaction) {
 }
 
 // Launches a puppeteer cluster and defines the job for grabbing tradingview charts
+/* --------------------------------------------
+
+    Chart interval handling.
+
+    These aliases are shared between the chart server (which maps them to TradingView interval
+    codes) and the chart buttons (which swap one alias out for another in the original query).
+
+  -------------------------------------------- */
+
+const CHART_INTERVAL_KEYS = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd',
+  'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly'];
+
+const CHART_INTERVAL_MAP = {
+  '1m': '1', '1': '1', '3m': '3', '3': '3', '5m': '5', '5': '5', '15m': '15', '15': '15', '30m': '30', '30': '30', '1h': '60',
+  '60': '60', '2h': '120', '120': '120', '3h': '180', '180': '180', '4h': '240', '240': '240', '1d': 'D', 'd': 'D', 'day': 'D', 'daily': 'D', '1w': 'W',
+  'w': 'W', 'week': 'W', 'weekly': 'W', '1mo': 'M', 'm': 'M', 'mo': 'M', 'month': 'M', 'monthly': 'M'
+};
+
+// Timeframes offered as buttons under a rendered chart.
+const CHART_TIMEFRAME_BUTTONS = ['15m', '1h', '4h', '1d', '1w'];
+
+// Rebuild a /c query with a different interval: drop whatever interval alias is in there now and
+// append the requested one, leaving the pair, exchange, and any indicators untouched.
+function swapChartInterval(query, newInterval) {
+  const tokens = query.split(' ').filter(token => token !== '' && !CHART_INTERVAL_KEYS.includes(token));
+  tokens.push(newInterval);
+  return tokens.join(' ');
+}
+
+// Build the timeframe button row shown under a chart. The original (pre-normalization) query is
+// carried in the button's customId so a click can re-run the exact same request at a new interval.
+function buildChartControls(originalQuery, activeInterval) {
+  if (!originalQuery) return [];
+
+  const baseQuery = swapChartInterval(originalQuery.trim(), '').trim();
+  const buttons = [];
+  for (const timeframe of CHART_TIMEFRAME_BUTTONS) {
+    const customId = `chart:${timeframe}:${baseQuery}`;
+    // Discord caps customId at 100 characters. Rather than truncate into a broken query, we just
+    // skip the controls for unusually long requests; the chart itself still posts normally.
+    if (Buffer.byteLength(customId) > 100) return [];
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(customId)
+        .setLabel(timeframe.toUpperCase())
+        .setStyle(timeframe === activeInterval ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    );
+  }
+  return [new ActionRowBuilder().addComponents(buttons)];
+}
+
 async function chartsProcessingCluster() {
+  // Chromium location is configuration, not code: set CHROME_PATH to override. On Linux we default to
+  // the distro package (which is what the production box uses); everywhere else we fall back to the
+  // Chromium puppeteer downloaded itself, so this no longer needs editing per platform.
+  const chromiumPath = process.env.CHROME_PATH ||
+    (process.platform === 'linux' ? '/usr/bin/chromium' : undefined);
+
+  // The sandbox is Chromium's main containment layer and these pages render user-influenced content
+  // (the chart symbol comes from /c). It stays ON unless explicitly disabled. If your host genuinely
+  // needs it off (running as root without user namespaces), set CHROME_NO_SANDBOX=true.
+  const disableSandbox = String(process.env.CHROME_NO_SANDBOX).toLowerCase() === 'true';
+  if (disableSandbox) {
+    console.log(pc.yellow('WARNING: Chromium sandbox disabled via CHROME_NO_SANDBOX. Prefer running as a non-root user with user namespaces enabled.'));
+  }
+
   const puppeteerOpts = {
     headless: true,
-    // !!! NOTICE: comment out the following line if running on Windows or MacOS. Setting the executable path like this is for linux systems.
-    // adjust the path as needed based on what environment and executable you're using
-    executablePath: '/usr/bin/chromium',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    executablePath: chromiumPath,
+    args: disableSandbox ? ['--no-sandbox', '--disable-setuid-sandbox'] : []
   };
-  // Start up a puppeteer cluster browser
-  cluster = await Cluster.launch({
-    concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 20,
-    puppeteerOptions: puppeteerOpts,
-    retryLimit: 3,
-    retryDelay: 200,
-    timeout: 85000,
-    workerCreationDelay: 100
-  });
+
+  // Start up a puppeteer cluster browser.
+  // Chart demand is bursty rather than sustained, and each TradingView widget page peaks at a few
+  // hundred MB, so a high concurrency ceiling mostly buys the chance to OOM Chrome mid-render.
+  try {
+    cluster = await Cluster.launch({
+      concurrency: Cluster.CONCURRENCY_PAGE,
+      maxConcurrency: 6,
+      puppeteerOptions: puppeteerOpts,
+      retryLimit: 3,
+      retryDelay: 200,
+      timeout: 85000,
+      workerCreationDelay: 100
+    });
+  }
+  catch (err) {
+    // Without this the rejection surfaced only as an unhandled rejection and `cluster` stayed
+    // undefined, so every chart command and the heatmap job threw "cluster.queue is not a function"
+    // forever with no indication of why.
+    cluster = null;
+    console.error(pc.red(pc.bold('FAILED TO LAUNCH PUPPETEER CLUSTER. Chart and heatmap features will be unavailable.')));
+    console.error(pc.red('Reason: ' + err.message));
+    console.error(pc.cyan('Set CHROME_PATH to your Chromium/Chrome executable if it is installed somewhere else.'));
+    return;
+  }
+
   // Event handler to be called in case of problems
   cluster.on('taskerror', (err, data) => {
-    console.log(pc.red(`Puppeteer cluster encountered error processing task: ${data}: ${err.message}`));
+    console.log(pc.red(`Puppeteer cluster encountered error processing task: ${err.message}`));
+    // The cluster retries internally; once it gives up, whoever asked for the chart is still sitting
+    // on a deferred reply that nothing else will ever resolve.
+    if (data && data.interaction) {
+      data.interaction.editReply('Sorry, chart generation failed. Please try again in a moment.')
+        .catch(() => { /* interaction may have expired, nothing more we can do */ });
+    }
   });
 
   // Setting the charts task on the cluster
@@ -3100,7 +4591,7 @@ async function chartsProcessingCluster() {
       }
       else {
         if (args.length < 2) {
-          message.reply('Insufficient amount of arguments provided. Check `.tb help` to see how to use the charts command.');
+          message.reply('Insufficient amount of arguments provided. Check `/help` to see how to use the charts command.');
           return;
         }
         query = args.slice(2);
@@ -3281,28 +4772,27 @@ async function chartsProcessingCluster() {
         // Clicking to remove focus dots on price line and the crosshair from cursor
         await page.click('#tsukilogo');
 
-        // Capture the final chart from the browser window
+        // Capture the final chart from the browser window.
+        // Uploaded straight from the buffer: writing every chart to disk left files that nothing ever
+        // deleted, and a synchronous multi-hundred-KB write blocked the event loop on each render.
         const chartScreenshot = await page.screenshot();
-
-        // Save screenshot to file with random identifier
-        const fileName = `chartscreens/generated-charts/chart${crypto.randomBytes(8).toString('hex')}.png`;
-        fs.writeFileSync(fileName, chartScreenshot);
 
         const end = performance.now();
         console.log(pc.blue(`(ID:${chartID})`) + ' Execution time: ' + pc.green(`${((end - start) / 1000).toFixed(3)} seconds`));
 
         if (data.interaction) {
-          data.interaction.editReply({
+          await data.interaction.editReply({
             files: [{
-              attachment: fileName,
+              attachment: chartScreenshot,
               name: 'tsukibotchart.png'
-            }]
+            }],
+            components: buildChartControls(data.originalQuery, data.activeInterval)
           });
         }
         else {
           message.channel.send({
             files: [{
-              attachment: fileName,
+              attachment: chartScreenshot,
               name: 'tsukibotchart.png'
             }]
           }).then(() => {
@@ -3321,6 +4811,8 @@ async function chartsProcessingCluster() {
           'message': message,
           'interaction': data.interaction,
           'args': args,
+          'originalQuery': data.originalQuery,
+          'activeInterval': data.activeInterval,
           'chartMessage': chartMessage,
           'attempt': attempt,
           'chartID': chartID
@@ -3328,7 +4820,15 @@ async function chartsProcessingCluster() {
         cluster.queue(data2);
       }
       else {
-        if (!data.interaction) chartMessage.edit('```TradingView handler threw error' + ', all re-attempts exhausted :(' + '```');
+        // Every retry is spent. Both callers need telling; the slash-command path used to be left
+        // hanging on a deferred reply that nothing would ever edit.
+        if (data.interaction) {
+          await data.interaction.editReply('Sorry, chart generation failed after 3 attempts. TradingView may be unreachable right now, please try again shortly.')
+            .catch(() => { /* interaction expired */ });
+        }
+        else {
+          chartMessage.edit('```TradingView handler threw error' + ', all re-attempts exhausted :(' + '```');
+        }
       }
     }
   });
@@ -3416,7 +4916,14 @@ async function getCoin360Heatmap() {
     console.log(pc.green('Coin360 heatmap image saved to cache!'));
   };
 
-  cluster.queue('https://coin360.com/widget/map?utm_source=embed_map', grabHmap);
+  // Same guard as the chart command: the cluster is null when Chromium failed to launch, and this
+  // runs on a 30 minute timer, so without it every cycle throws "cluster.queue is not a function".
+  if (!cluster) {
+    console.log(pc.yellow('Skipping heatmap capture: the puppeteer cluster is unavailable.'));
+    return;
+  }
+
+  await cluster.queue('https://coin360.com/widget/map?utm_source=embed_map', grabHmap);
 }
 
 // Convert USD price to ETH value
@@ -3432,17 +4939,6 @@ function convertToETHPrice(priceUSD) {
 }
 
 // Abbreviate very large numbers
-function abbreviateNumber(num, fixed) {
-  if (num === null) { return null; } // terminate early
-  if (num === 0) { return '0'; } // terminate early
-  fixed = (!fixed || fixed < 0) ? 0 : fixed; // number of decimal places to show
-  const b = (num).toPrecision(2).split('e'), // get power
-    k = b.length === 1 ? 0 : Math.floor(Math.min(b[1].slice(1), 14) / 3), // floor at decimals, ceiling at trillions
-    c = k < 1 ? num.toFixed(0 + fixed) : (num / Math.pow(10, k * 3)).toFixed(1 + fixed), // divide by power
-    d = c < 0 ? c : Math.abs(c), // enforce -0 is 0
-    e = d + ['', 'k', 'm', 'b', 't'][k]; // append power
-  return e;
-}
 
 // Run through new server procedure when the bot joins
 function joinProcedure(/*guild*/) {
@@ -3474,23 +4970,8 @@ function joinProcedure(/*guild*/) {
 }
 
 // Function to add commas to long numbers
-function numberWithCommas(x) {
-  x = trimDecimalPlaces(x);
-  let parts = x.toString().split('.');
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return parts.join('.');
-}
 
 // Function to trim decimal place digits when number is bigger than 10 (for cleaner appearance)
-function trimDecimalPlaces(x) {
-  if (x > 10 && x.toString().indexOf('.') !== -1) {
-    x = parseFloat(x);
-    return x.toFixed(2); //shorten the decimal places
-  }
-  else {
-    return x;
-  }
-}
 
 // Convert a passed-in USD value to BTC value and return it
 function convertToBTCPrice(priceUSD) {
@@ -3527,17 +5008,19 @@ function updateCmcKey(override) {
       case 22: case 23: selectedKey = 12;
     }
   }
-  //Update client to operate with new key
-  if (selectedKey.toString().length <= 2) {
-    clientcmc = new CoinMarketCap(keys['coinmarketcap' + selectedKey]);
-    //console.log(chalk.greenBright("Updated CMC key! Selected CMC key is " + chalk.cyan(selectedKey) + ", with key value: " + chalk.cyan(keys['coinmarketcap' + selectedKey]) +
-    //" and hour is " + chalk.cyan(hour) + ". TS: " + d.getTime()));
-  }
-  else {
-    clientcmc = new CoinMarketCap(keys[selectedKey]);
-  }
-
+  // There is no client object to rebuild any more: cmcGetTickers reads selectedKey when it runs,
+  // so setting it here is the whole job.
   return selectedKey;
+}
+
+// Resolves which CMC key the current rotation slot points at. selectedKey is normally 1-12 (set by
+// the hourly rotation above); a longer value is treated as a literal key name, which is how the
+// override parameter was always meant to select a named failover key.
+function getCurrentCmcKey() {
+  if (selectedKey.toString().length <= 2) {
+    return keys['coinmarketcap' + selectedKey] || keys.coinmarketcapfailover;
+  }
+  return keys[selectedKey] || keys.coinmarketcapfailover;
 }
 
 
@@ -3554,20 +5037,31 @@ async function getCMCData() {
 
   //WARNING! This will pull ALL cmc coins and cost you up to 22 credits (limit/200) on your api account for each call. This is why I alternate keys!
   const limit = devMode ? 100 : 4400;
-  const cmcJSON = await clientcmc.getTickers({ limit: limit }).then().catch(console.error);
-  cmcArray = cmcJSON.data;
-  cmcArrayDict = {};
-  try {
-    cmcArray.forEach(function (v) {
-      if (!cmcArrayDict[v.symbol])
-        cmcArrayDict[v.symbol] = v;
-    });
-  } catch {
+
+  const cmcJSON = await cmcGetTickers(limit).catch(err => {
+    console.error(pc.red('CMC request failed: ' + (err && err.message ? err.message : err)));
+    return null;
+  });
+
+  // Validate before touching the live cache. Building into a temp dict and swapping on success means
+  // a failed refresh keeps serving the last good snapshot instead of emptying the cache and taking
+  // /cmc and /cc down with it until the next successful poll.
+  if (!cmcJSON || !Array.isArray(cmcJSON.data) || cmcJSON.data.length === 0) {
     fails++;
     console.error(pc.red(pc.bold('ERROR UPDATING CMC CACHE! This is attempt number: ' + pc.cyan(fails) + ' : API response below:')));
     console.log(cmcJSON);
+    return;
   }
-  //console.log(chalk.green(chalk.cyan(cmcArray.length) + " CMC tickers updated!"));
+
+  const nextCmcArrayDict = {};
+  for (const ticker of cmcJSON.data) {
+    if (ticker && ticker.symbol && !nextCmcArrayDict[ticker.symbol]) {
+      nextCmcArrayDict[ticker.symbol] = ticker;
+    }
+  }
+
+  cmcArrayDict = nextCmcArrayDict;
+  fails = 0;
 }
 
 
@@ -3583,6 +5077,144 @@ async function getCMCData() {
   limited and current availability
 
  ---------------------------------- */
+
+/* --------------------------------------------
+
+  Shared config for the standard CoinGecko v3 REST API.
+
+  A pro or demo key raises the rate limit and makes it per-key rather than
+  per-IP, which is what keeps the full market pass from taking half an hour.
+  Note this is deliberately NOT the same as getApiConfig() in coingecko-onchain.js:
+  that one falls back to GeckoTerminal, which does not serve these endpoints.
+
+  -------------------------------------------- */
+
+function getCGRestConfig() {
+  const proApiKey = process.env.COINGECKO_PRO_API_KEY || keys.coingeckoPro;
+  if (proApiKey) {
+    return { baseUrl: 'https://pro-api.coingecko.com/api/v3', headers: { 'x-cg-pro-api-key': proApiKey } };
+  }
+  const demoApiKey = process.env.COINGECKO_API_KEY || keys.coingecko || keys.coingeckoDemo;
+  if (demoApiKey) {
+    return { baseUrl: 'https://api.coingecko.com/api/v3', headers: { 'x-cg-demo-api-key': demoApiKey } };
+  }
+  return { baseUrl: 'https://api.coingecko.com/api/v3', headers: {} };
+}
+
+function cgHasApiKey() {
+  return Object.keys(getCGRestConfig().headers).length > 0;
+}
+
+// Minimum spacing between paged CoinGecko calls, based on which tier we're on.
+function cgSleepFloor() {
+  return cgHasApiKey() ? 2500 : 25000;
+}
+
+// CoinGecko rejects requests without a descriptive User-Agent (HTTP 403, "Please add a descriptive
+// User-Agent to your request"). This is exactly what broke every call made through the old
+// coingecko-api package, which sent none. Set it explicitly rather than relying on a runtime default.
+const CG_USER_AGENT = 'TsukiBot/1.0 (+https://github.com/EthyMoney/TsukiBot)';
+
+// fetch() wrapper that applies the CoinGecko base URL, auth headers and User-Agent.
+function cgFetch(path, init = {}) {
+  const apiConfig = getCGRestConfig();
+  return fetch(apiConfig.baseUrl + path, {
+    ...init,
+    headers: {
+      accept: 'application/json',
+      'user-agent': CG_USER_AGENT,
+      ...apiConfig.headers,
+      ...(init.headers || {})
+    }
+  });
+}
+
+/*
+  Direct replacements for the coingecko-api npm package.
+
+  That package is from 2019 and predates CoinGecko's API keys entirely, so every call made through
+  it was sent unauthenticated no matter what key was configured — meaning /cg and /convert stayed on
+  the public per-IP rate limit while the cache refresh enjoyed the demo tier.
+
+  Note these return the API response directly. The old package wrapped everything in an extra
+  { success, message, code, data } envelope, which is why the call sites used to read `data.data`.
+*/
+
+async function cgSimplePrice(ids, vsCurrencies) {
+  const params = new URLSearchParams({
+    ids: ids.join(','),
+    vs_currencies: vsCurrencies.join(','),
+    include_24hr_vol: 'true',
+    include_24hr_change: 'true'
+  });
+  const res = await cgFetch('/simple/price?' + params.toString());
+  if (!res.ok) {
+    throw new Error(`CoinGecko /simple/price returned HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function cgGlobal() {
+  const res = await cgFetch('/global');
+  if (!res.ok) {
+    throw new Error(`CoinGecko /global returned HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/*
+  Direct replacements for the cryptocompare and coinmarketcap-api npm packages.
+
+  Both were thin single-endpoint wrappers around one GET each, and both are long unmaintained.
+  Calling the endpoints ourselves removes two dependencies, puts error handling under our control,
+  and lets us send the API key in a header rather than the query string.
+*/
+
+// CryptoCompare full price data. Returns the RAW block, which is what the old package handed back
+// and what getPriceCC indexes into as prices[SYMBOL][CURRENCY].PRICE.
+async function ccPriceFull(fromSymbols, toSymbols) {
+  const params = new URLSearchParams({
+    fsyms: fromSymbols.join(','),
+    tsyms: toSymbols.join(',')
+  });
+
+  // Key goes in a header rather than the query string the old package used, so it stays out of
+  // URLs, logs and error messages.
+  const headers = { accept: 'application/json' };
+  if (keys.cryptocompare) {
+    headers.authorization = 'Apikey ' + keys.cryptocompare;
+  }
+
+  const res = await fetch('https://min-api.cryptocompare.com/data/pricemultifull?' + params.toString(), { headers });
+  if (!res.ok) {
+    throw new Error(`CryptoCompare pricemultifull returned HTTP ${res.status}`);
+  }
+
+  const body = await res.json();
+  // CryptoCompare signals errors in the body with a 200 status, so this has to be checked.
+  if (body.Response === 'Error') {
+    throw new Error('CryptoCompare error: ' + body.Message);
+  }
+  return body.RAW;
+}
+
+// CoinMarketCap latest listings. Returns the parsed response, so callers read .data as before.
+async function cmcGetTickers(limit) {
+  const apiKey = getCurrentCmcKey();
+  const params = new URLSearchParams({ limit: String(limit) });
+
+  const res = await fetch('https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?' + params.toString(), {
+    headers: { accept: 'application/json', 'X-CMC_PRO_API_KEY': apiKey }
+  });
+
+  // CMC returns its error detail in the body, which is more useful than the bare status.
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = body && body.status && body.status.error_message ? body.status.error_message : res.statusText;
+    throw new Error(`CoinMarketCap listings returned HTTP ${res.status}: ${detail}`);
+  }
+  return body;
+}
 
 // Load CG cache from file if it exists (for instant startup)
 function loadCGCacheFromFile() {
@@ -3610,17 +5242,27 @@ function loadCGCacheFromFile() {
   return false;
 }
 
-// Save CG cache to file for next startup
-function saveCGCacheToFile() {
+// Save CG cache to file for next startup.
+// Written to a temp file and renamed, because rename is atomic on the same volume: a crash
+// mid-write can then never leave a truncated cgCache.json that fails to parse on next boot.
+async function saveCGCacheToFile() {
+  const finalPath = './common/cgCache.json';
+  const tempPath = finalPath + '.tmp';
   try {
     const cacheData = {
       timestamp: Date.now(),
       data: cgArrayDictParsed
     };
-    fs.writeFileSync('./common/cgCache.json', JSON.stringify(cacheData));
+    await fs.promises.writeFile(tempPath, JSON.stringify(cacheData));
+    await fs.promises.rename(tempPath, finalPath);
     console.log(pc.greenBright('CoinGecko cache saved to file for next startup.'));
   } catch (err) {
     console.log(pc.red('Error saving CG cache to file: ' + err.message));
+    try {
+      await fs.promises.unlink(tempPath);
+    } catch {
+      // no temp file to clean up, nothing to do
+    }
   }
 }
 
@@ -3680,10 +5322,45 @@ async function getCGData(status) {
     //return;
   }
 
-  // startup handling
-  if (cacheUpdateRunning) {
+  // Only one pass may be in flight at a time. A full keyless pass can run longer than the 30 minute
+  // cron interval, so without this the next tick would start a second concurrent crawl against the
+  // same rate-limit budget. This is deliberately separate from cacheUpdateRunning (the startup gate
+  // that makes commands reply "still starting up"): conflating the two is what used to wedge the bot
+  // permanently when a pass failed.
+  if (cgUpdateInProgress) {
+    console.log(pc.yellow('CoinGecko cache update already in progress, skipping this run.'));
     return;
   }
+  cgUpdateInProgress = true;
+  try {
+    await runCGDataPass(status);
+  }
+  catch (err) {
+    console.error(pc.red('CoinGecko cache update failed: ' + (err && err.message ? err.message : err)));
+    scheduleCGRetry();
+  }
+  finally {
+    cgUpdateInProgress = false;
+  }
+}
+
+// Retry a failed pass on its own timer rather than waiting out the full cron interval. Without this,
+// a first-run failure would leave every CG-backed command gated until the next scheduled tick.
+function scheduleCGRetry() {
+  if (cgRetryScheduled || devMode) return;
+  cgRetryScheduled = true;
+  const retryDelay = 60000;
+  console.log(pc.yellow(`Retrying CoinGecko cache update in ${retryDelay / 1000}s.`));
+  setTimeout(() => {
+    cgRetryScheduled = false;
+    getCGData(cacheUpdateRunning ? 'firstrun' : 'background').catch(err => {
+      console.error(pc.red('CoinGecko retry failed: ' + err.message));
+    });
+  }, retryDelay).unref();
+}
+
+async function runCGDataPass(status) {
+
   if (status == 'firstrun' || cgArrayDictParsed.length == 0) {
     console.log(pc.yellowBright('Initializing CoinGecko data cache...\n' +
       pc.cyan(' ▶ This could take up to several minutes, hang in there. CoinGecko commands will be unavailable until this is complete.')));
@@ -3699,51 +5376,79 @@ async function getCGData(status) {
   let totalCoinsCount = 0;
   const startTime = Date.now();
 
+  const isFirstRun = (status == 'firstrun' || cgArrayDictParsed.length == 0);
+
   // first, lets see how many coins are on the API so we can accurately report progress
-  const resList = await fetch('https://api.coingecko.com/api/v3/coins/list?include_platform=false');
+  const resList = await cgFetch('/coins/list?include_platform=false');
   if (resList.ok) {
     const data = await resList.json();
     totalCoinsCount = data.length;
   }
   else {
-    console.log('Couldn\'t get total CG coins, aborting this cache update..');
-    cacheUpdateRunning = false;
-    return;
+    throw new Error(`Couldn't get total CG coins (status ${resList.status}), aborting this cache update.`);
   }
 
   // query for sets of 250 until we got them all
   do {
-    const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&page=${page}&order=market_cap_desc&price_change_percentage=1h,24h,7d,14d,30d,1y`);
-    if (res.ok) {
-      const data = await res.json();
-      for (const coin of data) {
-        coinDataJsonArr.push(coin);
+    // Retry the current page rather than discarding every page fetched so far. Aborting the whole
+    // pass on one bad response is what used to make the cache silently go stale for hours.
+    let data = null;
+    for (let attempt = 1; attempt <= CG_PAGE_ATTEMPTS && data == null; attempt++) {
+      let res;
+      try {
+        res = await cgFetch(`/coins/markets?vs_currency=usd&per_page=250&page=${page}&order=market_cap_desc&price_change_percentage=1h,24h,7d,14d,30d,1y`);
       }
-      page++;
-      lastResSize = data.length;
+      catch (err) {
+        console.log(pc.red(`CG network error on page ${page} (attempt ${attempt}/${CG_PAGE_ATTEMPTS}): ${err.message}`));
+        await sleep(globalCGSleepTimeout);
+        continue;
+      }
 
-      // progress report for first run (only show if no cache was loaded)
-      if (status == 'firstrun' || cgArrayDictParsed.length == 0) {
-        progressPercentage = Math.round((coinDataJsonArr.length / totalCoinsCount) * 100);
-        console.log(pc.blueBright(` ▶ ${progressPercentage}%`));
-        startupProgress = Math.round(progressPercentage); // update global
+      if (res.ok) {
+        data = await res.json();
+        break;
       }
-    }
-    else {
-      console.log(pc.red('CG update error at page: ' + page + ', status: ') + res.status);
-      // 429 is rate limiting
+
+      console.log(pc.red('CG update error at page: ' + page + ', status: ') + res.status + pc.red(` (attempt ${attempt}/${CG_PAGE_ATTEMPTS})`));
       if (res.status == 429) {
-        console.log('Whelp, looks like we got rate limited on that run. Increasing sleep timeout to', globalCGSleepTimeout + 1000, 'for the next run.');
-        // try increasing the sleep timeout by a second for the next run (attempted auto healing for rate limiting)
-        globalCGSleepTimeout += 1000;
-        cacheUpdateRunning = false;
+        // Honor Retry-After when the API sends it, and ratchet the between-page sleep up a little so
+        // the rest of this pass is gentler. The ratchet is capped and decays again after a clean pass.
+        const retryAfterSeconds = Number(res.headers.get('retry-after'));
+        const backoff = (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
+          ? retryAfterSeconds * 1000
+          : globalCGSleepTimeout;
+        globalCGSleepTimeout = Math.min(globalCGSleepTimeout + 1000, CG_SLEEP_CAP);
+        console.log(pc.yellow(`Rate limited. Waiting ${Math.round(backoff / 1000)}s then retrying page ${page}. Page spacing is now ${globalCGSleepTimeout}ms.`));
+        await sleep(backoff);
+        continue;
       }
-      return;
+      await sleep(globalCGSleepTimeout);
     }
+
+    if (data == null) {
+      throw new Error(`CoinGecko did not return page ${page} after ${CG_PAGE_ATTEMPTS} attempts.`);
+    }
+
+    for (const coin of data) {
+      coinDataJsonArr.push(coin);
+    }
+    page++;
+    lastResSize = data.length;
+
+    // progress report for first run (only show if no cache was loaded)
+    if (isFirstRun) {
+      progressPercentage = Math.round((coinDataJsonArr.length / totalCoinsCount) * 100);
+      console.log(pc.blueBright(` ▶ ${progressPercentage}%`));
+      startupProgress = Math.round(progressPercentage); // update global
+    }
+
     if (progressPercentage < 100) {
       await sleep(globalCGSleepTimeout); //wait to make next query (CoinGecko is touchy with rate limits)
     }
   } while (lastResSize == 250);
+
+  // A clean pass earns back some of the ratchet, so one rate-limited day doesn't slow the bot forever.
+  globalCGSleepTimeout = Math.max(cgSleepFloor(), globalCGSleepTimeout - 1000);
 
 
   // sort by MC rank ascending order with nulls placed at the end
@@ -3754,24 +5459,17 @@ async function getCGData(status) {
   // update global
   cgArrayDictParsed = [...marketDataFiltered];
 
-  //build cache with the coin symbols as keys
+  // Build the symbol-keyed cache from scratch and swap it in, rather than upserting into the old
+  // object. Upserting never dropped de-listed coins, so the dictionary only ever grew.
+  const nextCgArrayDict = {};
   for (const coinObject of marketDataFiltered) {
     const upperCaseSymbol = coinObject.symbol.toUpperCase();
-    // add if not present already
-    if (!cgArrayDict[upperCaseSymbol]) {
-      cgArrayDict[upperCaseSymbol] = coinObject;
-    }
-    // otherwise just update the one that's there
-    else {
-      if (cgArrayDict[upperCaseSymbol]) {
-        cgArrayDict[upperCaseSymbol] = coinObject;
-      }
-      // ! WARNING:
-      // TODO: (MEMORY LEAK!) Need to look for symbols in the cache that no longer exist in the data received.
-      // TODO:    This means they are not longer on coingecko and should be removed from the cache when seen.
-      // TODO:    If left to run for a long time, residual de-listed coins will stack up in the cache unhandled (which = memory leak)
+    // first one wins, which keeps the highest market cap rank for duplicated tickers
+    if (!nextCgArrayDict[upperCaseSymbol]) {
+      nextCgArrayDict[upperCaseSymbol] = coinObject;
     }
   }
+  cgArrayDict = nextCgArrayDict;
 
   if (cacheUpdateRunning) {
     console.log(pc.greenBright(' ▶ 100%\n' + 'CoinGecko data cache initialization complete. Commands are now active.'));
@@ -3791,7 +5489,7 @@ async function getCGData(status) {
   console.log('Update completed in', hours + ':' + minutes + ':' + seconds + '.' + milliseconds);
 
   // Save the cache to file for next startup
-  saveCGCacheToFile();
+  await saveCGCacheToFile();
 }
 
 
@@ -3820,10 +5518,17 @@ async function updateExchangeRates() {
 
  ---------------------------------- */
 
-function updateCoins() {
-  reloaderCG.update();
+async function updateCoins() {
+  // Awaited: the refresh is async, so reading the file first meant pairs_CG_arr was always reloaded
+  // with the *previous* run's contents and newly listed coins stayed unknown for an extra cycle.
+  // Pass the key config through so this call gets the same rate limit as the rest of the refresh.
+  const updated = await reloaderCG.update(getCGRestConfig());
+  if (!updated) {
+    console.log(pc.yellow('Coin list refresh failed, keeping the previously known coins.'));
+    return;
+  }
   // Re-read the new set of coins
-  pairs_CG_arr = JSON.parse(fs.readFileSync('./common/coinsCGtickers.json', 'utf8'));
+  pairs_CG_arr = JSON.parse(await fs.promises.readFile('./common/coinsCGtickers.json', 'utf8'));
   console.log(pc.green(pc.bold('Reloaded known coins')));
 }
 
@@ -3837,6 +5542,10 @@ function updateCoins() {
  ---------------------------------- */
 
 function initializeFiles() {
+
+  // Output directory for the cached heatmap image. It is gitignored, so a fresh clone does not
+  // have it and every heatmap capture failed with ENOENT until someone created it by hand.
+  fs.mkdirSync('./chartscreens/generated-charts', { recursive: true });
 
   //allowed coin pairs data from coin gecko (ticker symbols only, as array)
   try {
@@ -3882,14 +5591,71 @@ function initializeFiles() {
     } catch {
       console.log(pc.red('Error reading keys.api during initialization. Check the file for problems and verify its structure.'));
       console.log(pc.blue('See step 3 in the first run steps at the top of main.js for how to setup this file with the needed keys'));
-      process.exit();
+      process.exit(1);
     }
   }
   else {
     fs.appendFileSync('./common/keys.api', '{}');
     console.log(pc.yellowBright('Automatically created new keys.api file. YOU NEED TO POPULATE IT WITH YOUR API KEYS!!'));
     console.log(pc.blue('See step 3 in the first run steps at the top of main.js for how to setup this file with the needed keys'));
-    process.exit();
+    process.exit(1);
+  }
+
+  applyEnvironmentOverrides();
+  validateRequiredKeys();
+}
+
+/* ---------------------------------
+
+  Configuration overrides and validation.
+
+  Environment variables win over keys.api, which is what makes the bot deployable in Docker or CI
+  without baking a secrets file into an image. Validation happens once at startup so a missing key
+  is a clear fatal message rather than a confusing failure deep inside a command hours later.
+
+ ---------------------------------- */
+
+// Note: these tables live inside their functions rather than at module scope because
+// initializeFiles() is called near the top of this file, long before a module-level `const`
+// down here would be initialized.
+
+function applyEnvironmentOverrides() {
+  const envKeyOverrides = {
+    TSUKIBOT_TOKEN: 'token',
+    TSUKIBOT_DEV_TOKEN: 'devToken',
+    TSUKIBOT_DB_PASSWORD: 'tsukibot',
+    TSUKIBOT_DB_ADDRESS: 'dbAddress',
+    ETHERSCAN_API_KEY: 'etherscan',
+    INFURA_API_KEY: 'infura',
+    FINNHUB_API_KEY: 'finnhub',
+    CRYPTOCOMPARE_API_KEY: 'cryptocompare',
+    COINALYZE_API_KEY: 'coinalyze',
+    OPENEXCHANGERATES_APP_ID: 'openexchangerates.org',
+    COINGECKO_API_KEY: 'coingecko',
+    COINGECKO_PRO_API_KEY: 'coingeckoPro',
+    GOOGLE_CLOUD_PROJECT_ID: 'googleCloudProjectID',
+    GOOGLE_CLOUD_KEY_PATH: 'googleCloudProjectKeyPath'
+  };
+
+  for (const [envName, keyName] of Object.entries(envKeyOverrides)) {
+    if (process.env[envName]) {
+      keys[keyName] = process.env[envName];
+    }
+  }
+}
+
+function validateRequiredKeys() {
+  // Only keys without which the bot cannot start at all. Feature-specific keys (translate,
+  // coinalyze, top.gg) are deliberately not required: those commands degrade gracefully.
+  const requiredKeys = ['token', 'tsukibot', 'dbAddress'];
+  const missing = requiredKeys.filter(keyName => !keys[keyName]);
+  if (devMode && !keys.devToken) {
+    missing.push('devToken (required because the bot was started with -d)');
+  }
+  if (missing.length > 0) {
+    console.log(pc.red(pc.bold('FATAL: required configuration is missing: ' + missing.join(', '))));
+    console.log(pc.blue('Set these in common/keys.api, or supply them as environment variables (see ENV_KEY_OVERRIDES in main.js).'));
+    process.exit(1);
   }
 }
 
@@ -3904,22 +5670,195 @@ function initializeFiles() {
 
     ---------------------------------- */
 
+/* --------------------------------------------
+
+    Portfolio chart rendering.
+
+    The page is served from the same loopback-only express server the TradingView charts use, and
+    screenshotted by the same puppeteer cluster. Payloads are held in memory and referenced by a
+    random id rather than passed through the URL: portfolio data is both too large for a query
+    string and not something to put in a URL at all.
+
+  -------------------------------------------- */
+
+const portfolioChartPayloads = new Map();
+const PORTFOLIO_CHART_TTL_MS = 60000;
+
+function stashPortfolioChart(payload) {
+  const id = crypto.randomBytes(16).toString('hex');
+  portfolioChartPayloads.set(id, { payload, expiresAt: Date.now() + PORTFOLIO_CHART_TTL_MS });
+
+  // Opportunistic sweep, so a render that never happens can't leak the entry.
+  for (const [key, entry] of portfolioChartPayloads) {
+    if (entry.expiresAt < Date.now()) portfolioChartPayloads.delete(key);
+  }
+  return id;
+}
+
+// Slice colours, reused between the donut and its legend.
+const PORTFOLIO_SLICE_COLORS = ['#9d8dff', '#2ee08a', '#ffb638', '#ff5a76', '#5ad1ff', '#c78dff', '#8dffd1', '#ff9d5a'];
+
+function buildPortfolioChartHtml(data) {
+  const { slices, timeframes, totalLabel } = data;
+
+  // Discord displays an embed image inside roughly a 400x300 box, constrained on BOTH axes.
+  // A portrait card is therefore limited by height, and its displayed width shrinks — which is
+  // why the earlier taller layouts all ended up scaled to about 0.44x however wide they were.
+  // A 4:3 card fills the box exactly, and keeping the source small means less downscaling:
+  // 520x390 displays at 400x300, a scale of 0.77x.
+  const CARD_WIDTH = 520;
+  const CARD_HEIGHT = 390;
+
+  const radius = 46;
+  const strokeWidth = 22;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const donutSegments = slices.map((slice, index) => {
+    const length = (slice.share / 100) * circumference;
+    const seg = `<circle cx="70" cy="70" r="${radius}" fill="none" stroke="${PORTFOLIO_SLICE_COLORS[index % PORTFOLIO_SLICE_COLORS.length]}" ` +
+      `stroke-width="${strokeWidth}" stroke-dasharray="${length.toFixed(2)} ${(circumference - length).toFixed(2)}" ` +
+      `stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 70 70)" />`;
+    offset += length;
+    return seg;
+  }).join('');
+
+  // The card has a fixed height, so the legend is capped and the remainder summarised rather
+  // than allowed to overflow the panel.
+  const LEGEND_ROWS = 5;
+  const visible = slices.slice(0, LEGEND_ROWS);
+  const remainder = slices.slice(LEGEND_ROWS);
+  const legendRows = visible.map((slice, index) => `
+    <div class="legend-row">
+      <span class="dot" style="background:${PORTFOLIO_SLICE_COLORS[index % PORTFOLIO_SLICE_COLORS.length]}"></span>
+      <span class="sym">${slice.symbol}</span>
+      <span class="share">${slice.share.toFixed(1)}%</span>
+    </div>`).join('') + (remainder.length
+    ? `<div class="legend-row more">+${remainder.length} more (${remainder.reduce((sum, s) => sum + s.share, 0).toFixed(1)}%)</div>`
+    : '');
+
+  // The 24h move is the headline: it is what someone glancing at the card wants to know.
+  const headline = timeframes.find(t => t.label === '24h') || timeframes[0];
+  const headlinePositive = !headline || headline.percent >= 0;
+  const headlineHtml = headline
+    ? `<div class="delta ${headlinePositive ? 'pos' : 'neg'}">` +
+      `${headlinePositive ? '▲' : '▼'} ${headlinePositive ? '+' : ''}${headline.percent.toFixed(2)}%` +
+      `<span class="delta-amt">${headline.amount >= 0 ? '+' : '-'}${headline.amountLabel}</span>` +
+      '<span class="delta-tf">24h</span></div>'
+    : '';
+
+  const maxMagnitude = Math.max(1, ...timeframes.map(t => Math.abs(t.percent)));
+  const barRows = timeframes.map(t => {
+    const width = Math.max(2, (Math.abs(t.percent) / maxMagnitude) * 47);
+    const positive = t.percent >= 0;
+    return `
+      <div class="bar-row">
+        <span class="bar-label">${t.label}</span>
+        <div class="bar-track">
+          <div class="bar-centre"></div>
+          <div class="bar-fill ${positive ? 'pos' : 'neg'}" style="width:${width.toFixed(2)}%; ${positive ? 'left:50%' : 'right:50%'}"></div>
+        </div>
+        <span class="bar-val ${positive ? 'pos' : 'neg'}">${positive ? '+' : ''}${t.percent.toFixed(2)}%</span>
+      </div>`;
+  }).join('');
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: ${CARD_WIDTH}px; height: ${CARD_HEIGHT}px; overflow: hidden; background: #1a1c22;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #e9ecf7;
+    padding: 16px 18px 18px; display: flex; flex-direction: column;
+  }
+  .hero { text-align: center; flex: 0 0 auto; }
+  .hero .cap { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #8b93ab; font-weight: 600; }
+  .hero .total { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin-top: 3px; }
+  .delta {
+    display: inline-flex; align-items: baseline; gap: 9px; margin-top: 8px;
+    font-size: 21px; font-weight: 700; padding: 5px 14px; border-radius: 999px;
+  }
+  .delta.pos { background: rgba(46,224,138,.13); }
+  .delta.neg { background: rgba(255,90,118,.13); }
+  .delta-amt { font-size: 17px; font-weight: 600; opacity: .85; }
+  .delta-tf { font-size: 12px; font-weight: 600; color: #8b93ab; letter-spacing: .1em; text-transform: uppercase; }
+  .panels { display: flex; gap: 14px; margin-top: 14px; flex: 1; min-height: 0; }
+  .panel {
+    background: #22252e; border: 1px solid #30343f; border-radius: 13px; padding: 13px 15px;
+    flex: 1; min-width: 0; display: flex; flex-direction: column;
+  }
+  h2 { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #8b93ab; font-weight: 600; margin-bottom: 10px; }
+  .alloc { display: flex; align-items: center; gap: 10px; flex: 1; min-height: 0; }
+  .donut-wrap { width: 98px; height: 98px; flex: 0 0 auto; }
+  .legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+  .legend-row.more { color: #8b93ab; font-size: 12px; padding-left: 1px; }
+  .dot { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+  .sym { font-weight: 650; flex: 0 0 auto; }
+  .share { color: #8b93ab; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .bars { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; }
+  .bar-label { width: 30px; font-size: 15px; color: #8b93ab; font-weight: 650; flex: 0 0 auto; }
+  .bar-track { flex: 1; height: 20px; background: #1a1c22; border-radius: 6px; position: relative; overflow: hidden; min-width: 0; }
+  .bar-centre { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #3a3f4d; }
+  .bar-fill { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; }
+  .bar-fill.pos { background: linear-gradient(90deg, #2ee08a88, #2ee08a); }
+  .bar-fill.neg { background: linear-gradient(270deg, #ff5a7688, #ff5a76); }
+  .bar-val { width: 66px; text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  .pos { color: #2ee08a; } .neg { color: #ff5a76; }
+</style></head><body>
+  <div class="hero">
+    <div class="cap">Portfolio value</div>
+    <div class="total">${totalLabel}</div>
+    ${headlineHtml}
+  </div>
+  <div class="panels">
+    <div class="panel">
+      <h2>Allocation</h2>
+      <div class="alloc">
+        <div class="donut-wrap"><svg width="98" height="98" viewBox="0 0 140 140">${donutSegments}</svg></div>
+        <div class="legend">${legendRows}</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Performance</h2>
+      <div class="bars">${barRows}</div>
+    </div>
+  </div>
+</body></html>`;
+}
+
 function chartServer() {
   const port = devMode ? 8086 : 8080;
   app.use(express.static(dir));
+
+  // Registered before the single-segment /:ticker route for clarity. Only serves ids that are
+  // already in memory, so there is nothing user-controlled reaching the page.
+  app.get('/portfolio/:id', function (req, res) {
+    const entry = portfolioChartPayloads.get(req.params.id);
+    if (!entry || entry.expiresAt < Date.now()) {
+      portfolioChartPayloads.delete(req.params.id);
+      res.status(404).type('text/plain').send('Chart data expired.');
+      return;
+    }
+    res.type('text/html').send(buildPortfolioChartHtml(entry.payload));
+  });
+
   app.get('/:ticker', function (req, res) {
+    // The ticker lands inside an inline <script> below, and it originates from user input to /c.
+    // Anything outside this character set is rejected outright rather than escaped, because a
+    // TradingView symbol never needs more than this (e.g. "BINANCE:BTCUSDT", "BTC_USD.P").
+    const ticker = req.params.ticker;
+    if (!/^[A-Za-z0-9:._-]{1,32}$/.test(ticker)) {
+      res.status(400).type('text/plain').send('Invalid ticker symbol.');
+      return;
+    }
+
     let query = [];
     if (req.query.query) {
       query = req.query.query.split(',');
     }
 
-    const intervalKeys = ['1m', '1', '3m', '3', '5m', '5', '15m', '15', '30m', '30', '1h', '60', '2h', '120', '3h', '180', '4h', '240', '1d', 'd',
-      'day', 'daily', '1w', 'w', 'week', 'weekly', '1mo', 'm', 'mo', 'month', 'monthly'];
-    const intervalMap = {
-      '1m': '1', '1': '1', '3m': '3', '3': '3', '5m': '5', '5': '5', '15m': '15', '15': '15', '30m': '30', '30': '30', '1h': '60',
-      '60': '60', '2h': '120', '120': '120', '3h': '180', '180': '180', '4h': '240', '240': '240', '1d': 'D', 'd': 'D', 'day': 'D', 'daily': 'D', '1w': 'W',
-      'w': 'W', 'week': 'W', 'weekly': 'W', '1mo': 'M', 'm': 'M', 'mo': 'M', 'month': 'M', 'monthly': 'M'
-    };
+    const intervalKeys = CHART_INTERVAL_KEYS;
+    const intervalMap = CHART_INTERVAL_MAP;
     const studiesKeys = ['bb', 'bbr', 'bbw', 'crsi', 'ichi', 'ichimoku', 'macd', 'ma', 'ema', 'dema', 'tema', 'moonphase', 'pphl',
       'pivotshl', 'rsi', 'stoch', 'stochrsi', 'williamr'];
     const studiesMap = {
@@ -3945,23 +5884,33 @@ function chartServer() {
 
     let intervalKey = '1h';
     let selectedStudies = [];
+
+    // Tokens that are studies or display flags, never intervals. The suffix-trimming fallbacks
+    // below would otherwise match some of them by accident: "ma" (moving average) trims to "m"
+    // and "moro" (light theme) trims to "mo", both of which are the monthly interval, so those
+    // two options silently rendered a monthly chart.
+    const nonIntervalKeys = new Set([...studiesKeys, 'wide', 'moro', 'light', 'bera', 'blul', 'crab', 'mmsoy', 'log']);
+
     query.forEach(i => {
       if (intervalKeys.indexOf(i) >= 0) {
         intervalKey = i;
       }
-      // checking if the user put something like "4hr" instead of just "4h"
-      else if (intervalKeys.indexOf(i.substring(0, i.length - 1)) >= 0) {
-        intervalKey = i.substring(0, i.length - 1);
-      }
-      // checking if the user put something like "5min" instead of just "5m" or "5"
-      else if (intervalKeys.indexOf(i.substring(0, i.length - 2)) >= 0) {
-        intervalKey = i.substring(0, i.length - 2);
+      else if (!nonIntervalKeys.has(i)) {
+        // checking if the user put something like "4hr" instead of just "4h"
+        if (intervalKeys.indexOf(i.substring(0, i.length - 1)) >= 0) {
+          intervalKey = i.substring(0, i.length - 1);
+        }
+        // checking if the user put something like "5min" instead of just "5m" or "5"
+        else if (intervalKeys.indexOf(i.substring(0, i.length - 2)) >= 0) {
+          intervalKey = i.substring(0, i.length - 2);
+        }
       }
       if (studiesKeys.indexOf(i) >= 0) {
         selectedStudies.push('"' + studiesMap[i] + '"');
       }
     });
 
+    res.type('text/html');
     res.write(`
     <div id="ccchart-container" style="width:${query.includes('wide') ? '1280' : '720'}px; height: 600px; position:relative; top:-50px; left:-10px;">
       <!-- TradingView Widget BEGIN -->
@@ -3973,7 +5922,7 @@ function chartServer() {
           {
             "width": ${query.includes('wide') ? '1280' : '720'},
           "height": 600,
-          "symbol": "${req.params.ticker}",
+          "symbol": ${JSON.stringify(ticker)},
           "interval": "${intervalMap[intervalKey]}",
           "timezone": "Etc/UTC",
           "theme": "${query.includes('moro') || query.includes('light') ? 'light' : 'dark'}",
@@ -4005,8 +5954,11 @@ function chartServer() {
     </div>`);
     res.end();
   });
-  app.listen(port, () => {
-    console.log(`Chart server listening at http://localhost:${port}`);
+  // Bound to loopback on purpose: this server exists only so the bot's own Puppeteer pages can load
+  // the TradingView widget. Omitting the host makes Node listen on 0.0.0.0, which exposed it to
+  // anyone who could reach the box.
+  app.listen(port, '127.0.0.1', () => {
+    console.log(`Chart server listening at http://127.0.0.1:${port}`);
   });
 }
 
@@ -4038,9 +5990,10 @@ apiApp.get('/coin/:ticker', (req, res) => {
   }
 });
 
-const ip = '127.0.0.1';//getLocalIP();
+const ip = '127.0.0.1';
 if (!devMode) {
-  apiApp.listen(apiAppPort, () => {
+  // Loopback only. This API has no authentication, so it must not be reachable off the host.
+  apiApp.listen(apiAppPort, ip, () => {
     console.log(`Prices API server running at http://${ip}:${apiAppPort}`);
   });
 }

@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+#  Build context exclusions.
+#
+#  Two jobs: keep the context small (this repo carries a few hundred MB of
+#  node_modules, git history and old chart screenshots) and make it impossible
+#  to bake a secret into an image layer.
+# ---------------------------------------------------------------------------
+
+# --- secrets / credentials: never in an image layer -------------------------
+# common/ is bind-mounted by docker-compose.yml, so the container gets the real
+# files at runtime. Excluding the whole directory here means keys.api (bot
+# token, DB password, CMC/CG/Finnhub keys) cannot end up in a pushed image even
+# by accident. The two entries under it are redundant but kept as signposts.
+common
+common/keys.api
+common/puppeteer-cache
+# stuff/ is the author's scratch directory: production + test bot tokens,
+# tsuki.pem, a Google Cloud key, DB backups. Never ship it.
+stuff
+# docker-compose reads POSTGRES_PASSWORD from .env on the host. Without these
+# entries the file lands in the build context and the DB password is baked into
+# an image layer, where it survives even if a later layer deletes the file.
+.env
+.env.*
+!.env.example
+# Any stray credential material that happens to be sitting in the repo root.
+*.pem
+*.key
+*.p12
+keys.api
+
+# --- installed / generated at build time ------------------------------------
+node_modules
+npm-debug.log*
+yarn-error.log*
+
+# --- VCS, editor and tooling ------------------------------------------------
+.git
+.gitignore
+.github
+.claude
+.vscode
+.vs
+.jshintrc
+.DS_Store
+**/.DS_Store
+eslint.config.mjs
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# --- docs and host-only config ----------------------------------------------
+# docs/ is mounted straight from the host by compose for the DB init script,
+# so it does not need to be in the image.
+docs
+*.md
+LICENSE
+# pm2 ecosystem files: the container is supervised by docker's restart policy,
+# not pm2.
+process.json
+metaProcess.json
+
+# --- runtime output / local state -------------------------------------------
+# ~55 saved chart screenshots; the container recreates
+# chartscreens/generated-charts/ itself.
+chartscreens
+# Per-server tag data. Written and rebuilt at runtime; bind-mount it from the
+# host if you want it to survive a rebuild.
+tags.json
+
+# --- images -----------------------------------------------------------------
+# Docker matches these per path segment (unlike .gitignore), so the recursive
+# form is needed. public/*.png must be re-included: express.static serves
+# tsukilogo.png, bera*.png, crab*.png etc. into the chart page, and charts
+# render wrong without them.
+**/*.png
+!public/*.png
+
+# --- tests and one-off dev scratch scripts ----------------------------------
+# The runtime image does not run the suite (node --test is a dev workflow), and
+# devDependencies are omitted from node_modules anyway.
+test
+alertsTesting.js
+scheduledactiontestinhell.js

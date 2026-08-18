@@ -14,14 +14,18 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 
 
 ## Main Features:
-+ Simple and detailed crypto prices
++ Simple and detailed crypto prices, with ticker autocomplete as you type
++ Price alerts delivered by DM when a coin hits your target
++ Portfolio tracking with live value and 24h profit/loss
++ Recurring scheduled market posts in any channel
 + Customizable personal coin watch lists
-+ TradingView charts
-+ Coin market stats
++ TradingView charts with one-click timeframe switching
++ Perpetual swap funding rates across Binance, Bybit, OKX, and BitMEX
++ Coin market stats, all-time highs, and side-by-side coin comparisons
 + Coin info and descriptions
 + Currency conversion tools
 + Global crypto market stats
-+ Exchange margin funding stats
++ Trending coins on CoinGecko
 + Specific price pairs from exchanges
 + Coin price movement heat maps
 + Traditional stocks prices
@@ -29,12 +33,34 @@ TsukiBot  &nbsp; [![Discord Bots](https://discordbots.org/api/widget/status/5069
 + Ethereum address balances lookup
 + Language translations
 + Server tags for saving links
-+ Customizable command shortcuts
 + Market fear/greed index ratings
 + Biggest gainer and loser coin prices
 + Metrics for trending coins and bot usage
 + Protection from malicious files
 + ....and more! Join the support server to suggest features you want to see. We are listening!
+
+<br>
+
+## Running your own instance
+
+**With Docker (recommended):** copy your keys into `common/keys.api`, set `POSTGRES_PASSWORD` in a `.env`
+file to match the `tsukibot` value in that file, set `"dbAddress": "postgres"`, then run
+`docker compose up -d`. Postgres initializes itself from the schema in `docs/` on first start.
+
+**Manually:** you need Node 22+ and a PostgreSQL database set up from `docs/TsukiBotDB_Schema`.
+Run `npm ci`, create `common/keys.api` (see `docs/How to set up keys file.txt`), then `npm start`.
+Register the slash commands once with `npm run deploy`.
+
+A few things worth knowing:
+
++ **Chromium** is located automatically. Set `CHROME_PATH` if yours lives somewhere unusual. The
+  sandbox stays enabled; only set `CHROME_NO_SANDBOX=true` if your host truly cannot run it.
++ **A free CoinGecko demo key** makes a big difference. Put it in `keys.api` as `coingecko` (or set
+  `COINGECKO_API_KEY`) and the full market cache refresh drops from roughly half an hour to a few
+  minutes, because the rate limit becomes per-key instead of per-IP.
++ **Any key can come from the environment** instead of `keys.api`, which is what makes the Docker
+  setup work without baking secrets into an image.
++ `npm test` runs the unit test suite.
 
 <br>
 

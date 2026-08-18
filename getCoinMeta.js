@@ -6,10 +6,61 @@
 
 const fs = require('fs');
 const pc = require('picocolors');
-const CoinGecko = require('coingecko-api');
 const { JSDOM } = require('jsdom');
-const CoinGeckoClient = new CoinGecko();
 const process = require('node:process');
+
+/* --------------------------------------------
+
+    CoinGecko access.
+
+    This used to go through the coingecko-api npm package, which is from 2019 and sends no
+    User-Agent — CoinGecko now answers those requests with HTTP 403, so every call here was
+    failing. These helpers use fetch directly, send a descriptive User-Agent, and apply a
+    demo/pro key when one is configured (which raises the rate limit from per-IP to per-key).
+
+    They deliberately return { data: ... } to match the shape the old package produced, so the
+    consuming code below is unchanged.
+
+  -------------------------------------------- */
+
+const CG_USER_AGENT = 'TsukiBot/1.0 (+https://github.com/EthyMoney/TsukiBot)';
+
+function getCGRestConfig() {
+  let keys = {};
+  try {
+    keys = JSON.parse(fs.readFileSync('./common/keys.api', 'utf8'));
+  } catch {
+    // No keys file: fall through to keyless access.
+  }
+  const proApiKey = process.env.COINGECKO_PRO_API_KEY || keys.coingeckoPro;
+  if (proApiKey) {
+    return { baseUrl: 'https://pro-api.coingecko.com/api/v3', headers: { 'x-cg-pro-api-key': proApiKey } };
+  }
+  const demoApiKey = process.env.COINGECKO_API_KEY || keys.coingecko || keys.coingeckoDemo;
+  if (demoApiKey) {
+    return { baseUrl: 'https://api.coingecko.com/api/v3', headers: { 'x-cg-demo-api-key': demoApiKey } };
+  }
+  return { baseUrl: 'https://api.coingecko.com/api/v3', headers: {} };
+}
+
+async function cgRequest(path) {
+  const apiConfig = getCGRestConfig();
+  const res = await fetch(apiConfig.baseUrl + path, {
+    headers: { accept: 'application/json', 'user-agent': CG_USER_AGENT, ...apiConfig.headers }
+  });
+  if (!res.ok) {
+    throw new Error(`CoinGecko ${path} returned HTTP ${res.status}`);
+  }
+  return { data: await res.json() };
+}
+
+const CoinGeckoClient = {
+  coins: {
+    list: () => cgRequest('/coins/list'),
+    fetch: (id) => cgRequest(`/coins/${encodeURIComponent(id)}` +
+      '?localization=false&tickers=false&market_data=false&developer_data=false')
+  }
+};
 
 let meta = { 'data': [] };
 let skipped = [];
@@ -117,8 +168,15 @@ function sleep(ms) {
 
 //* starts the process of collecting the metadata for all of the coins and handles rate limiting and calling of the other functions
 async function startup() {
-  cgCoinsList = await CoinGeckoClient.coins.list();
-  if (cgCoinsList == 0) {
+  // cgRequest throws on a non-OK response, so catch here to keep the original exit behaviour
+  // rather than dying with an unhandled rejection.
+  try {
+    cgCoinsList = await CoinGeckoClient.coins.list();
+  } catch (err) {
+    console.log(pc.red('Could not grab coins list: ' + err.message + '. Exiting..'));
+    process.exit(1);
+  }
+  if (!cgCoinsList || !Array.isArray(cgCoinsList.data) || cgCoinsList.data.length === 0) {
     console.log(pc.red('Could not grab coins list, likely currently rate limited or API is down. Exiting..'));
     process.exit(1);
   }
