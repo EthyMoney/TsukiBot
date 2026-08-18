@@ -59,15 +59,23 @@ function formatDuration(ms) {
 
 /**
  * "3d ago" style stamps, which read faster than absolute times in a leaderboard.
+ *
+ * `now` is a seam for tests, and it is validated rather than trusted. renderTable hands every
+ * formatter (value, row), so passing this function as a column formatter puts a database row in
+ * the second argument - which used to throw "now.getTime is not a function" and took out
+ * /usage users, /usage servers and /usage errors. Anything that is not a usable Date means no
+ * reference time was supplied, which is exactly what the default already covers.
+ *
  * @param {Date|string|null} date
  * @param {Date} [now]
  * @returns {string}
  */
-function formatRelative(date, now = new Date()) {
+function formatRelative(date, now) {
   if (!date) return '-';
   const then = date instanceof Date ? date : new Date(date);
   if (isNaN(then.getTime())) return '-';
-  const seconds = Math.max(0, (now.getTime() - then.getTime()) / 1000);
+  const reference = now instanceof Date && !isNaN(now.getTime()) ? now : new Date();
+  const seconds = Math.max(0, (reference.getTime() - then.getTime()) / 1000);
   if (seconds < 60) return 'just now';
   if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
   if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
