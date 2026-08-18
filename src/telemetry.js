@@ -508,7 +508,9 @@ function recordSystemEvent(command, details = {}) {
     params: details.params || null,
     coins: details.coins || null,
     outcome: details.outcome || 'ok',
-    errorKind: details.error ? classifyError(details.error) : null,
+    // An explicit kind wins over a thrown error, so a caller that already knows the failure
+    // (an HTTP status, say) can group by that instead of a generic message.
+    errorKind: details.errorKind || (details.error ? classifyError(details.error) : null),
     durationMs: details.durationMs
   });
 }

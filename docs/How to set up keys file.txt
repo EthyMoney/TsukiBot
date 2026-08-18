@@ -120,7 +120,7 @@ file. Turn on Developer Mode in Discord to copy a user ID.
 
 OWNER GUILD (required for /usage)
 
-  "ownerGuild": "567970908451635200"
+  "ownerGuild": "000000000000000000"
 
 The server that owner-only commands are registered to. Right now that is just
 /usage, the telemetry reports.
@@ -135,3 +135,39 @@ Set it before running "npm run deploy". If it is missing, deployment still succe
 but warns that /usage was not registered anywhere.
 
 Can also be supplied as the OWNER_GUILD_ID environment variable.
+
+
+COINGECKO CREDIT BUDGET
+
+A CoinGecko demo key allows 10,000 credits per MONTH, and one API request is one
+credit. That works out to about 330 a day, which is less than it sounds: the
+market cache used to page through all ~16,000 listed coins every 30 minutes,
+costing roughly 96,000 credits a month, nearly ten times the allowance.
+
+Two environment variables control the scheduled spend:
+
+  CG_MAX_PAGES            -> pages of 250 coins to pre-cache. Default 4, so the
+                             top 1,000 by market cap. Costs 48 x this per day.
+                             Coins past the cap are not lost: they are fetched on
+                             demand for one credit and cached briefly.
+
+  ALERT_UNCACHED_INTERVAL_MS -> how often price alerts may fetch quotes for coins
+                             the market cache does not carry. Default 1800000
+                             (30 minutes).
+
+                             Alerts on cached coins cost NOTHING: they ride the
+                             cache refresh, so alert latency equals cache
+                             freshness (30 minutes by default). This interval
+                             only applies while an alert exists on a coin outside
+                             the cached pages, and exists to stop one such alert
+                             from fetching on every minute of the scan.
+
+At the defaults the scheduled work costs 194 credits a day (5,898 a month), or up
+to 242 a day (7,357 a month) while an alert is watching a coin outside the cache.
+That leaves roughly 135 a day for user commands. Run /usage credits to see the
+actual spend broken down by endpoint, with a projection against the quota.
+
+Note that alert latency is bounded by the cache refresh, so shortening the cache
+interval speeds alerts up too, at 4 credits per extra pass.
+
+If you upgrade to a paid CoinGecko plan, raise CG_MAX_PAGES to cache more coins.

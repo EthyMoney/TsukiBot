@@ -39,6 +39,9 @@ const render = require('./telemetry-render');
  *
  * -------------------------------------------------------------------------- */
 
+// A CoinGecko demo key's monthly allowance. One request is one credit.
+const DEMO_MONTHLY_CREDITS = 10000;
+
 const USAGE_EMBED_COLOR = '#5865F2';
 
 /**
@@ -480,6 +483,103 @@ async function buildUsageGrowth(days, timezone) {
   return embed;
 }
 
+/**
+ * CoinGecko credit spend.
+ *
+ * A demo key allows 10,000 credits a month and one request is one credit, so this turns the quota
+ * from something you find out about when calls start failing into something you can watch.
+ *
+ * @param {number} days window for the endpoint breakdown
+ * @param {string} timezone
+ * @returns {Promise<EmbedBuilder>}
+ */
+async function buildUsageCredits(days, timezone) {
+  const [byEndpoint, totals, daily] = await Promise.all([
+    telemetryReports.getApiCreditsByEndpoint(days),
+    telemetryReports.getApiCreditTotals(),
+    telemetryReports.getApiCreditsByDay(Math.min(days, 60), timezone)
+  ]);
+
+  const embed = usageEmbed('CoinGecko credits', days, timezone);
+
+  if (!totals || Number(totals.calls_total) === 0) {
+    return embed.setDescription(
+      'No CoinGecko calls recorded yet. Tracking starts when the bot next makes one, so this fills ' +
+      'in within a few minutes of a restart.');
+  }
+
+  const monthToDate = Number(totals.calls_month) || 0;
+  const perDay = Number(totals.calls_24h) || 0;
+
+  // Days left in the current month, so the projection lands on the quota's own reset boundary.
+  const now = new Date();
+  const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
+  const daysRemaining = Math.max(0, daysInMonth - now.getUTCDate());
+  const projected = monthToDate + perDay * daysRemaining;
+
+  const withinQuota = projected <= DEMO_MONTHLY_CREDITS;
+  embed.setColor(withinQuota ? '#2ee08a' : '#ff5a76');
+
+  embed.setDescription(
+    `**${render.compactNumber(monthToDate)}** of **${render.compactNumber(DEMO_MONTHLY_CREDITS)}** ` +
+    `demo credits used this month (${render.percent(monthToDate, DEMO_MONTHLY_CREDITS, 0)}).\n` +
+    `At the last 24 hours' rate of **${render.compactNumber(perDay)}/day**, the month ends at ` +
+    `**${render.compactNumber(projected)}** — ` +
+    (withinQuota ? 'within budget. ✅' : '**over budget.** ⚠️'));
+
+  embed.addFields({
+    name: 'Rate',
+    value: render.codeBlock(render.renderKeyValue([
+      ['Last hour', render.compactNumber(totals.calls_1h)],
+      ['Last 24h', render.compactNumber(totals.calls_24h)],
+      ['Last 7d', render.compactNumber(totals.calls_7d)],
+      ['This month', render.compactNumber(monthToDate)],
+      ['Projected', render.compactNumber(projected)],
+      ['Budget', render.compactNumber(DEMO_MONTHLY_CREDITS)],
+      ['Rate limited', render.compactNumber(totals.ratelimited)]
+    ]))
+  });
+
+  if (byEndpoint.length > 0) {
+    const total = byEndpoint.reduce((sum, row) => sum + Number(row.calls), 0);
+    const withShare = byEndpoint.map(row => ({
+      ...row,
+      endpoint: String(row.endpoint).replace(/^\//, ''),
+      share: render.percent(row.calls, total, 1)
+    }));
+
+    embed.addFields(
+      {
+        name: 'Where the credits go',
+        value: render.codeBlock(render.renderBarChart(
+          withShare.slice(0, 10).map(row => ({ label: row.endpoint, value: Number(row.calls) })),
+          { width: 16, labelWidth: 16 }))
+      },
+      {
+        name: 'Detail',
+        value: render.codeBlock(render.renderTable(withShare, [
+          { key: 'endpoint', label: 'Endpoint', width: 18 },
+          { key: 'calls', label: 'Calls', align: 'right', width: 7, format: render.compactNumber },
+          { key: 'share', label: 'Share', align: 'right', width: 7 },
+          { key: 'ratelimited', label: '429s', align: 'right', width: 5, format: render.compactNumber },
+          { key: 'avg_ms', label: 'Avg', align: 'right', width: 7, format: render.formatDuration }
+        ]))
+      });
+  }
+
+  if (daily.length > 1) {
+    embed.addFields({
+      name: `Daily credits (${daily.length}d)`,
+      value: render.codeBlock(
+        render.renderSparkline(daily.map(row => row.calls)) + '\n' +
+        `low ${render.compactNumber(Math.min(...daily.map(r => Number(r.calls))))}` +
+        `   high ${render.compactNumber(Math.max(...daily.map(r => Number(r.calls))))}`)
+    });
+  }
+
+  return embed;
+}
+
 module.exports = {
   usageEmbed,
   buildUsageOverview,
@@ -491,5 +591,7 @@ module.exports = {
   buildUsageCommandDetail,
   buildUsageErrors,
   buildUsageGrowth,
+  buildUsageCredits,
+  DEMO_MONTHLY_CREDITS,
   USAGE_EMBED_COLOR
 };

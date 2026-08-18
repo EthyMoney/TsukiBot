@@ -87,6 +87,18 @@ function makePool(overrides = {}) {
     ],
     'WITH per_user AS': [{ bucket: '1 day (one-off)', users: '40', sort_key: 1 }],
     'pg_size_pretty': [{ rows: '9001', total_size: '3128 kB', oldest: ago(100000) }],
+    'AS endpoint': [
+      { endpoint: '/coins/markets', calls: '192', ratelimited: '0', errors: '0', avg_ms: '640', last_call: ago(2) },
+      { endpoint: '/simple/price', calls: '96', ratelimited: '2', errors: '0', avg_ms: '210', last_call: ago(9) },
+      { endpoint: '/global', calls: '14', ratelimited: '0', errors: '1', avg_ms: '180', last_call: ago(30) }
+    ],
+    'AS calls_total': [{
+      calls_total: '4820', calls_1h: '9', calls_24h: '302', calls_7d: '2100',
+      calls_month: '4820', ratelimited: '2', first_call: ago(40000)
+    }],
+    'AS day, COUNT(*) AS calls': [
+      { day: ago(2880), calls: '288' }, { day: ago(1440), calls: '302' }
+    ],
     'ORDER BY occurred_at DESC': [
       { occurred_at: ago(1), event_type: 'command', command: 'price', subcommand: null, user_id: '1', username: 'ethy', guild_name: 'Crypto Server', params: { coin: 'btc' }, coins: ['BTC'], outcome: 'ok', error_kind: null, duration_ms: 320 }
     ]
@@ -114,7 +126,8 @@ const BUILDERS = [
   ['activity', (d, tz) => embeds.buildUsageActivity(d, tz)],
   ['command detail', (d) => embeds.buildUsageCommandDetail('price', d)],
   ['errors', (d) => embeds.buildUsageErrors(d, 15)],
-  ['growth', (d, tz) => embeds.buildUsageGrowth(d, tz)]
+  ['growth', (d, tz) => embeds.buildUsageGrowth(d, tz)],
+  ['credits', (d, tz) => embeds.buildUsageCredits(d, tz)]
 ];
 
 for (const [name, build] of BUILDERS) {
@@ -158,6 +171,7 @@ for (const [name, build] of BUILDERS) {
           if (text.includes('AS lifetime_events')) return { rows: [{ lifetime_events: '0', tracking_since: null }] };
           if (text.includes('AS command_events')) return { rows: [{ events: '0', users: '0', guilds: '0', commands: '0', command_events: '0', autocomplete_events: '0', button_events: '0', system_events: '0', errors: '0', dm_events: '0', avg_ms: null, p50_ms: null, p95_ms: null, first_event: null }] };
           if (text.includes('pg_size_pretty')) return { rows: [{ rows: '0', total_size: '0 bytes', oldest: null }] };
+          if (text.includes('AS calls_total')) return { rows: [{ calls_total: '0', calls_1h: '0', calls_24h: '0', calls_7d: '0', calls_month: '0', ratelimited: '0', first_call: null }] };
           return { rows: [] };
         }
       }

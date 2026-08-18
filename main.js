@@ -80,6 +80,10 @@ const pc = require('picocolors');
 
 // Read in and initialize all files
 let keys, pairs_CG_arr, metadata, tagsJSON;
+// The full CoinGecko coin list ({id, symbol, name} for every listed coin). Refreshed twice a day
+// for one credit, and it carries no market data, which is what lets autocomplete and coin id
+// resolution cover all ~18,000 coins while the market cache holds only the top few hundred.
+let cgCoinList = [];
 initializeFiles();
 
 // Top.gg bot statistics reporter
@@ -142,7 +146,8 @@ const render = require('./src/telemetry-render');
 // start the bot, which is why a formatter bug in three of these reports reached production.
 const {
   buildUsageOverview, buildUsageCommands, buildUsageUsers, buildUsageGuilds, buildUsageCoins,
-  buildUsageActivity, buildUsageCommandDetail, buildUsageErrors, buildUsageGrowth, usageEmbed
+  buildUsageActivity, buildUsageCommandDetail, buildUsageErrors, buildUsageGrowth,
+  buildUsageCredits, usageEmbed
 } = require('./src/telemetry-embeds');
 
 // The command registry, for /usage command autocomplete. Safe to require: deploy-commands only
@@ -193,6 +198,46 @@ let chartTagID = 0;
 let globalCGSleepTimeout = cgHasApiKey() ? 2500 : 25000;
 const CG_SLEEP_CAP = 120000;      // never back off further than this between pages
 const CG_PAGE_ATTEMPTS = 5;       // retries for a single page before the pass gives up
+
+/* --------------------------------------------------------------------------
+ *
+ *  CoinGecko credit budget.
+ *
+ *  A demo key allows 10,000 credits per MONTH, which is about 330 a day. The market cache used to
+ *  page through every listed coin (65 pages) every 30 minutes: 3,168 calls a day, roughly ten
+ *  times the entire monthly allowance. These caps bring it back inside the budget.
+ *
+ *  Coverage is not lost, only pre-loading. Anything past the cap is fetched on demand by
+ *  resolveCoinLive for one credit, and autocomplete still searches the full coin list because that
+ *  comes from coinsCG.json, which needs no market data.
+ *
+ * -------------------------------------------------------------------------- */
+
+// Pages of 250 coins to pre-cache. 4 pages = the top 1,000 by market cap, which covers essentially
+// everything anyone asks for. Override with CG_MAX_PAGES to trade credits for coverage.
+const CG_MAX_PAGES = Math.max(1, parseInt(process.env.CG_MAX_PAGES, 10) || 4);
+
+// On-demand lookups for coins outside the cache. Held briefly so a burst of commands about the
+// same obscure coin costs one credit rather than one per command.
+const LIVE_COIN_CACHE_MS = 5 * 60 * 1000;
+const liveCoinCache = new Map();
+
+// /global and /search/trending change slowly and were previously fetched per command, so a busy
+// server could spend hundreds of credits a day on them alone.
+const CG_GLOBAL_CACHE_MS = 10 * 60 * 1000;
+const CG_TRENDING_CACHE_MS = 15 * 60 * 1000;
+let cgGlobalCache = { at: 0, data: null };
+let cgTrendingCache = { at: 0, data: null };
+
+// How often alerts may fetch prices for coins the market cache does not carry.
+//
+// Alerts on cached coins cost nothing: they ride the cache refresh, so alert latency equals cache
+// freshness. This interval only applies to coins outside the pre-cached pages, which have no price
+// in the cache at all, and it exists solely to stop one obscure-coin alert from fetching on every
+// minute of the scan. Matched to the cache cadence, since being fresher than the cache would be
+// spending credits for no gain.
+const ALERT_UNCACHED_INTERVAL_MS = Math.max(60000, parseInt(process.env.ALERT_UNCACHED_INTERVAL_MS, 10) || 30 * 60 * 1000);
+let lastAlertLiveFetch = 0;
 let cgUpdateInProgress = false;   // in-flight guard, separate from the cacheUpdateRunning startup gate
 let cgRetryScheduled = false;
 
@@ -2477,6 +2522,139 @@ function findCachedCoinById(coinId) {
   return null;
 }
 
+/**
+ * Finds a coin's CoinGecko id in the full listing, without spending a credit.
+ *
+ * cgCoinList holds {id, symbol, name} for every listed coin and is refreshed twice a day, so this
+ * resolves coins the market cache never pre-loads. Exact symbol wins over exact name, and name is
+ * only matched exactly: a substring match here would send "bit" to some random token.
+ *
+ * @param {string} query ticker, name, or CoinGecko id
+ * @returns {string|null}
+ */
+function resolveCoinIdFromList(query) {
+  const needle = (query || '').trim().toLowerCase();
+  if (!needle) return null;
+
+  let nameMatch = null;
+  let idMatch = null;
+  for (const coin of cgCoinList) {
+    if (!coin || !coin.symbol) continue;
+    if (coin.symbol.toLowerCase() === needle) return coin.id;
+    if (!idMatch && coin.id === needle) idMatch = coin.id;
+    if (!nameMatch && (coin.name || '').toLowerCase() === needle) nameMatch = coin.id;
+  }
+  return idMatch || nameMatch;
+}
+
+/**
+ * Fetches full market data for one coin that is not in the cache.
+ *
+ * Costs one credit, which is the trade the page cap buys: instead of pre-loading 16,000 coins every
+ * half hour on the chance someone asks, the rare request pays for itself. Results are held briefly
+ * so a burst about the same coin does not repeat the charge.
+ *
+ * Returns the same shape as a cached coin, because callers cannot tell the two apart.
+ *
+ * @param {string} query
+ * @returns {Promise<object|null>}
+ */
+async function resolveCoinLive(query) {
+  const coinId = resolveCoinIdFromList(query);
+  if (!coinId) return null;
+
+  const cached = liveCoinCache.get(coinId);
+  if (cached && Date.now() - cached.at < LIVE_COIN_CACHE_MS) return cached.coin;
+
+  try {
+    const res = await cgFetch('/coins/markets?vs_currency=usd&ids=' + encodeURIComponent(coinId) +
+      '&price_change_percentage=1h,24h,7d,14d,30d,1y');
+    if (!res.ok) {
+      console.log(pc.yellow(`Live CoinGecko lookup for ${coinId} returned HTTP ${res.status}.`));
+      return null;
+    }
+    const data = await res.json();
+    const coin = Array.isArray(data) && data.length ? data[0] : null;
+    if (coin) {
+      liveCoinCache.set(coinId, { at: Date.now(), coin });
+      // Bounded so a long uptime cannot grow this without limit.
+      if (liveCoinCache.size > 500) {
+        liveCoinCache.delete(liveCoinCache.keys().next().value);
+      }
+    }
+    return coin;
+  }
+  catch (err) {
+    console.log(pc.yellow(`Live CoinGecko lookup for ${coinId} failed: ${err.message}`));
+    return null;
+  }
+}
+
+/**
+ * The cache first, then one live lookup. Every command that needs market data for a user-named
+ * coin should use this rather than findCachedCoin, so the page cap stays invisible to users.
+ * @param {string} query
+ * @returns {Promise<object|null>}
+ */
+async function resolveCoin(query) {
+  return findCachedCoin(query) || await resolveCoinLive(query);
+}
+
+
+/**
+ * Resolves many coin ids at once, for list views.
+ *
+ * Anything in the market cache is free. Everything else goes into a single /coins/markets request
+ * per 250 ids, so a portfolio full of obscure coins costs one credit rather than one per holding.
+ * Results share the live lookup cache, so paging through a list repeatedly does not re-charge.
+ *
+ * @param {Array<string>} coinIds
+ * @returns {Promise<Map<string, object>>} id -> coin, missing ids simply absent
+ */
+async function resolveCoinsByIds(coinIds) {
+  const found = new Map();
+  const missing = [];
+
+  for (const id of new Set(coinIds)) {
+    if (!id) continue;
+    const cached = findCachedCoinById(id);
+    if (cached) {
+      found.set(id, cached);
+      continue;
+    }
+    const live = liveCoinCache.get(id);
+    if (live && Date.now() - live.at < LIVE_COIN_CACHE_MS) {
+      found.set(id, live.coin);
+      continue;
+    }
+    missing.push(id);
+  }
+
+  if (missing.length === 0) return found;
+
+  const CHUNK_SIZE = 250;
+  for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+    const chunk = missing.slice(i, i + CHUNK_SIZE);
+    try {
+      const res = await cgFetch('/coins/markets?vs_currency=usd&ids=' + encodeURIComponent(chunk.join(',')) +
+        '&price_change_percentage=1h,24h,7d,14d,30d,1y');
+      if (!res.ok) {
+        console.log(pc.yellow(`Batched CoinGecko lookup returned HTTP ${res.status}; those coins will show as unavailable.`));
+        continue;
+      }
+      for (const coin of await res.json()) {
+        found.set(coin.id, coin);
+        liveCoinCache.set(coin.id, { at: Date.now(), coin });
+      }
+    }
+    catch (err) {
+      console.log(pc.yellow('Batched CoinGecko lookup failed: ' + err.message));
+    }
+  }
+
+  return found;
+}
+
 // Resolve user input (ticker, full name, or market cap rank) to a cached coin. Prefers an exact
 // ticker match, since that is what people almost always mean when symbols collide.
 function findCachedCoin(input) {
@@ -2506,7 +2684,7 @@ async function getAllTimeHigh(coinInput, channel, interaction) {
     return;
   }
 
-  const coin = findCachedCoin(coinInput);
+  const coin = await resolveCoin(coinInput);
   if (!coin) {
     await reply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
     return;
@@ -2552,8 +2730,7 @@ async function compareCoins(coin1Input, coin2Input, channel, interaction) {
     return;
   }
 
-  const coinA = findCachedCoin(coin1Input);
-  const coinB = findCachedCoin(coin2Input);
+  const [coinA, coinB] = await Promise.all([resolveCoin(coin1Input), resolveCoin(coin2Input)]);
   const missing = !coinA ? coin1Input : !coinB ? coin2Input : null;
   if (missing) {
     await reply(`Couldn't find **${missing}** on CoinGecko. Try the ticker symbol or the full name.`);
@@ -2604,12 +2781,18 @@ async function getTrendingCoins(channel, interaction) {
   };
 
   try {
-    const res = await cgFetch('/search/trending');
-    if (!res.ok) {
-      await reply('Sorry, CoinGecko trending data is unavailable right now. Please try again shortly.');
-      return;
+    // Trending is a slow-moving list, and this is reachable from a scheduled post that can run
+    // every 30 minutes in every server. Fetching it per invocation was a standing credit drain.
+    let data = cgTrendingCache.data;
+    if (!data || Date.now() - cgTrendingCache.at >= CG_TRENDING_CACHE_MS) {
+      const res = await cgFetch('/search/trending');
+      if (!res.ok) {
+        await reply('Sorry, CoinGecko trending data is unavailable right now. Please try again shortly.');
+        return;
+      }
+      data = await res.json();
+      cgTrendingCache = { at: Date.now(), data };
     }
-    const data = await res.json();
     const trending = (data.coins || []).slice(0, 10);
     if (trending.length === 0) {
       await reply('CoinGecko returned no trending coins right now. Try again shortly.');
@@ -2679,7 +2862,7 @@ async function ensureAlertsTable() {
 }
 
 async function addPriceAlert(interaction, coinInput, targetPrice) {
-  const coin = findCachedCoin(coinInput);
+  const coin = await resolveCoin(coinInput);
   if (!coin) {
     await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
     return;
@@ -2733,10 +2916,14 @@ async function listPriceAlerts(interaction) {
     return;
   }
 
+  // Resolved as one batch: coins outside the market cache cost a single request for the whole
+  // list rather than one apiece.
+  const pricedById = await resolveCoinsByIds(result.rows.map(row => row.coin_id));
+
   const lines = [];
   for (const row of result.rows) {
     // Priced by coin_id, not symbol: duplicate tickers would otherwise show the wrong coin's price.
-    const cached = findCachedCoinById(row.coin_id);
+    const cached = pricedById.get(row.coin_id);
     const current = cached && cached.current_price != null ? formatUsd(cached.current_price) : 'n/a';
     lines.push(`\`#${row.alert_id}\` **${row.symbol}** ${row.direction} ${formatUsd(Number(row.target_price))} — now ${current}\n`);
   }
@@ -2793,18 +2980,50 @@ async function runPriceAlertScan() {
 
   const coinIds = [...new Set(alerts.rows.map(row => row.coin_id))];
 
-  // CoinGecko accepts a comma-separated id list, so all watched coins cost one request. Chunked
-  // to keep the URL a sane length if the bot ever ends up watching hundreds of coins.
+  /* This scan runs every minute. It used to spend a CoinGecko credit on every one of those runs
+     whenever any alert existed: 1,440 a day, which on a demo key is more than four times the
+     entire daily budget on its own.
+
+     Now it reads the market cache first, which is free, and pays for a live quote only every
+     ALERT_LIVE_INTERVAL_MS. That call covers every watched coin at once, so the cost is fixed no
+     matter how many alerts exist. The interval is therefore the worst-case alert latency, and the
+     trade it buys is roughly 96 credits a day instead of 1,440. */
   const prices = {};
-  const CHUNK_SIZE = 100;
-  for (let i = 0; i < coinIds.length; i += CHUNK_SIZE) {
-    const chunk = coinIds.slice(i, i + CHUNK_SIZE);
-    const res = await cgFetch(`/simple/price?ids=${encodeURIComponent(chunk.join(','))}&vs_currencies=usd`);
-    if (!res.ok) {
-      console.log(pc.yellow(`Price alert check skipped a chunk (status ${res.status}).`));
-      continue;
+  for (const coinId of coinIds) {
+    const cached = findCachedCoinById(coinId);
+    if (cached && cached.current_price != null) prices[coinId] = { usd: cached.current_price };
+  }
+
+  /* Only coins the market cache does not carry cost anything.
+
+     Alerts deliberately ride the cache refresh rather than fetching their own quotes. An earlier
+     version fetched fresh quotes on a timer, which sounds prudent but bought almost nothing: the
+     cache refreshes every 30 minutes, so paying every 20 improved worst-case alert latency from
+     30 minutes to 20 while consuming about a fifth of the entire monthly quota. Following the
+     cache costs nothing and gives up ten minutes.
+
+     What the cache genuinely cannot answer is a coin outside the pre-cached pages, which has no
+     price at all. Those are fetched here, still gated on an interval: without the gate a single
+     alert on an obscure coin would fetch every minute, which is how this cost 1,440 a day
+     originally. In the normal case, where every watched coin is in the cache, this block never
+     runs and alerts are free. */
+  const uncached = coinIds.filter(id => prices[id] === undefined);
+
+  if (uncached.length > 0 && Date.now() - lastAlertLiveFetch >= ALERT_UNCACHED_INTERVAL_MS) {
+    lastAlertLiveFetch = Date.now();
+
+    // CoinGecko accepts a comma-separated id list, so all of them cost one request. Chunked to
+    // keep the URL a sane length if the bot ever ends up watching hundreds of coins.
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < uncached.length; i += CHUNK_SIZE) {
+      const chunk = uncached.slice(i, i + CHUNK_SIZE);
+      const res = await cgFetch(`/simple/price?ids=${encodeURIComponent(chunk.join(','))}&vs_currencies=usd`);
+      if (!res.ok) {
+        console.log(pc.yellow(`Price alert check skipped a chunk (status ${res.status}).`));
+        continue;
+      }
+      Object.assign(prices, await res.json());
     }
-    Object.assign(prices, await res.json());
   }
 
   const triggered = [];
@@ -2905,7 +3124,7 @@ async function ensureHoldingsTable() {
 }
 
 async function setHolding(interaction, coinInput, amount) {
-  const coin = findCachedCoin(coinInput);
+  const coin = await resolveCoin(coinInput);
   if (!coin) {
     await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
     return;
@@ -3000,13 +3219,16 @@ async function showPortfolio(interaction) {
     return;
   }
 
-  // Every timeframe used below is already in the market cache, so none of this costs an API call.
+  // Holdings in the market cache are free. Anything outside it is fetched as one batched request
+  // for the whole portfolio, so a wallet full of obscure tokens costs one credit, not one each.
+  const pricedById = await resolveCoinsByIds(holdings.rows.map(row => row.coin_id));
+
   const priced = [];
   let totalValue = 0;
 
   for (const row of holdings.rows) {
     // By coin_id for the same reason as alerts: symbols are not unique on CoinGecko.
-    const coin = findCachedCoinById(row.coin_id);
+    const coin = pricedById.get(row.coin_id);
     const amount = Number(row.amount);
     if (!coin || coin.current_price == null) {
       priced.push({ symbol: row.symbol, amount, value: null, change24h: null });
@@ -3952,7 +4174,28 @@ function getCoinSuggestions(rawInput) {
     if (exactTickerMatches.length + tickerPrefixMatches.length >= 25) break;
   }
 
-  return [...exactTickerMatches, ...tickerPrefixMatches, ...nameMatches]
+  let results = [...exactTickerMatches, ...tickerPrefixMatches, ...nameMatches];
+
+  /* The market cache only pre-loads the top CG_MAX_PAGES pages, so on its own it would suggest
+     nothing outside the top few hundred coins. cgCoinList carries {id, symbol, name} for every
+     listed coin and costs no credits to search, so the tail of the suggestions comes from there.
+     Whatever the user picks is resolved later by resolveCoin, which pays for one live lookup only
+     if the coin really is outside the cache. */
+  if (results.length < 25 && input !== '') {
+    const seen = new Set(results.map(coin => coin.symbol.toLowerCase()));
+    for (const coin of cgCoinList) {
+      if (!coin || !coin.symbol) continue;
+      const symbol = coin.symbol.toLowerCase();
+      if (seen.has(symbol)) continue;
+      if (symbol.startsWith(input) || (coin.name || '').toLowerCase().includes(input)) {
+        seen.add(symbol);
+        results.push(coin);
+        if (results.length >= 25) break;
+      }
+    }
+  }
+
+  return results
     .slice(0, 25)
     .map(coin => ({
       name: `${coin.symbol.toUpperCase()} — ${coin.name}${coin.market_cap_rank ? ` (#${coin.market_cap_rank})` : ''}`.slice(0, 100),
@@ -4109,6 +4352,10 @@ async function handleUsageCommand(interaction) {
 
     case 'growth':
       await interaction.editReply({ embeds: [await buildUsageGrowth(days, timezone)] });
+      break;
+
+    case 'credits':
+      await interaction.editReply({ embeds: [await buildUsageCredits(days, timezone)] });
       break;
 
     case 'export': {
@@ -5434,17 +5681,58 @@ function cgSleepFloor() {
 const CG_USER_AGENT = 'TsukiBot/1.0 (+https://github.com/EthyMoney/TsukiBot)';
 
 // fetch() wrapper that applies the CoinGecko base URL, auth headers and User-Agent.
-function cgFetch(path, init = {}) {
+/**
+ * The single choke point for every CoinGecko request, which is what makes credit accounting
+ * possible: one call here is one credit, so recording each one gives an exact spend rather than an
+ * estimate. A demo key allows only 10,000 a month, and the endpoint breakdown is the difference
+ * between guessing at where they went and knowing.
+ *
+ * Recording is fire-and-forget through the telemetry buffer, so it adds no latency to the request.
+ *
+ * @param {string} path endpoint path beginning with /
+ * @param {object} [init] fetch options
+ * @returns {Promise<Response>}
+ */
+async function cgFetch(path, init = {}) {
   const apiConfig = getCGRestConfig();
-  return fetch(apiConfig.baseUrl + path, {
-    ...init,
-    headers: {
-      accept: 'application/json',
-      'user-agent': CG_USER_AGENT,
-      ...apiConfig.headers,
-      ...(init.headers || {})
-    }
-  });
+  const startedAt = Date.now();
+  // Group by endpoint, not full URL: the query string carries coin ids and page numbers, which
+  // would make every request its own unique row and the report useless.
+  const endpoint = path.split('?')[0];
+
+  try {
+    const res = await fetch(apiConfig.baseUrl + path, {
+      ...init,
+      headers: {
+        accept: 'application/json',
+        'user-agent': CG_USER_AGENT,
+        ...apiConfig.headers,
+        ...(init.headers || {})
+      }
+    });
+
+    telemetry.recordSystemEvent('coingecko-call', {
+      subcommand: endpoint,
+      params: { endpoint, status: res.status, keyed: cgHasApiKey() },
+      // 429 still consumes the request even though it returns nothing useful, and separating it is
+      // how a rate limit becomes visible in the report instead of looking like ordinary traffic.
+      outcome: res.ok ? 'ok' : (res.status === 429 ? 'ratelimited' : 'error'),
+      errorKind: res.ok ? null : 'HTTP ' + res.status,
+      durationMs: Date.now() - startedAt
+    });
+
+    return res;
+  }
+  catch (err) {
+    telemetry.recordSystemEvent('coingecko-call', {
+      subcommand: endpoint,
+      params: { endpoint, status: 0, keyed: cgHasApiKey() },
+      outcome: 'error',
+      error: err,
+      durationMs: Date.now() - startedAt
+    });
+    throw err;
+  }
 }
 
 /*
@@ -5473,11 +5761,18 @@ async function cgSimplePrice(ids, vsCurrencies) {
 }
 
 async function cgGlobal() {
+  // Global market stats move slowly and this used to be fetched per /mc invocation, so a busy
+  // server could spend more credits here than on the entire market cache.
+  if (cgGlobalCache.data && Date.now() - cgGlobalCache.at < CG_GLOBAL_CACHE_MS) {
+    return cgGlobalCache.data;
+  }
   const res = await cgFetch('/global');
   if (!res.ok) {
     throw new Error(`CoinGecko /global returned HTTP ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  cgGlobalCache = { at: Date.now(), data };
+  return data;
 }
 
 /*
@@ -5691,20 +5986,12 @@ async function runCGDataPass(status) {
   let lastResSize = 0;
   let coinDataJsonArr = [];
   let progressPercentage = 0;
-  let totalCoinsCount = 0;
   const startTime = Date.now();
 
   const isFirstRun = (status == 'firstrun' || cgArrayDictParsed.length == 0);
 
-  // first, lets see how many coins are on the API so we can accurately report progress
-  const resList = await cgFetch('/coins/list?include_platform=false');
-  if (resList.ok) {
-    const data = await resList.json();
-    totalCoinsCount = data.length;
-  }
-  else {
-    throw new Error(`Couldn't get total CG coins (status ${resList.status}), aborting this cache update.`);
-  }
+  // Progress is measured against the page cap. This used to call /coins/list purely to compute a
+  // percentage, which cost a credit on every pass for a cosmetic number.
 
   // query for sets of 250 until we got them all
   do {
@@ -5755,15 +6042,18 @@ async function runCGDataPass(status) {
 
     // progress report for first run (only show if no cache was loaded)
     if (isFirstRun) {
-      progressPercentage = Math.round((coinDataJsonArr.length / totalCoinsCount) * 100);
+      progressPercentage = Math.min(100, Math.round(((page - 1) / CG_MAX_PAGES) * 100));
       console.log(pc.blueBright(` ▶ ${progressPercentage}%`));
       startupProgress = Math.round(progressPercentage); // update global
     }
 
-    if (progressPercentage < 100) {
+    if (progressPercentage < 100 && page <= CG_MAX_PAGES) {
       await sleep(globalCGSleepTimeout); //wait to make next query (CoinGecko is touchy with rate limits)
     }
-  } while (lastResSize == 250);
+    // Stop at the page cap rather than walking all ~16,000 listed coins. A full sweep was 65 pages
+    // every 30 minutes, which is roughly ten times a demo key's entire monthly allowance. Coins
+    // past the cap are still reachable: resolveCoinLive fetches one on demand for a single credit.
+  } while (lastResSize == 250 && page <= CG_MAX_PAGES);
 
   // A clean pass earns back some of the ratchet, so one rate-limited day doesn't slow the bot forever.
   globalCGSleepTimeout = Math.max(cgSleepFloor(), globalCGSleepTimeout - 1000);
@@ -5847,6 +6137,11 @@ async function updateCoins() {
   }
   // Re-read the new set of coins
   pairs_CG_arr = JSON.parse(await fs.promises.readFile('./common/coinsCGtickers.json', 'utf8'));
+  try {
+    cgCoinList = JSON.parse(await fs.promises.readFile('./common/coinsCG.json', 'utf8'));
+  } catch (err) {
+    console.log(pc.yellow('Could not reload the full coin list: ' + err.message));
+  }
   console.log(pc.green(pc.bold('Reloaded known coins')));
 }
 
@@ -5872,6 +6167,14 @@ function initializeFiles() {
     fs.appendFileSync('./common/coinsCGtickers.json', '[]');
     console.log(pc.green('Automatically created new coinsCGtickers.json file.'));
     pairs_CG_arr = JSON.parse(fs.readFileSync('./common/coinsCGtickers.json', 'utf8'));
+  }
+
+  // Full coin list, for resolving anything the market cache does not pre-load.
+  try {
+    cgCoinList = JSON.parse(fs.readFileSync('./common/coinsCG.json', 'utf8'));
+  } catch {
+    cgCoinList = [];
+    console.log(pc.yellow('coinsCG.json missing, so coins outside the market cache cannot be resolved until the next coin list refresh.'));
   }
 
   //server tags

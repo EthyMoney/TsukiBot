@@ -261,6 +261,7 @@ that any server admin can override, and it does not apply in DMs at all.
 | `/usage errors` | What is failing, grouped by fault, plus the slowest commands. |
 | `/usage growth` | New vs returning users per day, and how many days users stay active. |
 | `/usage export` | Download raw events as a CSV attachment. |
+| `/usage credits` | CoinGecko API credit spend by endpoint, with a projection against the 10,000/month demo quota. |
 | `/usage storage` | Table size, row count, and write-buffer health. |
 | `/usage prune` | Permanently delete events older than a cutoff. Requires `confirm: True`. |
 

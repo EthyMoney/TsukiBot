@@ -56,8 +56,11 @@ A few things worth knowing:
 + **Chromium** is located automatically. Set `CHROME_PATH` if yours lives somewhere unusual. The
   sandbox stays enabled; only set `CHROME_NO_SANDBOX=true` if your host truly cannot run it.
 + **A free CoinGecko demo key** makes a big difference. Put it in `keys.api` as `coingecko` (or set
-  `COINGECKO_API_KEY`) and the full market cache refresh drops from roughly half an hour to a few
-  minutes, because the rate limit becomes per-key instead of per-IP.
+  `COINGECKO_API_KEY`) and the market cache refresh gets much faster, because the rate limit becomes
+  per-key instead of per-IP. Note that a demo key is capped at **10,000 credits per month** and one
+  request is one credit, so the bot pre-caches the top `CG_MAX_PAGES` pages (default 4 = top 1,000
+  coins) rather than all ~16,000, and fetches anything rarer on demand. `/usage credits` shows the
+  spend by endpoint against the quota.
 + **Any key can come from the environment** instead of `keys.api`, which is what makes the Docker
   setup work without baking secrets into an image.
 + **Usage telemetry** records every interaction to `tsukibot.usage_events` and is read back with

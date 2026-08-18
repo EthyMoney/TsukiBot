@@ -161,6 +161,72 @@ function perMinuteRate(stats) {
 }
 
 /* --------------------------------------------------------------------------
+ *  External API credits
+ * -------------------------------------------------------------------------- */
+
+/**
+ * CoinGecko spend, broken down by endpoint.
+ *
+ * cgFetch records one row per request, and one request is one credit, so this is an exact count
+ * rather than an estimate. A demo key allows 10,000 a month, which is easy to blow through without
+ * knowing where it went.
+ *
+ * @param {number} days
+ */
+async function getApiCreditsByEndpoint(days) {
+  return query(`
+    SELECT
+      COALESCE(params->>'endpoint', subcommand, 'unknown')       AS endpoint,
+      COUNT(*)                                                   AS calls,
+      COUNT(*) FILTER (WHERE outcome = 'ratelimited')            AS ratelimited,
+      COUNT(*) FILTER (WHERE outcome = 'error')                  AS errors,
+      ROUND(AVG(duration_ms))                                    AS avg_ms,
+      MAX(occurred_at)                                           AS last_call
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval
+      AND command = 'coingecko-call'
+    GROUP BY endpoint
+    ORDER BY calls DESC
+  `, [windowInterval(days)]);
+}
+
+/**
+ * Rolling credit totals, plus a projection.
+ *
+ * The month-to-date figure is what the quota is actually measured against; the 24h rate is what
+ * says whether the current configuration will survive the rest of the month.
+ */
+async function getApiCreditTotals() {
+  const [row] = await query(`
+    SELECT
+      COUNT(*)                                                                    AS calls_total,
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '1 hour')             AS calls_1h,
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '24 hours')           AS calls_24h,
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '7 days')             AS calls_7d,
+      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW()))           AS calls_month,
+      COUNT(*) FILTER (WHERE outcome = 'ratelimited')                             AS ratelimited,
+      MIN(occurred_at)                                                            AS first_call
+    FROM tsukibot.usage_events
+    WHERE command = 'coingecko-call'
+  `);
+  return row;
+}
+
+/**
+ * Credits per day, for the trend line.
+ * @param {number} days
+ * @param {string} timezone
+ */
+async function getApiCreditsByDay(days, timezone) {
+  return query(`
+    SELECT DATE(occurred_at AT TIME ZONE $2) AS day, COUNT(*) AS calls
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval AND command = 'coingecko-call'
+    GROUP BY day ORDER BY day
+  `, [windowInterval(days), normalizeTimezone(timezone)]);
+}
+
+/* --------------------------------------------------------------------------
  *  Leaderboards
  * -------------------------------------------------------------------------- */
 
@@ -578,6 +644,9 @@ module.exports = {
   windowInterval,
   normalizeTimezone,
   getActivityRate,
+  getApiCreditsByEndpoint,
+  getApiCreditTotals,
+  getApiCreditsByDay,
   perMinuteRate,
   getOverview,
   getTopCommands,
