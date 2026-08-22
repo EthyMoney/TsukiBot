@@ -205,7 +205,14 @@ Monday digest to the application owner without any configuration.
                   cookie). It listens on loopback, so open it on the machine the
                   bot runs on or through an SSH tunnel (ssh -L 8090:127.0.0.1:8090
                   host). "publicUrl" is only what the link says, for when a
-                  tunnel or reverse proxy changes the address. Environment:
+                  tunnel or reverse proxy changes the address.
+                  To reach it from other devices on your network set
+                  "host": "0.0.0.0"; the sign-in link then carries the
+                  machine's LAN address automatically (virtual adapters such
+                  as WSL, Hyper-V and VPN overlays are skipped). Windows will
+                  ask once to allow node.exe through the firewall on private
+                  networks. It is plain HTTP behind a random sign-in token,
+                  so keep it to networks you trust. Environment:
                   TSUKIBOT_DASHBOARD_ENABLED / _HOST / _PORT / _URL.
                   In Docker set host to 0.0.0.0 and publish "127.0.0.1:8090:8090";
                   see docker-compose.yml.

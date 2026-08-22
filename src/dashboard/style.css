@@ -286,6 +286,21 @@ table.data tr.selected { background: rgba(157, 141, 255, .12); }
 .heat-legend { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 8px; }
 .heat-legend .scale { width: 140px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--bg), var(--accent)); border: 1px solid var(--border); }
 
+/* ---- features (standing state) ------------------------------------------ */
+
+.feature-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1200px) { .feature-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .feature-groups { grid-template-columns: 1fr; } }
+.feature-group { display: flex; flex-direction: column; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px 12px; margin-bottom: 12px; }
+.stat { min-width: 0; }
+.stat-value { font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+/* margin-top: auto pins the activity footer to the bottom so the four groups line up. */
+.feature-activity { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.6; }
+.feature-activity .bad { color: var(--red); }
+.feature-activity .warn { color: var(--amber); }
+
 /* ---- filters & misc ----------------------------------------------------- */
 
 .filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }

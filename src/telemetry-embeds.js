@@ -972,6 +972,138 @@ async function buildUsageFunnel(days, limit, { image = false } = {}) {
   return textOnly(embed);
 }
 
+/**
+ * What users have set up, as opposed to what they ran: standing price alerts,
+ * portfolios, scheduled posts and watchlists, with the window's activity
+ * against each and the change since the snapshot taken `days` ago.
+ * @param {number} days
+ * @param {number} limit rows per "top coins" list
+ * @param {{image?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
+ */
+async function buildUsageFeatures(days, limit, { image = false } = {}) {
+  const [inventory, activity, delta] = await Promise.all([
+    telemetryReports.getFeatureInventory(limit),
+    telemetryReports.getFeatureActivity(days),
+    // The snapshot table fills in daily; a fresh install has no trend yet and that is fine.
+    telemetryReports.getFeatureSnapshotDelta(days).catch(() => ({ latest: null, prior: null }))
+  ]);
+  const { alerts, portfolios, schedules, watchlists } = inventory;
+  const embed = usageEmbed('What users have set up', days);
+  const n = (v) => Number(v) || 0;
+
+  const totalThings = n(alerts.total) + n(portfolios.holdings) + n(schedules.jobs) + n(watchlists.users);
+  if (totalThings === 0) {
+    return textOnly(embed.setDescription('Nothing is set up yet: no price alerts, portfolios, scheduled posts or watchlists.'));
+  }
+
+  const change = (a, b) => { const v = n(a) - n(b); return v === 0 ? '±0' : (v > 0 ? '+' : '') + v; };
+  embed.setDescription(
+    `**${render.compactNumber(alerts.total)}** active price alerts · **${render.compactNumber(portfolios.users)}** portfolios · ` +
+    `**${render.compactNumber(schedules.jobs)}** scheduled posts in **${render.compactNumber(schedules.guilds)}** servers · ` +
+    `**${render.compactNumber(watchlists.users)}** watchlists.` +
+    (delta.latest && delta.prior
+      ? `\nSince ${days} day${days === 1 ? '' : 's'} ago: alerts ${change(delta.latest.alerts, delta.prior.alerts)}, ` +
+        `portfolios ${change(delta.latest.portfolio_users, delta.prior.portfolio_users)}, ` +
+        `schedules ${change(delta.latest.schedules, delta.prior.schedules)}, ` +
+        `watchlists ${change(delta.latest.watchlists, delta.prior.watchlists)}.`
+      : ''));
+
+  embed.addFields(
+    {
+      name: 'Price alerts', inline: true,
+      value: render.codeBlock(render.renderKeyValue([
+        ['Active', render.compactNumber(alerts.total)],
+        ['Users', render.compactNumber(alerts.users)],
+        ['Coins', render.compactNumber(alerts.coins)],
+        ['Above / below', `${render.compactNumber(alerts.above)} / ${render.compactNumber(alerts.below)}`],
+        ['Expiring 7d', render.compactNumber(alerts.expiring_7d)],
+        ['Most per user', render.compactNumber(alerts.max_per_user)],
+        [`Set (${days}d)`, render.compactNumber(activity.alerts_created)],
+        [`Fired (${days}d)`, render.compactNumber(activity.alerts_fired)],
+        ['  via DM / chan', `${render.compactNumber(activity.alerts_dm)} / ${render.compactNumber(activity.alerts_channel)}`],
+        ['  undeliverable', render.compactNumber(activity.alerts_failed)]
+      ]))
+    },
+    {
+      name: 'Portfolios', inline: true,
+      value: render.codeBlock(render.renderKeyValue([
+        ['Users', render.compactNumber(portfolios.users)],
+        ['Holdings', render.compactNumber(portfolios.holdings)],
+        ['Coins', render.compactNumber(portfolios.coins)],
+        ['Avg per user', n(portfolios.users) ? (n(portfolios.holdings) / n(portfolios.users)).toFixed(1) : '0'],
+        ['Most per user', render.compactNumber(portfolios.max_holdings)],
+        [`Set (${days}d)`, render.compactNumber(activity.portfolio_sets)],
+        [`Viewed by (${days}d)`, render.compactNumber(activity.portfolio_users) + ' users']
+      ]))
+    },
+    {
+      name: 'Scheduled posts', inline: true,
+      value: render.codeBlock(render.renderKeyValue([
+        ['Jobs', render.compactNumber(schedules.jobs)],
+        ['Servers', render.compactNumber(schedules.guilds)],
+        ['Set up by', render.compactNumber(schedules.users) + ' users'],
+        ['Never run', render.compactNumber(schedules.never_run)],
+        ['Stale', render.compactNumber(schedules.stale)],
+        [`Created (${days}d)`, render.compactNumber(activity.schedules_created)],
+        [`Deleted (${days}d)`, render.compactNumber(activity.schedules_deleted)],
+        [`Posts run (${days}d)`, render.compactNumber(activity.posts_run)],
+        ['  failed', render.compactNumber(activity.posts_failed)]
+      ]))
+    },
+    {
+      name: 'Watchlists', inline: true,
+      value: render.codeBlock(render.renderKeyValue([
+        ['Users', render.compactNumber(watchlists.users)],
+        ['Entries', render.compactNumber(watchlists.entries)],
+        ['Coins', render.compactNumber(watchlists.coins)],
+        ['Avg size', n(watchlists.users) ? (n(watchlists.entries) / n(watchlists.users)).toFixed(1) : '0'],
+        ['Largest', render.compactNumber(watchlists.max_size)],
+        [`Uses (${days}d)`, render.compactNumber(activity.watchlist_uses)],
+        [`Users (${days}d)`, render.compactNumber(activity.watchlist_users)]
+      ]))
+    }
+  );
+
+  if (image) {
+    return withChart(embed, 'features', charts.featuresChart({ inventory, activity, delta, days }));
+  }
+
+  if (inventory.alertCoins.length > 0) {
+    embed.addFields({
+      name: 'Alerts by coin',
+      value: render.codeBlock(render.renderBarChart(
+        inventory.alertCoins.slice(0, 10).map(row => ({ label: row.symbol, value: n(row.alerts) })),
+        { width: 14, labelWidth: 8 }))
+    });
+  }
+  if (inventory.scheduleCommands.length > 0) {
+    embed.addFields({
+      name: 'Scheduled posts by type',
+      value: render.codeBlock(render.renderBarChart(
+        inventory.scheduleCommands.map(row => ({ label: '/' + row.command, value: n(row.jobs) })),
+        { width: 14, labelWidth: 10 })), inline: true
+    });
+  }
+  if (inventory.watchlistCoins.length > 0) {
+    embed.addFields({
+      name: 'Watchlist favourites',
+      value: render.codeBlock(render.renderBarChart(
+        inventory.watchlistCoins.slice(0, 10).map(row => ({ label: row.coin, value: n(row.users) })),
+        { width: 14, labelWidth: 8 })), inline: true
+    });
+  }
+  if (inventory.portfolioCoins.length > 0) {
+    embed.addFields({
+      name: 'Most held coins',
+      value: render.codeBlock(render.renderBarChart(
+        inventory.portfolioCoins.slice(0, 10).map(row => ({ label: row.symbol, value: n(row.holders) })),
+        { width: 14, labelWidth: 8 })), inline: true
+    });
+  }
+  return textOnly(embed);
+}
+
 /* --------------------------------------------------------------------------
  *  Dispatch
  * -------------------------------------------------------------------------- */
@@ -996,6 +1128,7 @@ const REPORTS = {
   growth: { label: 'Growth', build: (s) => buildUsageGrowth(s.days, s.timezone, { image: s.image }) },
   funnel: { label: 'Search funnel', build: (s) => buildUsageFunnel(s.days, s.limit, { image: s.image }) },
   credits: { label: 'CoinGecko credits', build: (s) => buildUsageCredits(s.days, s.timezone, { image: s.image, compare: s.compare }) },
+  features: { label: 'Alerts, portfolios, schedules, watchlists', build: (s) => buildUsageFeatures(s.days, s.limit, { image: s.image }) },
   storage: { label: 'Storage', build: (s) => buildUsageStorage(s.days) }
 };
 
@@ -1041,6 +1174,7 @@ module.exports = {
   buildUsageStorage,
   buildUsageTrending,
   buildUsageFunnel,
+  buildUsageFeatures,
   buildUsageReport,
   REPORTS,
   REPORT_NAMES,

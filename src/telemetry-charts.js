@@ -972,6 +972,101 @@ function weekOverWeekChart({ series, title = 'This week vs last week', metricLab
   });
 }
 
+/**
+ * What users have set up: standing alerts, portfolios, scheduled posts and
+ * watchlists, as four quadrants each with its headline counts and a short bar
+ * list of the coins (or post types) involved.
+ * @param {object} data
+ * @param {object} data.inventory a getFeatureInventory result
+ * @param {object} [data.activity] a getFeatureActivity row, for the footer
+ * @param {{latest: object|null, prior: object|null}} [data.delta] snapshots for the subtitle
+ * @param {number} data.days
+ * @returns {string} svg
+ */
+function featuresChart({ inventory, activity = null, delta = null, days }) {
+  const inv = inventory || {};
+  const alerts = inv.alerts || {};
+  const portfolios = inv.portfolios || {};
+  const schedules = inv.schedules || {};
+  const watchlists = inv.watchlists || {};
+  const parts = [];
+
+  const quadrant = (col, row, title, kpi, items, color, emptyText, note = '') => {
+    const x = 24 + col * 368;
+    const y = 66 + row * 252;
+    const width = 344;
+    parts.push(rect(x, y, width, 236, { fill: COLORS.panel, radius: 10 }));
+    parts.push(text(x + 14, y + 22, title.toUpperCase(), { size: 10.5, weight: 600 }));
+    parts.push(text(x + 14, y + 44, clip(kpi, 42), { size: 13, color: COLORS.text, weight: 600 }));
+    if (note) parts.push(text(x + 14, y + 60, clip(note, 52), { size: 10.5 }));
+    const max = Math.max(1, ...items.map(item => item.value));
+    const rowHeight = 30;
+    const barsTop = y + (note ? 70 : 56);
+    items.slice(0, 5).forEach((item, i) => {
+      parts.push(barRow({
+        x: x + 14, y: barsTop + i * rowHeight, width: width - 28 - 96, rowHeight,
+        label: clip(item.label, 12), labelWidth: 88, value: item.value, max, color,
+        valueText: item.text
+      }));
+    });
+    if (items.length === 0) parts.push(text(x + 14, barsTop + 24, emptyText, { size: 11.5 }));
+  };
+
+  quadrant(0, 0, 'Price alerts',
+    `${fmt(alerts.total)} active · ${fmt(alerts.users)} users · ${fmt(alerts.coins)} coins`,
+    (inv.alertCoins || []).map(row => ({
+      label: row.symbol, value: num(row.alerts),
+      text: `${fmt(row.alerts)} · ${fmt(row.users)}u · ▲${fmt(row.above)} ▼${fmt(row.below)}`
+    })),
+    COLORS.amber, 'No price alerts set.');
+
+  quadrant(1, 0, 'Portfolios',
+    `${fmt(portfolios.users)} users · ${fmt(portfolios.holdings)} holdings · ${fmt(portfolios.coins)} coins`,
+    (inv.portfolioCoins || []).map(row => ({
+      label: row.symbol, value: num(row.holders), text: `${fmt(row.holders)} holder${num(row.holders) === 1 ? '' : 's'}`
+    })),
+    COLORS.green, 'No portfolios yet.');
+
+  const intervalLabel = (minutes) => {
+    const m = num(minutes);
+    if (m >= 1440) return m === 1440 ? 'daily' : `${Math.round(m / 1440)}d`;
+    if (m >= 60) return `${Math.round(m / 60)}h`;
+    return `${m}m`;
+  };
+  const intervals = (inv.scheduleIntervals || []).map(row => `${intervalLabel(row.interval_minutes)} ×${fmt(row.jobs)}`).join(' ');
+  quadrant(0, 1, 'Scheduled posts',
+    `${fmt(schedules.jobs)} jobs · ${fmt(schedules.guilds)} servers` + (num(schedules.stale) ? ` · ${fmt(schedules.stale)} stale` : ''),
+    (inv.scheduleCommands || []).map(row => ({
+      label: '/' + row.command, value: num(row.jobs), text: `${fmt(row.jobs)} · ${fmt(row.guilds)} server${num(row.guilds) === 1 ? '' : 's'}`
+    })),
+    COLORS.blue, 'No scheduled posts.', intervals ? `every ${intervals}` : '');
+
+  quadrant(1, 1, 'Watchlists',
+    `${fmt(watchlists.users)} users · ${fmt(watchlists.entries)} entries · ${fmt(watchlists.coins)} coins`,
+    (inv.watchlistCoins || []).map(row => ({
+      label: row.coin, value: num(row.users), text: `on ${fmt(row.users)} list${num(row.users) === 1 ? '' : 's'}`
+    })),
+    COLORS.primary, 'No watchlists yet.');
+
+  // Subtitle: change since the prior snapshot, when there is one.
+  let subtitle = '';
+  if (delta && delta.latest && delta.prior) {
+    const d = (a, b) => { const v = num(a) - num(b); return v === 0 ? '=' : (v > 0 ? '+' : '') + v; };
+    subtitle = `vs ${days}d ago: alerts ${d(delta.latest.alerts, delta.prior.alerts)} · portfolios ${d(delta.latest.portfolio_users, delta.prior.portfolio_users)}` +
+      ` · schedules ${d(delta.latest.schedules, delta.prior.schedules)} · watchlists ${d(delta.latest.watchlists, delta.prior.watchlists)}`;
+  }
+
+  const a = activity || {};
+  const footer = activity
+    ? `last ${days}d: ${fmt(a.alerts_created)} alerts set · ${fmt(a.alerts_fired)} fired` +
+      (num(a.alerts_failed) ? ` (${fmt(a.alerts_failed)} undeliverable)` : '') +
+      ` · ${fmt(a.portfolio_sets)} holdings set · ${fmt(a.schedules_created)} schedules created · ${fmt(a.posts_run)} posts run` +
+      (num(a.posts_failed) ? ` (${fmt(a.posts_failed)} failed)` : '') +
+      ` · ${fmt(a.watchlist_uses)} watchlist uses`
+    : 'Standing state right now';
+  return card({ title: 'What users have set up', subtitle, body: parts.join(''), footer });
+}
+
 /* --------------------------------------------------------------------------
  *  Rasterising
  * -------------------------------------------------------------------------- */
@@ -1027,6 +1122,7 @@ module.exports = {
   momentumChart,
   funnelChart,
   weekOverWeekChart,
+  featuresChart,
   // exposed for tests
   dayKey,
   dayLabel,

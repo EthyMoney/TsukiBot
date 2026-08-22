@@ -64,6 +64,7 @@
 // Node stuff
 const process = require('node:process');
 const crypto = require('node:crypto');
+const os = require('node:os');
 
 // Dev mode to disable unnecessary operations for testing
 const devMode = (process.argv[2] === '-d') ? true : false;
@@ -285,12 +286,39 @@ const usageDashboard = createDashboard({
 });
 let usageInsights = null; // created on clientReady, once there is a client to DM through
 
+/** Whether the dashboard is bound to every interface rather than loopback. */
+function usageDashboardOnLan() {
+  const { host } = usageConfig.dashboard;
+  return host === '0.0.0.0' || host === '::';
+}
+
+/**
+ * The machine's LAN IPv4 address, for the sign-in link when the dashboard is
+ * bound to every interface. Virtual adapters (WSL, Hyper-V, Docker, VPN
+ * overlays) are passed over in favour of a real one, because a link to
+ * 172.x from a Hyper-V switch helps nobody on the home network. Falls back to
+ * loopback when nothing better exists.
+ * @returns {string}
+ */
+function lanAddress() {
+  const virtual = /vethernet|wsl|hyper-v|docker|vbox|virtualbox|vmware|vmnet|zerotier|tailscale|wireguard|tun|tap|loopback/i;
+  const candidates = [];
+  for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
+    for (const address of addresses || []) {
+      if (address.family === 'IPv4' && !address.internal) {
+        candidates.push({ name, address: address.address, virtual: virtual.test(name) });
+      }
+    }
+  }
+  const preferred = candidates.find(c => !c.virtual) || candidates[0];
+  return preferred ? preferred.address : '127.0.0.1';
+}
+
 /** The URL the owner opens the dashboard at, as reached from their browser. */
 function usageDashboardUrl() {
   const { publicUrl, host, port } = usageConfig.dashboard;
   if (publicUrl) return publicUrl;
-  const reachableHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
-  return `http://${reachableHost}:${port}`;
+  return `http://${usageDashboardOnLan() ? lanAddress() : host}:${port}`;
 }
 
 /** Whether /usage replies should carry chart images right now. */
@@ -4155,6 +4183,18 @@ client.on('clientReady', () => {
   ensureSchedulesTable().catch(logStartupFailure('ensureSchedulesTable'));
   telemetry.ensureTelemetryTable().catch(logStartupFailure('ensureTelemetryTable'));
 
+  // Daily snapshots of what users have set up (alerts, portfolios, schedules, watchlists), which is
+  // what gives /usage features a trend. One is taken now so a fresh install has a first point, then
+  // one a day just after midnight. Restarts add extra rows; the readers keep the latest per day.
+  telemetryReports.ensureFeatureSnapshotsTable()
+    .then(() => telemetryReports.recordFeatureSnapshot())
+    .catch(logStartupFailure('feature snapshot'));
+  schedule.scheduleJob('5 0 * * *', () => {
+    telemetryReports.recordFeatureSnapshot().catch(err => {
+      console.log(pc.red('Feature snapshot failed: ' + pc.cyan(err && err.message ? err.message : err)));
+    });
+  });
+
   // Resolve who owns the application so /usage has an admin list even when keys.api defines none.
   // Team-owned apps report a team instead of a user, so every team member is accepted.
   client.application.fetch()
@@ -4542,7 +4582,9 @@ async function handleUsageCommand(interaction) {
           'Opening it sets a session cookie and drops the token from the address bar. ' +
           (usageConfig.dashboard.publicUrl
             ? ''
-            : 'The dashboard listens on loopback, so the link works from the machine the bot runs on (or through an SSH tunnel).')
+            : usageDashboardOnLan()
+              ? 'The dashboard is reachable from any device on the same network as the bot; the link carries its current LAN address.'
+              : 'The dashboard listens on loopback, so the link works from the machine the bot runs on (or through an SSH tunnel).')
       });
       break;
     }

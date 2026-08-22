@@ -65,6 +65,10 @@ const DEFAULT_DAYS = 30;
 const MAX_DAYS = 3650;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
+// The Features tab's "top coins" lists are short by design: they sit beside a
+// chart each, and the inventory queries group whole tables rather than a window.
+const DEFAULT_FEATURE_LIMIT = 10;
+const MAX_FEATURE_LIMIT = 50;
 
 const STATIC_DIR = path.join(__dirname, 'dashboard');
 
@@ -514,6 +518,18 @@ function createDashboard({
       reports.getAbandonedSearches(days, limit)
     ]);
     return { funnel, abandoned };
+  }));
+
+  // Standing state (alerts, portfolios, schedules, watchlists) plus what happened
+  // to those features in the window and the daily snapshots that give it a trend.
+  api.get('/features', handle(async (req, { days }) => {
+    const limit = clampInt(req.query.limit, 1, MAX_FEATURE_LIMIT, DEFAULT_FEATURE_LIMIT);
+    const [inventory, activity, snapshots] = await Promise.all([
+      reports.getFeatureInventory(limit),
+      reports.getFeatureActivity(days),
+      reports.getFeatureSnapshots(days)
+    ]);
+    return { inventory, activity, snapshots: plainDays(snapshots) };
   }));
 
   api.get('/events', handle(async (req, { days, limit }) => {

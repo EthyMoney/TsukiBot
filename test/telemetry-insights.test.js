@@ -825,3 +825,44 @@ test('a forced check reports everything tripped without touching the debounce or
   assert.deepEqual(alerts.map(a => a.key), ['dropped-batches', 'rate-limited'], 'a forced run always states the total dropped since restart');
   assert.deepEqual(await insights.checkWatchdog(), [], 'and the scheduled debounce is intact');
 });
+
+/* --------------------------------------------
+    What users have set up (feature snapshots)
+  -------------------------------------------- */
+
+test('digest reports the standing state with its change when snapshots exist', async () => {
+  const { insights } = setup({
+    reports: makeReports({
+      getFeatureSnapshotDelta: () => ({
+        latest: { alerts: '42', portfolio_users: '23', schedules: '9', watchlists: '34' },
+        prior: { alerts: '40', portfolio_users: '23', schedules: '10', watchlists: '30' }
+      })
+    })
+  });
+  const { embed } = await insights.buildWeeklyDigest();
+  const field = embed.toJSON().fields.find(f => f.name.startsWith('Set up'));
+  assert.ok(field, 'expected a "Set up" field');
+  assert.match(field.name, /vs 7 days ago/);
+  assert.match(field.value, /Price alerts \*\*42\*\* \(▲ \+5%\)/);
+  assert.match(field.value, /Portfolios \*\*23\*\* \(= 0%\)/);
+  assert.match(field.value, /Scheduled posts \*\*9\*\* \(▼ 10%\)/);
+  assert.match(field.value, /Watchlists \*\*34\*\* \(▲ \+13%\)/);
+});
+
+test('digest shows the standing state without deltas when only one snapshot exists, and skips it with none', async () => {
+  const one = setup({
+    reports: makeReports({
+      getFeatureSnapshotDelta: () => ({ latest: { alerts: '3', portfolio_users: '1', schedules: '0', watchlists: '2' }, prior: null })
+    })
+  });
+  const field = (await one.insights.buildWeeklyDigest()).embed.toJSON().fields.find(f => f.name.startsWith('Set up'));
+  assert.ok(field);
+  assert.equal(field.name, 'Set up');
+  assert.match(field.value, /Price alerts \*\*3\*\* · Portfolios \*\*1\*\*/);
+  assert.ok(!field.value.includes('▲'), 'no deltas without a prior snapshot');
+
+  const none = setup({ reports: makeReports({ getFeatureSnapshotDelta: () => ({ latest: null, prior: null }) }) });
+  const fields = (await none.insights.buildWeeklyDigest()).embed.toJSON().fields;
+  assert.ok(!fields.some(f => f.name.startsWith('Set up')));
+  assert.equal(none.state.errors.length, 0, 'an empty snapshot table is not an error');
+});

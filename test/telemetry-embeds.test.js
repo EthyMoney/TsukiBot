@@ -64,6 +64,22 @@ function makePool(overrides = {}) {
     ],
     'WHERE NOT EXISTS': [{ command: 'price', query: 'hypercoin', searches: '6', users: '4' }],
     'WITH current_users AS': [{ active: '61', retained: '40', churned: '9', resurrected: '4' }],
+    // feature inventory
+    'AS max_per_user': [{ total: '42', users: '17', coins: '12', above: '30', below: '12', with_expiry: '5', expiring_7d: '2', oldest: ago(90000), newest: ago(30), max_per_user: '6' }],
+    'AS alerts,': [{ symbol: 'BTC', alerts: '12', users: '9', above: '8', below: '4' }, { symbol: 'ETH', alerts: '7', users: '6', above: '5', below: '2' }],
+    'AS max_holdings': [{ users: '23', holdings: '88', coins: '31', max_holdings: '14' }],
+    'AS holders': [{ symbol: 'BTC', holders: '19' }, { symbol: 'SOL', holders: '11' }],
+    'AS never_run': [{ jobs: '9', guilds: '6', users: '7', never_run: '1', stale: '1', oldest_run: ago(9000), latest_run: ago(12) }],
+    'GROUP BY command ORDER BY jobs DESC': [{ command: 'hmap', jobs: '4', guilds: '4' }, { command: 'fg', jobs: '3', guilds: '2' }],
+    'GROUP BY interval_minutes': [{ interval_minutes: 60, jobs: '5' }, { interval_minutes: 1440, jobs: '4' }],
+    'CARDINALITY(coins)': [{ users: '34', entries: '210', max_size: '22', coins: '61' }],
+    'GROUP BY UPPER(c)': [{ coin: 'BTC', users: '29' }, { coin: 'ETH', users: '24' }],
+    'AS alerts_created': [{
+      alerts_created: '15', alerts_removed: '3', alert_users: '11', alerts_fired: '9', alerts_dm: '7', alerts_channel: '1', alerts_failed: '1',
+      portfolio_uses: '60', portfolio_users: '14', portfolio_sets: '22', schedules_created: '2', schedules_deleted: '1',
+      posts_run: '300', posts_failed: '4', watchlist_uses: '80', watchlist_users: '20'
+    }],
+    'FROM tsukibot.feature_snapshots': [{ taken_at: ago(10), alerts: '42', alert_users: '17', holdings: '88', portfolio_users: '23', schedules: '9', schedule_guilds: '6', watchlists: '34', watchlist_entries: '210' }],
 
     // ---- the originals ----
     'AS events_1h': [{
@@ -158,6 +174,11 @@ function emptyPool() {
       if (text.includes('AS calls_total')) return { rows: [{ calls_total: '0', calls_1h: '0', calls_24h: '0', calls_7d: '0', calls_month: '0', ratelimited: '0', first_call: null }] };
       if (text.includes('AS prior_month_same_point')) return { rows: [{ month_to_date: '0', prior_month_same_point: '0', prior_month_total: '0' }] };
       if (text.includes('WITH current_users AS')) return { rows: [{ active: '0', retained: '0', churned: '0', resurrected: '0' }] };
+      if (text.includes('AS max_per_user')) return { rows: [{ total: '0', users: '0', coins: '0', above: '0', below: '0', with_expiry: '0', expiring_7d: '0', oldest: null, newest: null, max_per_user: null }] };
+      if (text.includes('AS max_holdings')) return { rows: [{ users: '0', holdings: '0', coins: '0', max_holdings: null }] };
+      if (text.includes('AS never_run')) return { rows: [{ jobs: '0', guilds: '0', users: '0', never_run: '0', stale: '0', oldest_run: null, latest_run: null }] };
+      if (text.includes('CARDINALITY(coins)')) return { rows: [{ users: '0', entries: '0', max_size: '0', coins: '0' }] };
+      if (text.includes('AS alerts_created')) return { rows: [{ alerts_created: '0', alerts_removed: '0', alert_users: '0', alerts_fired: '0', alerts_dm: '0', alerts_channel: '0', alerts_failed: '0', portfolio_uses: '0', portfolio_users: '0', portfolio_sets: '0', schedules_created: '0', schedules_deleted: '0', posts_run: '0', posts_failed: '0', watchlist_uses: '0', watchlist_users: '0' }] };
       return { rows: [] };
     }
   };
@@ -177,7 +198,8 @@ const BUILDERS = [
   ['credits', (d, tz, o) => embeds.buildUsageCredits(d, tz, o)],
   ['storage', (d) => embeds.buildUsageStorage(d)],
   ['trending', (d, tz, o) => embeds.buildUsageTrending(d, 15, o)],
-  ['funnel', (d, tz, o) => embeds.buildUsageFunnel(d, 15, o)]
+  ['funnel', (d, tz, o) => embeds.buildUsageFunnel(d, 15, o)],
+  ['features', (d, tz, o) => embeds.buildUsageFeatures(d, 15, o)]
 ];
 
 function assertWellFormed(name, json) {
@@ -235,7 +257,7 @@ for (const [name, build] of BUILDERS) {
 
   -------------------------------------------- */
 
-const IMAGE_REPORTS = ['overview', 'commands', 'activity', 'errors', 'growth', 'credits', 'trending', 'funnel'];
+const IMAGE_REPORTS = ['overview', 'commands', 'activity', 'errors', 'growth', 'credits', 'trending', 'funnel', 'features'];
 
 for (const [name, build] of BUILDERS.filter(([n]) => IMAGE_REPORTS.includes(n))) {
   test(`/usage ${name} with images returns an SVG chart and names the attachment`, async () => {
@@ -252,7 +274,7 @@ for (const [name, build] of BUILDERS.filter(([n]) => IMAGE_REPORTS.includes(n)))
 
     // The unicode sparkline and block bars are what the image replaces.
     const fieldNames = (json.fields || []).map(f => f.name);
-    assert.ok(!fieldNames.some(n => /^Daily volume|^Share$|^By hour|^Heatmap|^Daily active users|^Where the credits go|^Daily credits|^Risers|^Fallers/.test(n)),
+    assert.ok(!fieldNames.some(n => /^Daily volume|^Share$|^By hour|^Heatmap|^Daily active users|^Where the credits go|^Daily credits|^Risers|^Fallers|^Alerts by coin|^Watchlist favourites|^Most held coins|^Scheduled posts by type/.test(n)),
       `/usage ${name} kept a text chart field alongside the image: ${fieldNames.join(', ')}`);
   });
 }
@@ -337,6 +359,25 @@ test('/usage coins, errors and credits accept compare without leaking', async ()
   }
   const { embed } = await embeds.buildUsageCredits(30, 'UTC', { compare: true });
   assert.match(embed.toJSON().description, /Last month at this point/);
+});
+
+test('/usage features reports standing state, window activity and the change since the snapshot', async () => {
+  reports.init({ dbPool: makePool() });
+  const { embed } = await embeds.buildUsageFeatures(30, 15);
+  const json = embed.toJSON();
+  assert.match(json.description, /\*\*42\*\* active price alerts/);
+  assert.match(json.description, /\*\*23\*\* portfolios/);
+  assert.match(json.description, /\*\*9\*\* scheduled posts in \*\*6\*\* servers/);
+  assert.match(json.description, /\*\*34\*\* watchlists/);
+  assert.match(json.description, /Since 30 days ago: alerts ±0/, 'the same snapshot on both sides is a zero change');
+  const names = json.fields.map(f => f.name);
+  for (const expected of ['Price alerts', 'Portfolios', 'Scheduled posts', 'Watchlists', 'Alerts by coin', 'Watchlist favourites', 'Most held coins', 'Scheduled posts by type']) {
+    assert.ok(names.includes(expected), `missing field ${expected}: ${names.join(', ')}`);
+  }
+  const alertsField = json.fields.find(f => f.name === 'Price alerts').value;
+  assert.match(alertsField, /Above \/ below\s+30 \/ 12/);
+  assert.match(alertsField, /Fired \(30d\)\s+9/);
+  assertWellFormed('features', json);
 });
 
 test('deltaText describes change compactly', () => {

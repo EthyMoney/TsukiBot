@@ -1083,10 +1083,298 @@ async function getRecentRateLimits(hours) {
   return row;
 }
 
+/* --------------------------------------------------------------------------
+ *  Feature inventory
+ *
+ *  usage_events says what people DID; these say what they HAVE. Standing
+ *  alerts, portfolios, scheduled posts and watchlists live in their own tables
+ *  (see docs/schema-additions.sql and the original profiles table), and a
+ *  report on "how is the bot actually used" has to read both.
+ *
+ *  Watchlists are the awkward one: tsukibot.profiles stores each user's list
+ *  as one character(1000) string like "{btc,eth,sol}", so it is split with
+ *  string functions. The splitting CTE is shared by the two watchlist queries.
+ * -------------------------------------------------------------------------- */
+
+const WATCHLIST_CTE = `
+    WITH lists AS (
+      SELECT id,
+             ARRAY_REMOVE(STRING_TO_ARRAY(REGEXP_REPLACE(TRIM(coins), '[{}\\s]', '', 'g'), ','), '') AS coins
+      FROM tsukibot.profiles
+      WHERE coins IS NOT NULL
+    )`;
+
+/** Standing price alerts. */
+async function getAlertSummary() {
+  const [row] = await query(`
+    SELECT
+      COUNT(*)                                                   AS total,
+      COUNT(DISTINCT user_id)                                    AS users,
+      COUNT(DISTINCT UPPER(symbol))                              AS coins,
+      COUNT(*) FILTER (WHERE direction = 'above')                AS above,
+      COUNT(*) FILTER (WHERE direction = 'below')                AS below,
+      COUNT(*) FILTER (WHERE expires_at IS NOT NULL)             AS with_expiry,
+      COUNT(*) FILTER (WHERE expires_at IS NOT NULL
+                         AND expires_at < NOW() + INTERVAL '7 days') AS expiring_7d,
+      MIN(created_at)                                            AS oldest,
+      MAX(created_at)                                            AS newest,
+      (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM tsukibot.pricealerts GROUP BY user_id) per_user) AS max_per_user
+    FROM tsukibot.pricealerts
+  `);
+  return row || {};
+}
+
+/**
+ * The coins people are watching for a price, with how many people and which way.
+ * @param {number} limit
+ */
+async function getAlertCoins(limit) {
+  return query(`
+    SELECT UPPER(symbol)                               AS symbol,
+           COUNT(*)                                    AS alerts,
+           COUNT(DISTINCT user_id)                     AS users,
+           COUNT(*) FILTER (WHERE direction = 'above') AS above,
+           COUNT(*) FILTER (WHERE direction = 'below') AS below
+    FROM tsukibot.pricealerts
+    GROUP BY UPPER(symbol)
+    ORDER BY alerts DESC, users DESC
+    LIMIT $1
+  `, [limit]);
+}
+
+/** Portfolios: who tracks holdings and how many. Amounts are never aggregated. */
+async function getPortfolioSummary() {
+  const [row] = await query(`
+    SELECT
+      COUNT(DISTINCT user_id)      AS users,
+      COUNT(*)                     AS holdings,
+      COUNT(DISTINCT coin_id)      AS coins,
+      (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM tsukibot.holdings GROUP BY user_id) per_user) AS max_holdings
+    FROM tsukibot.holdings
+  `);
+  return row || {};
+}
+
+/**
+ * The most commonly held coins, by number of holders rather than amount.
+ * @param {number} limit
+ */
+async function getPortfolioCoins(limit) {
+  return query(`
+    SELECT UPPER(symbol) AS symbol, COUNT(DISTINCT user_id) AS holders
+    FROM tsukibot.holdings
+    GROUP BY UPPER(symbol)
+    ORDER BY holders DESC
+    LIMIT $1
+  `, [limit]);
+}
+
+/** Recurring posts: how many, where, and whether they are still running. */
+async function getScheduleSummary() {
+  const [row] = await query(`
+    SELECT
+      COUNT(*)                                      AS jobs,
+      COUNT(DISTINCT guild_id)                      AS guilds,
+      COUNT(DISTINCT created_by)                    AS users,
+      COUNT(*) FILTER (WHERE last_run IS NULL)      AS never_run,
+      COUNT(*) FILTER (WHERE last_run IS NOT NULL
+                         AND last_run + (interval_minutes * 2 * INTERVAL '1 minute') < NOW()) AS stale,
+      MIN(last_run)                                 AS oldest_run,
+      MAX(last_run)                                 AS latest_run
+    FROM tsukibot.scheduled_posts
+  `);
+  return row || {};
+}
+
+/** Scheduled posts by what they post, and by how often. */
+async function getScheduleBreakdown() {
+  const [byCommand, byInterval] = await Promise.all([
+    query(`
+      SELECT command, COUNT(*) AS jobs, COUNT(DISTINCT guild_id) AS guilds
+      FROM tsukibot.scheduled_posts
+      GROUP BY command ORDER BY jobs DESC
+    `),
+    query(`
+      SELECT interval_minutes, COUNT(*) AS jobs
+      FROM tsukibot.scheduled_posts
+      GROUP BY interval_minutes ORDER BY interval_minutes
+    `)
+  ]);
+  return { byCommand, byInterval };
+}
+
+/** Personal price arrays (tbpa): how many people keep one and how long they are. */
+async function getWatchlistSummary() {
+  const [row] = await query(`${WATCHLIST_CTE}
+    SELECT
+      COUNT(*) FILTER (WHERE CARDINALITY(coins) > 0)                  AS users,
+      COALESCE(SUM(CARDINALITY(coins)), 0)                            AS entries,
+      COALESCE(MAX(CARDINALITY(coins)), 0)                            AS max_size,
+      (SELECT COUNT(DISTINCT UPPER(c)) FROM lists, UNNEST(coins) AS c) AS coins
+    FROM lists
+  `);
+  return row || {};
+}
+
+/**
+ * The coins that appear on the most watchlists.
+ * @param {number} limit
+ */
+async function getWatchlistCoins(limit) {
+  return query(`${WATCHLIST_CTE}
+    SELECT UPPER(c) AS coin, COUNT(*) AS users
+    FROM lists, UNNEST(coins) AS c
+    GROUP BY UPPER(c)
+    ORDER BY users DESC
+    LIMIT $1
+  `, [limit]);
+}
+
+/**
+ * Everything above in one call, for the report and the dashboard.
+ * @param {number} [limit] rows per "top coins" list
+ */
+async function getFeatureInventory(limit = 10) {
+  const [alerts, alertCoins, portfolios, portfolioCoins, schedules, scheduleBreakdown, watchlists, watchlistCoins] = await Promise.all([
+    getAlertSummary(), getAlertCoins(limit),
+    getPortfolioSummary(), getPortfolioCoins(limit),
+    getScheduleSummary(), getScheduleBreakdown(),
+    getWatchlistSummary(), getWatchlistCoins(limit)
+  ]);
+  return {
+    alerts, alertCoins, portfolios, portfolioCoins,
+    schedules, scheduleCommands: scheduleBreakdown.byCommand, scheduleIntervals: scheduleBreakdown.byInterval,
+    watchlists, watchlistCoins
+  };
+}
+
+/**
+ * What happened to those features inside the window, from usage_events: alerts
+ * created, removed and fired (and how the firing was delivered), portfolio and
+ * watchlist activity, schedules created and posts run.
+ * @param {number} days
+ */
+async function getFeatureActivity(days) {
+  const [row] = await query(`
+    SELECT
+      COUNT(*) FILTER (WHERE command = 'alert' AND subcommand = 'add' AND event_type = 'command' AND outcome = 'ok')      AS alerts_created,
+      COUNT(*) FILTER (WHERE command = 'alert' AND subcommand = 'remove' AND event_type = 'command' AND outcome = 'ok')   AS alerts_removed,
+      COUNT(DISTINCT user_id) FILTER (WHERE command = 'alert' AND event_type = 'command')                                AS alert_users,
+      COUNT(*) FILTER (WHERE command = 'alert-fired')                                                                      AS alerts_fired,
+      COUNT(*) FILTER (WHERE command = 'alert-fired' AND params->>'delivery' = 'dm')                                      AS alerts_dm,
+      COUNT(*) FILTER (WHERE command = 'alert-fired' AND params->>'delivery' = 'channel')                                 AS alerts_channel,
+      COUNT(*) FILTER (WHERE command = 'alert-fired' AND params->>'delivery' = 'failed')                                  AS alerts_failed,
+      COUNT(*) FILTER (WHERE command = 'portfolio' AND event_type = 'command')                                            AS portfolio_uses,
+      COUNT(DISTINCT user_id) FILTER (WHERE command = 'portfolio' AND event_type = 'command')                            AS portfolio_users,
+      COUNT(*) FILTER (WHERE command = 'portfolio' AND subcommand = 'set' AND event_type = 'command' AND outcome = 'ok')  AS portfolio_sets,
+      COUNT(*) FILTER (WHERE command = 'schedule' AND subcommand = 'create' AND event_type = 'command' AND outcome = 'ok') AS schedules_created,
+      COUNT(*) FILTER (WHERE command = 'schedule' AND subcommand = 'delete' AND event_type = 'command' AND outcome = 'ok') AS schedules_deleted,
+      COUNT(*) FILTER (WHERE command = 'scheduled-post')                                                                   AS posts_run,
+      COUNT(*) FILTER (WHERE command = 'scheduled-post' AND outcome = 'error')                                            AS posts_failed,
+      COUNT(*) FILTER (WHERE command IN ('tbpa', 'tbpa-add', 'tbpa-remove') AND event_type = 'command')                   AS watchlist_uses,
+      COUNT(DISTINCT user_id) FILTER (WHERE command IN ('tbpa', 'tbpa-add', 'tbpa-remove') AND event_type = 'command')   AS watchlist_users
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval
+  `, [windowInterval(days)]);
+  return row || {};
+}
+
+/**
+ * Daily snapshots of the inventory counts, so the standing state has a trend.
+ * A separate small table rather than rows in usage_events: these are
+ * measurements of state, not events, and a dedicated table keeps the time
+ * series queryable with plain SQL.
+ */
+async function ensureFeatureSnapshotsTable() {
+  if (!pool) return false;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tsukibot.feature_snapshots (
+      taken_at          TIMESTAMPTZ PRIMARY KEY DEFAULT NOW(),
+      alerts            INTEGER NOT NULL DEFAULT 0,
+      alert_users       INTEGER NOT NULL DEFAULT 0,
+      holdings          INTEGER NOT NULL DEFAULT 0,
+      portfolio_users   INTEGER NOT NULL DEFAULT 0,
+      schedules         INTEGER NOT NULL DEFAULT 0,
+      schedule_guilds   INTEGER NOT NULL DEFAULT 0,
+      watchlists        INTEGER NOT NULL DEFAULT 0,
+      watchlist_entries INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  return true;
+}
+
+/**
+ * Measures the inventory now and stores it. Returns the stored row.
+ */
+async function recordFeatureSnapshot() {
+  const [alerts, portfolios, schedules, watchlists] = await Promise.all([
+    getAlertSummary(), getPortfolioSummary(), getScheduleSummary(), getWatchlistSummary()
+  ]);
+  const values = [
+    Number(alerts.total) || 0, Number(alerts.users) || 0,
+    Number(portfolios.holdings) || 0, Number(portfolios.users) || 0,
+    Number(schedules.jobs) || 0, Number(schedules.guilds) || 0,
+    Number(watchlists.users) || 0, Number(watchlists.entries) || 0
+  ];
+  const rows = await query(`
+    INSERT INTO tsukibot.feature_snapshots
+      (alerts, alert_users, holdings, portfolio_users, schedules, schedule_guilds, watchlists, watchlist_entries)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *
+  `, values);
+  return rows[0];
+}
+
+/**
+ * One snapshot per day over the window (the latest taken that day), oldest first.
+ * @param {number} days
+ */
+async function getFeatureSnapshots(days) {
+  return query(`
+    SELECT DISTINCT ON (DATE(taken_at))
+      DATE(taken_at) AS day, taken_at, alerts, alert_users, holdings, portfolio_users,
+      schedules, schedule_guilds, watchlists, watchlist_entries
+    FROM tsukibot.feature_snapshots
+    WHERE taken_at > NOW() - $1::interval
+    ORDER BY DATE(taken_at), taken_at DESC
+  `, [windowInterval(days)]);
+}
+
+/**
+ * The newest snapshot and the newest one at least `days` old, for deltas.
+ * @param {number} days
+ * @returns {Promise<{latest: object|null, prior: object|null}>}
+ */
+async function getFeatureSnapshotDelta(days) {
+  const [latest] = await query(`
+    SELECT * FROM tsukibot.feature_snapshots ORDER BY taken_at DESC LIMIT 1
+  `);
+  const [prior] = await query(`
+    SELECT * FROM tsukibot.feature_snapshots
+    WHERE taken_at <= NOW() - $1::interval
+    ORDER BY taken_at DESC LIMIT 1
+  `, [windowInterval(days)]);
+  return { latest: latest || null, prior: prior || null };
+}
+
 module.exports = {
   init,
   windowInterval,
   hoursInterval,
+  getAlertSummary,
+  getAlertCoins,
+  getPortfolioSummary,
+  getPortfolioCoins,
+  getScheduleSummary,
+  getScheduleBreakdown,
+  getWatchlistSummary,
+  getWatchlistCoins,
+  getFeatureInventory,
+  getFeatureActivity,
+  ensureFeatureSnapshotsTable,
+  recordFeatureSnapshot,
+  getFeatureSnapshots,
+  getFeatureSnapshotDelta,
   normalizeTimezone,
   getActivityRate,
   getApiCreditsByEndpoint,

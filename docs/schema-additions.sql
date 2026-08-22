@@ -109,3 +109,25 @@ CREATE INDEX IF NOT EXISTS usage_events_params_idx   ON tsukibot.usage_events US
 
 -- Retention, if you ever want it. Deliberately not scheduled by the bot.
 -- DELETE FROM tsukibot.usage_events WHERE occurred_at < NOW() - INTERVAL '365 days';
+
+
+-- ---------------------------------------------------------------------------
+-- Feature inventory snapshots.
+--
+-- usage_events records what people did; this records what they have. Once a
+-- day (and once at every startup) the bot counts the standing price alerts,
+-- portfolio holdings, scheduled posts and watchlists and stores one row, so
+-- /usage features and the dashboard can show the trend of those numbers
+-- rather than only the current value. Tiny: one row a day.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tsukibot.feature_snapshots (
+    taken_at          TIMESTAMPTZ PRIMARY KEY DEFAULT NOW(),
+    alerts            INTEGER NOT NULL DEFAULT 0,   -- rows in pricealerts
+    alert_users       INTEGER NOT NULL DEFAULT 0,
+    holdings          INTEGER NOT NULL DEFAULT 0,   -- rows in holdings
+    portfolio_users   INTEGER NOT NULL DEFAULT 0,
+    schedules         INTEGER NOT NULL DEFAULT 0,   -- rows in scheduled_posts
+    schedule_guilds   INTEGER NOT NULL DEFAULT 0,
+    watchlists        INTEGER NOT NULL DEFAULT 0,   -- profiles with a non-empty coins list
+    watchlist_entries INTEGER NOT NULL DEFAULT 0
+);

@@ -138,6 +138,29 @@ test('weekOverWeekChart overlays the prior seven days and states the change', ()
   assertCard(charts.weekOverWeekChart({ series: [] }), 'No activity recorded');
 });
 
+test('featuresChart lays out four quadrants with their headline counts', () => {
+  const svg = charts.featuresChart({
+    inventory: {
+      alerts: { total: '42', users: '17', coins: '12' },
+      alertCoins: [{ symbol: 'BTC', alerts: '12', users: '9', above: '8', below: '4' }],
+      portfolios: { users: '23', holdings: '88', coins: '31' },
+      portfolioCoins: [{ symbol: 'BTC', holders: '19' }],
+      schedules: { jobs: '9', guilds: '6', stale: '1' },
+      scheduleCommands: [{ command: 'hmap', jobs: '4', guilds: '4' }],
+      scheduleIntervals: [{ interval_minutes: 60, jobs: '5' }, { interval_minutes: 1440, jobs: '4' }],
+      watchlists: { users: '34', entries: '210', coins: '61' },
+      watchlistCoins: [{ coin: 'ETH', users: '24' }]
+    },
+    activity: { alerts_created: '15', alerts_fired: '9', alerts_failed: '1', portfolio_sets: '22', schedules_created: '2', posts_run: '300', posts_failed: '4', watchlist_uses: '80' },
+    delta: { latest: { alerts: 42, portfolio_users: 23, schedules: 9, watchlists: 34 }, prior: { alerts: 40, portfolio_users: 23, schedules: 10, watchlists: 30 } },
+    days: 30
+  });
+  assertCard(svg, 'What users have set up', 'PRICE ALERTS', '42 active · 17 users · 12 coins', 'PORTFOLIOS', '19 holders',
+    'SCHEDULED POSTS', '9 jobs · 6 servers · 1 stale', 'every 1h ×5 daily ×4', '/hmap', 'WATCHLISTS', 'on 24 lists',
+    'vs 30d ago: alerts +2 · portfolios = · schedules -1 · watchlists +4', '15 alerts set · 9 fired (1 undeliverable)');
+  assertCard(charts.featuresChart({ inventory: {}, days: 7 }), 'No price alerts set.', 'No portfolios yet.', 'No scheduled posts.', 'No watchlists yet.');
+});
+
 test('dayKey reads a local-midnight Date and a YYYY-MM-DD string alike', () => {
   assert.equal(charts.dayKey(new Date(2026, 7, 5)), '2026-08-05', 'node-postgres DATE values are local midnight');
   assert.equal(charts.dayKey('2026-08-05'), '2026-08-05');

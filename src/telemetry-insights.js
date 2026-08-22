@@ -304,7 +304,7 @@ function createInsights({
     const overview = (await reports.getOverviewComparison(days)) || {};
 
     const [topNow, topPrior, coinsNow, coinsPrior, momentum, newCoins, creditTotals, creditMonth,
-      rateLimits, churn, series] = await Promise.all([
+      rateLimits, churn, series, featureDelta] = await Promise.all([
       section('top commands', () => reports.getTopCommands(days, 10, false), []),
       section('prior top commands', () => reports.getTopCommands(days, 50, false, { priorWindow: true }), []),
       section('top coins', () => reports.getTopCoins(days, 10), []),
@@ -315,7 +315,11 @@ function createInsights({
       section('credit month comparison', () => reports.getApiCreditsMonthComparison(), null),
       section('rate limits', () => reports.getRecentRateLimits(days * 24), null),
       section('churn', () => reports.getChurn(days), null),
-      section('daily series', () => reports.getDailySeries(days * 2, timezone), [])
+      section('daily series', () => reports.getDailySeries(days * 2, timezone), []),
+      // What users have set up (alerts, portfolios, schedules, watchlists) against the snapshot
+      // taken `days` ago. Optional: the snapshot table fills in daily, so a fresh install has none.
+      section('feature snapshots', () => (typeof reports.getFeatureSnapshotDelta === 'function'
+        ? reports.getFeatureSnapshotDelta(days) : null), null)
     ]);
 
     const embed = embeds.usageEmbed('Weekly usage digest', days, timezone);
@@ -411,6 +415,23 @@ function createInsights({
         name: 'Retention',
         value: `**${compact(churn.retained)}** of **${compact(churn.active)}** active users were also here last ` +
           `period · **${compact(churn.churned)}** churned · **${compact(churn.resurrected)}** came back`
+      });
+    }
+
+    // What users have set up ------------------------------------------------
+    if (featureDelta && featureDelta.latest) {
+      const latest = featureDelta.latest;
+      const prior = featureDelta.prior;
+      const line = (label, current, before) =>
+        `${label} **${compact(current)}**` + (prior ? ` (${deltaText(current, before)})` : '');
+      embed.addFields({
+        name: 'Set up' + (prior ? ` · vs ${days} day${days === 1 ? '' : 's'} ago` : ''),
+        value: [
+          line('Price alerts', latest.alerts, prior && prior.alerts),
+          line('Portfolios', latest.portfolio_users, prior && prior.portfolio_users),
+          line('Scheduled posts', latest.schedules, prior && prior.schedules),
+          line('Watchlists', latest.watchlists, prior && prior.watchlists)
+        ].join(' · ')
       });
     }
 

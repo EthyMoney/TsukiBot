@@ -264,6 +264,7 @@ that any server admin can override, and it does not apply in DMs at all.
 | `/usage funnel` | Do autocomplete searches turn into commands, per command, and what gets searched but never run. |
 | `/usage export` | Download raw events as a CSV attachment. |
 | `/usage credits` | CoinGecko API credit spend: a month-to-date burn-down against the quota with a projection, and the per-endpoint breakdown. |
+| `/usage features` | What users have **set up** rather than run: active price alerts (by coin, above/below, expiring), portfolios (users, holdings, most-held coins), scheduled posts (by type, interval, servers, stale jobs) and watchlists (sizes, favourite coins), with the window's activity against each and the change since a daily snapshot. |
 | `/usage storage` | Table size, row count, and write-buffer health. |
 | `/usage dashboard` | A sign-in link for the browser dashboard (see below). |
 | `/usage digest` | Build the weekly digest now instead of waiting for Monday. |

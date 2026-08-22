@@ -216,6 +216,12 @@
     for (let i = count - 1; i >= 0; i--) out.push(ymdAddDays(endKey, -i));
     return out;
   }
+  /** Whole days from key a to key b (positive when b is later). */
+  function ymdDiff(a, b) {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+  }
   function shortDay(ymd, withYear) {
     const [y, m, d] = ymd.split('-').map(Number);
     return MONTHS[m - 1] + ' ' + d + (withYear ? ', ' + y : '');
@@ -1083,6 +1089,273 @@
   }
 
   /* ======================================================================
+   *  Tab: Features (what users have SET UP, not just what they did)
+   * ====================================================================== */
+
+  /** 30 -> "30m", 60 -> "1h", 720 -> "12h", 1440 -> "daily", 2880 -> "2d". */
+  function fmtInterval(minutes) {
+    const m = num(minutes);
+    if (m === null || m <= 0) return '–';
+    if (m % 1440 === 0) return m === 1440 ? 'daily' : (m / 1440) + 'd';
+    if (m % 60 === 0) return (m / 60) + 'h';
+    return m + 'm';
+  }
+  /** part / total to one decimal, or a dash when there is nothing to divide by. */
+  function fmtAvg(part, total) {
+    const t = num(total);
+    return t ? (n0(part) / t).toFixed(1) : '–';
+  }
+  function stat(label, value, opts) {
+    const o = opts || {};
+    return h('div', { class: 'stat', title: o.title || null },
+      h('div', { class: 'stat-value' + (o.tone ? ' ' + o.tone : '') }, value),
+      h('div', { class: 'stat-label' }, label));
+  }
+  /** "3 failed" in the tone colour when > 0, plain muted otherwise. */
+  function toned(count, label, tone) {
+    const v = n0(count);
+    return h('span', { class: v > 0 ? tone : null }, fmtInt(v) + ' ' + label);
+  }
+  function featureGroup(title, stats, activity) {
+    return h('section', { class: 'panel feature-group' },
+      h('h2', { class: 'panel-title' }, title),
+      h('div', { class: 'stat-grid' }, stats),
+      h('div', { class: 'feature-activity muted' }, activity));
+  }
+
+  async function renderFeatures(root, seq) {
+    const d = await api('/api/usage/features', { days: state.days, limit: 20 });
+    if (stale(seq)) return;
+    clear(root);
+
+    const inv = d.inventory || {};
+    const al = inv.alerts || {};
+    const pf = inv.portfolios || {};
+    const sc = inv.schedules || {};
+    const wl = inv.watchlists || {};
+    const alertCoins = inv.alertCoins || [];
+    const portfolioCoins = inv.portfolioCoins || [];
+    const scheduleCommands = inv.scheduleCommands || [];
+    const scheduleIntervals = inv.scheduleIntervals || [];
+    const watchlistCoins = inv.watchlistCoins || [];
+    const act = d.activity || {};
+    const snapshots = d.snapshots || [];
+    const win = 'In the ' + windowLabel() + ': ';
+    const sep = ' · ';
+
+    // 1. Standing state per feature, with the window's activity beneath.
+    root.appendChild(h('div', { class: 'feature-groups' },
+      featureGroup('Price alerts', [
+        stat('Active alerts', fmtInt(al.total)),
+        stat('Users', fmtInt(al.users)),
+        stat('Coins', fmtInt(al.coins)),
+        stat('Above / below', fmtInt(al.above) + ' / ' + fmtInt(al.below)),
+        stat('Expiring ≤ 7d', fmtInt(al.expiring_7d), { title: fmtInt(al.with_expiry) + ' alerts carry an expiry' })
+      ], [
+        h('div', null, win + fmtInt(act.alerts_created) + ' created' + sep + fmtInt(act.alerts_removed) + ' removed' + sep + fmtInt(act.alert_users) + ' users'),
+        h('div', null, fmtInt(act.alerts_fired) + ' fired: ' + fmtInt(act.alerts_dm) + ' DM' + sep + fmtInt(act.alerts_channel) + ' channel' + sep,
+          toned(act.alerts_failed, 'failed', 'bad')),
+        al.newest ? h('div', null, 'Newest alert ' + fmtRelative(al.newest) + ', oldest ' + fmtRelative(al.oldest) + sep + 'max ' + fmtInt(al.max_per_user) + ' per user') : null
+      ]),
+      featureGroup('Portfolios', [
+        stat('Users', fmtInt(pf.users)),
+        stat('Holdings', fmtInt(pf.holdings)),
+        stat('Coins', fmtInt(pf.coins)),
+        stat('Avg / user', fmtAvg(pf.holdings, pf.users)),
+        stat('Max / user', fmtInt(pf.max_holdings))
+      ], [
+        h('div', null, win + fmtInt(act.portfolio_sets) + ' sets' + sep + fmtInt(act.portfolio_uses) + ' uses by ' + fmtInt(act.portfolio_users) + ' users')
+      ]),
+      featureGroup('Scheduled posts', [
+        stat('Jobs', fmtInt(sc.jobs)),
+        stat('Servers', fmtInt(sc.guilds)),
+        stat('Creators', fmtInt(sc.users)),
+        stat('Never run', fmtInt(sc.never_run)),
+        stat('Stale', fmtInt(sc.stale), { tone: n0(sc.stale) > 0 ? 'warn' : null, title: 'Not run within twice its interval' })
+      ], [
+        h('div', null, win + fmtInt(act.schedules_created) + ' created' + sep + fmtInt(act.schedules_deleted) + ' deleted'),
+        h('div', null, fmtInt(act.posts_run) + ' posts run' + sep, toned(act.posts_failed, 'failed', 'bad')),
+        sc.latest_run ? h('div', null, 'Last post ran ' + fmtRelative(sc.latest_run)) : null
+      ]),
+      featureGroup('Watchlists', [
+        stat('Users', fmtInt(wl.users)),
+        stat('Entries', fmtInt(wl.entries)),
+        stat('Coins', fmtInt(wl.coins)),
+        stat('Avg size', fmtAvg(wl.entries, wl.users)),
+        stat('Max size', fmtInt(wl.max_size))
+      ], [
+        h('div', null, win + fmtInt(act.watchlist_uses) + ' uses by ' + fmtInt(act.watchlist_users) + ' users')
+      ])));
+
+    // 2. Standing state over time, from the daily snapshots.
+    const snapKeys = snapshots.map((r) => dayKey(r.day)).filter(Boolean).sort();
+    if (snapKeys.length < 2) {
+      const note = snapKeys.length === 0
+        ? 'No snapshots yet. The trend appears after the first daily snapshot.'
+        : 'One snapshot so far (taken ' + fmtRelative(snapshots[0].taken_at) + '). The trend appears after the next daily snapshot.';
+      root.appendChild(panel('Standing state over time', emptyState(note)));
+    } else {
+      root.appendChild(h('div', { class: 'grid-2' },
+        panel('Standing state over time', chartBox('feat-trend')),
+        panel('Holdings and watchlist entries over time', chartBox('feat-sizes'))));
+    }
+
+    // 3. What is set up, by coin / command / interval.
+    const coinPivot = (key) => (r) => pivotToEvents({ coin: r[key] });
+    const clickNote = h('p', { class: 'panel-sub', style: { marginTop: '10px' } }, 'Click a coin to see the events that named it.');
+    root.appendChild(h('div', { class: 'grid-2' },
+      panel('Alerts by coin',
+        alertCoins.length ? chartBox('feat-alerts', 'short') : null,
+        alertCoins.length ? clickNote.cloneNode(true) : null,
+        renderTable({
+          id: 'feat-alert-coins',
+          rows: alertCoins,
+          defaultSort: { key: 'alerts', dir: 'desc' },
+          emptyText: 'No price alerts are set up yet.',
+          onRowClick: coinPivot('symbol'),
+          columns: [
+            { key: 'symbol', label: 'Coin' },
+            { key: 'alerts', label: 'Alerts', type: 'number' },
+            { key: 'users', label: 'Users', type: 'number' },
+            { key: 'above', label: 'Above', type: 'number' },
+            { key: 'below', label: 'Below', type: 'number' }
+          ]
+        })),
+      panel('Most held coins',
+        portfolioCoins.length ? chartBox('feat-held', 'short') : null,
+        portfolioCoins.length ? clickNote.cloneNode(true) : null,
+        renderTable({
+          id: 'feat-held-coins',
+          rows: portfolioCoins,
+          defaultSort: { key: 'holders', dir: 'desc' },
+          emptyText: 'No portfolio holdings are set up yet.',
+          onRowClick: coinPivot('symbol'),
+          columns: [
+            { key: 'symbol', label: 'Coin' },
+            { key: 'holders', label: 'Holders', type: 'number' },
+            { key: 'share', label: 'Share of portfolio users', type: 'number', sortValue: (r) => n0(r.holders),
+              format: (v, r) => barCell(n0(r.holders), n0(pf.users), fmtPct(r.holders, pf.users), 'green') }
+          ]
+        }))));
+    root.appendChild(h('div', { class: 'grid-2' },
+      panel('Scheduled posts by command',
+        renderTable({
+          id: 'feat-sched-cmds',
+          rows: scheduleCommands,
+          defaultSort: { key: 'jobs', dir: 'desc' },
+          emptyText: 'No scheduled posts are set up yet.',
+          columns: [
+            { key: 'command', label: 'Command', format: (v) => (v ? '/' + v : '–') },
+            { key: 'jobs', label: 'Jobs', type: 'number' },
+            { key: 'guilds', label: 'Servers', type: 'number' }
+          ]
+        }),
+        scheduleIntervals.length ? h('h2', { class: 'panel-title', style: { marginTop: '14px' } }, 'By interval') : null,
+        scheduleIntervals.length ? chartBox('feat-intervals', 'short') : null),
+      panel('Watchlist favourites',
+        watchlistCoins.length ? chartBox('feat-watch', 'short') : null,
+        watchlistCoins.length ? clickNote.cloneNode(true) : null,
+        renderTable({
+          id: 'feat-watch-coins',
+          rows: watchlistCoins,
+          defaultSort: { key: 'users', dir: 'desc' },
+          emptyText: 'No watchlists are set up yet.',
+          onRowClick: coinPivot('coin'),
+          columns: [
+            { key: 'coin', label: 'Coin' },
+            { key: 'users', label: 'Watchlists', type: 'number' },
+            { key: 'share', label: 'Share of watchlists', type: 'number', sortValue: (r) => n0(r.users),
+              format: (v, r) => barCell(n0(r.users), n0(wl.users), fmtPct(r.users, wl.users)) }
+          ]
+        }))));
+
+    // Charts. Counts are small integers here, so whole-number ticks only.
+    const countAxis = { scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 30 } }, y: { ticks: { precision: 0 } } } };
+    const noLegend = mergeOpts(countAxis, { plugins: { legend: { display: false } } });
+
+    if (snapKeys.length >= 2) {
+      // One point per calendar day from the first snapshot to today (or the last
+      // snapshot, if the database's day is ahead of the chosen timezone). Days
+      // the daily job missed stay null and are bridged, never zero-filled: the
+      // state did not drop to nothing, it just went unmeasured.
+      const today = todayKey();
+      const last = snapKeys[snapKeys.length - 1];
+      const end = last > today ? last : today;
+      const count = Math.min(MAX_DAYS + 1, Math.max(2, ymdDiff(snapKeys[0], end) + 1));
+      const keys = dayRange(count, end);
+      const byDay = new Map();
+      for (const r of snapshots) {
+        const k = dayKey(r.day);
+        if (k) byDay.set(k, r);
+      }
+      const series = (field) => keys.map((k) => (byDay.has(k) ? n0(byDay.get(k)[field]) : null));
+      const labels = dayLabels(keys);
+      const gap = { spanGaps: true };
+      makeChart('feat-trend', {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            lineDataset('Alerts', series('alerts'), C.amber, gap),
+            lineDataset('Portfolio users', series('portfolio_users'), C.green, gap),
+            lineDataset('Scheduled posts', series('schedules'), C.blue, gap),
+            lineDataset('Watchlists', series('watchlists'), C.accent, gap)
+          ]
+        },
+        options: baseOptions(countAxis)
+      });
+      makeChart('feat-sizes', {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            lineDataset('Holdings', series('holdings'), C.green, gap),
+            lineDataset('Watchlist entries', series('watchlist_entries'), C.accent, gap)
+          ]
+        },
+        options: baseOptions(countAxis)
+      });
+    }
+    if (alertCoins.length) {
+      makeChart('feat-alerts', {
+        type: 'bar',
+        data: {
+          labels: alertCoins.map((r) => r.symbol),
+          datasets: [
+            barDataset('Above', alertCoins.map((r) => n0(r.above)), C.green),
+            barDataset('Below', alertCoins.map((r) => n0(r.below)), C.red)
+          ]
+        },
+        options: baseOptions(mergeOpts(countAxis, {
+          scales: { x: { stacked: true }, y: { stacked: true } },
+          plugins: { tooltip: { callbacks: { footer: (items) => (items.length ? fmtInt(alertCoins[items[0].dataIndex].users) + ' users' : '') } } }
+        }))
+      });
+    }
+    if (portfolioCoins.length) {
+      makeChart('feat-held', {
+        type: 'bar',
+        data: { labels: portfolioCoins.map((r) => r.symbol), datasets: [barDataset('Holders', portfolioCoins.map((r) => n0(r.holders)), C.green)] },
+        options: baseOptions(noLegend)
+      });
+    }
+    if (scheduleIntervals.length) {
+      makeChart('feat-intervals', {
+        type: 'bar',
+        data: { labels: scheduleIntervals.map((r) => fmtInterval(r.interval_minutes)), datasets: [barDataset('Jobs', scheduleIntervals.map((r) => n0(r.jobs)), C.blue)] },
+        options: baseOptions(noLegend)
+      });
+    }
+    if (watchlistCoins.length) {
+      makeChart('feat-watch', {
+        type: 'bar',
+        data: { labels: watchlistCoins.map((r) => r.coin), datasets: [barDataset('Watchlists', watchlistCoins.map((r) => n0(r.users)), C.accent)] },
+        options: baseOptions(noLegend)
+      });
+    }
+  }
+
+  /* ======================================================================
    *  Tab: Activity
    * ====================================================================== */
 
@@ -1613,6 +1886,7 @@
     { id: 'commands', label: 'Commands', render: renderCommands },
     { id: 'users', label: 'Users & Servers', render: renderUsers },
     { id: 'coins', label: 'Coins', render: renderCoins },
+    { id: 'features', label: 'Features', render: renderFeatures },
     { id: 'activity', label: 'Activity', render: renderActivity },
     { id: 'errors', label: 'Errors', render: renderErrors },
     { id: 'growth', label: 'Growth', render: renderGrowth },

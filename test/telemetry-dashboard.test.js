@@ -95,7 +95,33 @@ function makeReports() {
       event_id: 1, occurred_at: ago(1), event_type: 'command', command: 'price', subcommand: null, user_id: '1',
       username: 'ethy', guild_id: '10', guild_name: 'Crypto Server', channel_id: '5', params: { coin: 'btc' },
       coins: ['BTC'], outcome: 'ok', error_kind: null, duration_ms: '320'
-    }])
+    }]),
+    // Feature inventory: COUNT(*) comes back as strings, MIN/MAX timestamps as Dates.
+    getFeatureInventory: rec('getFeatureInventory', {
+      alerts: { total: '42', users: '17', coins: '9', above: '25', below: '17', with_expiry: '10', expiring_7d: '3', oldest: ago(80000), newest: ago(30), max_per_user: '8' },
+      alertCoins: [
+        { symbol: 'BTC', alerts: '20', users: '12', above: '12', below: '8' },
+        { symbol: 'ETH', alerts: '10', users: '7', above: '6', below: '4' }
+      ],
+      portfolios: { users: '33', holdings: '140', coins: '48', max_holdings: '22' },
+      portfolioCoins: [{ symbol: 'BTC', holders: '30' }, { symbol: 'ETH', holders: '25' }],
+      schedules: { jobs: '6', guilds: '4', users: '5', never_run: '1', stale: '1', oldest_run: ago(50000), latest_run: ago(12) },
+      scheduleCommands: [{ command: 'price', jobs: '4', guilds: '3' }, { command: 'chart', jobs: '2', guilds: '2' }],
+      scheduleIntervals: [{ interval_minutes: 30, jobs: '1' }, { interval_minutes: 60, jobs: '3' }, { interval_minutes: 1440, jobs: '2' }],
+      watchlists: { users: '28', entries: '190', max_size: '25', coins: '70' },
+      watchlistCoins: [{ coin: 'BTC', users: '26' }, { coin: 'SOL', users: '15' }]
+    }),
+    getFeatureActivity: rec('getFeatureActivity', {
+      alerts_created: '9', alerts_removed: '3', alert_users: '8', alerts_fired: '14', alerts_dm: '10', alerts_channel: '3', alerts_failed: '1',
+      portfolio_uses: '60', portfolio_users: '20', portfolio_sets: '12', schedules_created: '2', schedules_deleted: '1',
+      posts_run: '300', posts_failed: '4', watchlist_uses: '45', watchlist_users: '14'
+    }),
+    // feature_snapshots columns are INTEGER, which node-postgres parses to numbers.
+    getFeatureSnapshots: rec('getFeatureSnapshots', [
+      { day: day(2), taken_at: ago(2880), alerts: 40, alert_users: 16, holdings: 130, portfolio_users: 31, schedules: 6, schedule_guilds: 4, watchlists: 27, watchlist_entries: 180 },
+      { day: day(1), taken_at: ago(1440), alerts: 41, alert_users: 17, holdings: 136, portfolio_users: 32, schedules: 6, schedule_guilds: 4, watchlists: 28, watchlist_entries: 188 },
+      { day: day(0), taken_at: ago(30), alerts: 42, alert_users: 17, holdings: 140, portfolio_users: 33, schedules: 6, schedule_guilds: 4, watchlists: 28, watchlist_entries: 190 }
+    ])
   };
 }
 
@@ -390,6 +416,36 @@ test('/api/usage/command/portfolio%20show queries the bare command name', () => 
   assert.equal(slashed.json.name, 'price');
 }));
 
+test('/api/usage/features is behind auth, clamps limit to 1..50 (default 10) and days, and plain-days the snapshots', () => withDashboard(async ({ base, dash, reports, telemetry }) => {
+  const anon = await request(`${base}/api/usage/features`);
+  assert.equal(anon.status, 401);
+  assert.deepEqual(anon.json, { error: 'unauthorized' });
+  assert.equal(reports.callsTo('getFeatureInventory').length, 0, 'no inventory query for an unauthenticated request');
+
+  const headers = signedIn(dash);
+  const res = await request(`${base}/api/usage/features?days=14&limit=999`, headers);
+  assert.equal(res.status, 200, res.body);
+  assert.equal(res.headers['cache-control'], 'no-store');
+  assert.deepEqual(Object.keys(res.json).sort(), ['activity', 'inventory', 'snapshots']);
+  assert.equal(telemetry.flushCalls, 1, 'flushed before the reports ran');
+  assert.equal(res.json.inventory.alerts.total, '42', 'inventory counts pass through as pg strings');
+  assert.equal(res.json.inventory.scheduleIntervals[2].interval_minutes, 1440);
+  assert.equal(res.json.activity.alerts_fired, '14');
+  assert.equal(res.json.snapshots.length, 3);
+  for (const row of res.json.snapshots) {
+    assert.match(row.day, /^\d{4}-\d{2}-\d{2}$/, 'snapshot DATE columns become plain day strings');
+    assert.ok(!Number.isNaN(Date.parse(row.taken_at)), 'taken_at stays an ISO timestamp');
+    assert.equal(typeof row.alerts, 'number');
+  }
+
+  assert.equal((await request(`${base}/api/usage/features?days=99999&limit=0`, headers)).status, 200);
+  assert.equal((await request(`${base}/api/usage/features?days=0&limit=abc`, headers)).status, 200);
+  assert.equal((await request(`${base}/api/usage/features`, headers)).status, 200);
+  assert.deepEqual(reports.callsTo('getFeatureInventory').map((c) => c.args), [[50], [1], [10], [10]]);
+  assert.deepEqual(reports.callsTo('getFeatureActivity').map((c) => c.args), [[14], [3650], [1], [30]]);
+  assert.deepEqual(reports.callsTo('getFeatureSnapshots').map((c) => c.args), [[14], [3650], [1], [30]]);
+}));
+
 /* --------------------------------------------------------------------------
  *  Flush, errors, meta
  * -------------------------------------------------------------------------- */
@@ -470,6 +526,7 @@ const ROUTES = [
   ['/api/usage/growth', ['churn', 'growth', 'retention']],
   ['/api/usage/credits', ['budget', 'byDayEndpoint', 'byEndpoint', 'comparison', 'monthToDate', 'totals']],
   ['/api/usage/funnel', ['abandoned', 'funnel']],
+  ['/api/usage/features', ['activity', 'inventory', 'snapshots']],
   ['/api/usage/events', ['events']],
   ['/api/usage/storage', ['storage', 'writer']]
 ];
@@ -600,14 +657,16 @@ test('the page renders every tab against the API without runtime errors', async 
     .replace(/<script[^>]*><\/script>/g, '');
   const appJs = fs.readFileSync(path.join(__dirname, '../src/dashboard/app.js'), 'utf8');
 
-  await withDashboard(async ({ base, dash }) => {
+  await withDashboard(async ({ base, dash, reports }) => {
     const cookie = signedIn(dash);
     const errors = [];
     const charts = [];
+    const chartLabels = [];
     class FakeChart {
       constructor(canvas, config) {
         charts.push(config.type);
         const labels = config.data && config.data.labels;
+        if (labels) chartLabels.push(...labels);
         for (const ds of (config.data && config.data.datasets) || []) {
           if (labels && ds.data.length !== labels.length) {
             errors.push(new Error(`dataset "${ds.label}" has ${ds.data.length} points for ${labels.length} labels (${canvas.id})`));
@@ -637,7 +696,7 @@ test('the page renders every tab against the API without runtime errors', async 
       await tick(80);
 
       const tabs = $$('#tabs .tab');
-      assert.equal(tabs.length, 10);
+      assert.equal(tabs.length, 11);
       for (const tab of tabs) {
         tab.click();
         await tick(80);
@@ -659,6 +718,58 @@ test('the page renders every tab against the API without runtime errors', async 
       assert.equal(window.location.hash, '#events');
       const userInput = $$('#view .filter input').find((i) => i.placeholder === '1234567890');
       assert.equal(userInput.value, '1');
+
+      // Features: populated snapshots draw the trend; an alert coin row pivots to Events with the coin filter.
+      const featuresTab = tabs.find((b) => b.textContent === 'Features');
+      featuresTab.click();
+      await tick(80);
+      let text = window.document.getElementById('view').textContent;
+      assert.match(text, /Price alerts/);
+      assert.match(text, /Standing state over time/);
+      assert.ok(!/daily snapshot/.test(text), 'three snapshots show a chart, not the empty note');
+      assert.ok(chartLabels.includes('daily') && chartLabels.includes('30m') && chartLabels.includes('1h'), 'intervals render as 30m / 1h / daily on the chart');
+      assert.match(text, /1 failed/, 'failed deliveries are called out');
+      $$('#view table tbody tr')[0].click();
+      await tick(80);
+      assert.equal(window.document.querySelector('#tabs .tab.active').textContent, 'Events');
+      const coinInput = $$('#view .filter input').find((i) => i.placeholder === 'BTC');
+      assert.equal(coinInput.value, 'BTC');
+
+      // A single snapshot, then none at all, with nothing set up: empty states, no errors.
+      reports.getFeatureSnapshots = async () => [{
+        day: new Date(), taken_at: new Date(), alerts: 1, alert_users: 1, holdings: 0, portfolio_users: 0,
+        schedules: 0, schedule_guilds: 0, watchlists: 0, watchlist_entries: 0
+      }];
+      featuresTab.click();
+      await tick(80);
+      text = window.document.getElementById('view').textContent;
+      assert.match(text, /One snapshot so far/);
+      assert.match(text, /next daily snapshot/);
+
+      reports.getFeatureSnapshots = async () => [];
+      reports.getFeatureInventory = async () => ({
+        alerts: { total: '0', users: '0', coins: '0', above: '0', below: '0', with_expiry: '0', expiring_7d: '0', oldest: null, newest: null, max_per_user: null },
+        alertCoins: [],
+        portfolios: { users: '0', holdings: '0', coins: '0', max_holdings: null },
+        portfolioCoins: [],
+        schedules: { jobs: '0', guilds: '0', users: '0', never_run: '0', stale: '0', oldest_run: null, latest_run: null },
+        scheduleCommands: [],
+        scheduleIntervals: [],
+        watchlists: { users: '0', entries: '0', max_size: '0', coins: '0' },
+        watchlistCoins: []
+      });
+      featuresTab.click();
+      await tick(80);
+      text = window.document.getElementById('view').textContent;
+      assert.match(text, /first daily snapshot/);
+      assert.match(text, /No price alerts are set up yet/);
+      assert.match(text, /No portfolio holdings are set up yet/);
+      assert.match(text, /No scheduled posts are set up yet/);
+      assert.match(text, /No watchlists are set up yet/);
+      for (const leak of ['undefined', 'NaN', '[object Object]', 'Infinity']) {
+        assert.ok(!text.includes(leak), `empty Features tab leaked "${leak}"`);
+      }
+      assert.equal(window.document.getElementById('banner').textContent, '', 'empty Features tab showed no error banner');
 
       assert.deepEqual(errors.map((e) => String((e && e.message) || e)), []);
     } finally {
