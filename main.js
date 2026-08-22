@@ -145,10 +145,16 @@ const render = require('./src/telemetry-render');
 // The /usage report embeds. Extracted so they can be unit tested: requiring main.js would
 // start the bot, which is why a formatter bug in three of these reports reached production.
 const {
-  buildUsageOverview, buildUsageCommands, buildUsageUsers, buildUsageGuilds, buildUsageCoins,
-  buildUsageActivity, buildUsageCommandDetail, buildUsageErrors, buildUsageGrowth,
-  buildUsageCredits, usageEmbed
+  buildUsageReport, REPORTS: USAGE_REPORTS, setMonthlyCreditBudget, getMonthlyCreditBudget
 } = require('./src/telemetry-embeds');
+
+// The rest of the /usage surface: chart images (sharp-rendered SVG cards), the buttons and menus
+// under each report, the localhost dashboard, and the digest/watchdog that report to the owner
+// unprompted. Each is its own module so it can be tested without starting the bot.
+const telemetryCharts = require('./src/telemetry-charts');
+const telemetryComponents = require('./src/telemetry-components');
+const { createDashboard } = require('./src/telemetry-dashboard');
+const { createInsights } = require('./src/telemetry-insights');
 
 // The command registry, for /usage command autocomplete. Safe to require: deploy-commands only
 // talks to Discord when run directly, so importing it here just builds the builders.
@@ -189,6 +195,107 @@ let applicationOwnerIds = new Set();
  */
 function isBotAdmin(userId) {
   return configuredAdmins.has(String(userId)) || applicationOwnerIds.has(String(userId));
+}
+
+/* --------------------------------------------
+
+    Usage telemetry configuration.
+
+    Everything is optional and lives under "usage" in keys.api, with environment overrides for
+    the Docker case. Defaults are chosen so a bot with no configuration at all gets chart images,
+    a dashboard on loopback, and a Monday digest to the application owner.
+
+      "usage": {
+        "defaults": { "timezone": "America/Chicago", "days": 30, "limit": 15 },
+        "images": true,
+        "creditBudget": 10000,
+        "recipients": ["123456789012345678"],
+        "dashboard": { "enabled": true, "host": "127.0.0.1", "port": 8090, "publicUrl": "", "tokenTtlHours": 12 },
+        "digest": { "enabled": true, "dayOfWeek": 1, "hour": 9, "timezone": "UTC" },
+        "watchdog": { "enabled": true, "intervalMinutes": 30 }
+      }
+
+  -------------------------------------------- */
+
+/**
+ * Resolves the usage telemetry settings from keys.api and the environment.
+ * @param {object} source the parsed keys file
+ * @returns {object}
+ */
+function resolveUsageConfig(source) {
+  const raw = source && typeof source.usage === 'object' && source.usage ? source.usage : {};
+  const section = (name) => (raw[name] && typeof raw[name] === 'object' ? raw[name] : {});
+  const env = process.env;
+  const bool = (value, fallback) => {
+    if (value === undefined || value === null || value === '') return fallback;
+    return !['false', '0', 'no', 'off'].includes(String(value).toLowerCase());
+  };
+  const int = (value, fallback, min, max) => {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  };
+
+  const defaults = section('defaults');
+  const dashboard = section('dashboard');
+  const digest = section('digest');
+  const watchdog = section('watchdog');
+
+  return {
+    defaults: {
+      timezone: telemetryReports.normalizeTimezone(env.TSUKIBOT_USAGE_TIMEZONE || defaults.timezone || 'UTC'),
+      days: int(defaults.days, 30, 1, 3650),
+      limit: int(defaults.limit, 15, 1, 50)
+    },
+    images: bool(env.TSUKIBOT_USAGE_IMAGES, raw.images !== false),
+    creditBudget: int(env.CG_MONTHLY_CREDITS || raw.creditBudget, 0, 0, 1e9),
+    recipients: Array.isArray(raw.recipients) ? raw.recipients.map(String) : [],
+    dashboard: {
+      enabled: bool(env.TSUKIBOT_DASHBOARD_ENABLED, dashboard.enabled !== false),
+      host: String(env.TSUKIBOT_DASHBOARD_HOST || dashboard.host || '127.0.0.1'),
+      port: int(env.TSUKIBOT_DASHBOARD_PORT || dashboard.port, 8090, 1, 65535),
+      publicUrl: String(env.TSUKIBOT_DASHBOARD_URL || dashboard.publicUrl || '').replace(/\/+$/, ''),
+      tokenTtlHours: int(dashboard.tokenTtlHours, 12, 1, 24 * 30)
+    },
+    digest: {
+      enabled: bool(env.TSUKIBOT_DIGEST_ENABLED, digest.enabled !== false),
+      dayOfWeek: int(digest.dayOfWeek, 1, 0, 6),
+      hour: int(digest.hour, 9, 0, 23),
+      timezone: telemetryReports.normalizeTimezone(digest.timezone || defaults.timezone || 'UTC'),
+      days: 7
+    },
+    watchdog: {
+      enabled: bool(env.TSUKIBOT_WATCHDOG_ENABLED, watchdog.enabled !== false),
+      intervalMinutes: int(watchdog.intervalMinutes, 30, 5, 60)
+    }
+  };
+}
+
+const usageConfig = resolveUsageConfig(keys);
+setMonthlyCreditBudget(usageConfig.creditBudget);
+
+// The dashboard app is created up front (cheap: an Express app and a token map) and only listens
+// once the client is ready, so a port clash cannot take the bot down before it has logged in.
+const usageDashboard = createDashboard({
+  reports: telemetryReports,
+  telemetry,
+  getBudget: getMonthlyCreditBudget,
+  registeredCommands: registeredCommandNames,
+  log: (msg) => console.log(pc.green(msg)),
+  logError: (msg) => console.log(pc.red(msg))
+});
+let usageInsights = null; // created on clientReady, once there is a client to DM through
+
+/** The URL the owner opens the dashboard at, as reached from their browser. */
+function usageDashboardUrl() {
+  const { publicUrl, host, port } = usageConfig.dashboard;
+  if (publicUrl) return publicUrl;
+  const reachableHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+  return `http://${reachableHost}:${port}`;
+}
+
+/** Whether /usage replies should carry chart images right now. */
+function usageImagesEnabled() {
+  return usageConfig.images && telemetryCharts.isAvailable();
 }
 
 // Declare general global variables
@@ -4063,6 +4170,41 @@ client.on('clientReady', () => {
     })
     .catch(logStartupFailure('resolve application owner'));
 
+  // The localhost dashboard. Loopback by default; in Docker the host is set to 0.0.0.0 and compose
+  // publishes the port to the host's loopback only, which keeps it owner-only either way.
+  if (usageConfig.dashboard.enabled) {
+    usageDashboard.start({ host: usageConfig.dashboard.host, port: usageConfig.dashboard.port })
+      .then(() => console.log(pc.green('Usage dashboard listening at ') + pc.cyan(usageDashboardUrl()) +
+        pc.green(' (run /usage dashboard for a sign-in link)')))
+      .catch(logStartupFailure('usage dashboard'));
+  }
+  if (!telemetryCharts.isAvailable()) {
+    console.log(pc.yellow('Chart images are unavailable, /usage falls back to text charts: ' + pc.cyan(telemetryCharts.unavailableReason())));
+  }
+
+  // The bot reporting to the owner unprompted: a weekly digest and a watchdog. Neither runs in dev
+  // mode, like every other scheduled job, so a development instance never DMs anyone.
+  usageInsights = createInsights({
+    reports: telemetryReports,
+    telemetry,
+    send: sendUsageReport,
+    getBudget: getMonthlyCreditBudget,
+    config: { digest: usageConfig.digest, watchdog: usageConfig.watchdog },
+    log: (msg) => console.log(pc.green(msg)),
+    logError: (msg) => console.log(pc.red(msg))
+  });
+  if (!devMode) {
+    const insightTask = (name, task) => () => task().catch(err => {
+      console.log(pc.red(`Scheduled task ${name} failed: ` + pc.cyan(err && err.message ? err.message : err)));
+    });
+    if (usageConfig.digest.enabled) {
+      schedule.scheduleJob(usageInsights.digestRule(), insightTask('usageDigest', () => usageInsights.sendWeeklyDigest()));
+    }
+    if (usageConfig.watchdog.enabled) {
+      schedule.scheduleJob(usageInsights.watchdogRule(), insightTask('usageWatchdog', () => usageInsights.runWatchdog()));
+    }
+  }
+
   // Load CG cache from file first for instant availability
   const cacheLoaded = loadCGCacheFromFile();
 
@@ -4302,9 +4444,8 @@ async function handleUsageCommand(interaction) {
   }
 
   const sub = interaction.options.getSubcommand();
-  const days = interaction.options.getInteger('days') || 30;
-  const limit = interaction.options.getInteger('limit') || 15;
-  const timezone = telemetryReports.normalizeTimezone(interaction.options.getString('timezone') || 'UTC');
+  const state = usageStateFromOptions(interaction.options);
+  const { days } = state;
 
   // Reports are read-only aggregate scans and are always private.
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -4313,51 +4454,14 @@ async function handleUsageCommand(interaction) {
   // missing the last few seconds still sitting in the write buffer.
   await telemetry.flush();
 
+  // Every report goes through one renderer, which is also what the window buttons and the report
+  // menu call, so a report looks the same however it was reached.
+  if (USAGE_REPORTS[sub]) {
+    await interaction.editReply(await renderUsageReply(sub, state));
+    return;
+  }
+
   switch (sub) {
-    case 'overview':
-      await interaction.editReply({ embeds: [await buildUsageOverview(days, timezone)] });
-      break;
-
-    case 'commands':
-      await interaction.editReply({
-        embeds: [await buildUsageCommands(days, limit, interaction.options.getBoolean('include_searches') || false)]
-      });
-      break;
-
-    case 'users':
-      await interaction.editReply({ embeds: [await buildUsageUsers(days, limit)] });
-      break;
-
-    case 'servers':
-      await interaction.editReply({ embeds: [await buildUsageGuilds(days, limit)] });
-      break;
-
-    case 'coins':
-      await interaction.editReply({ embeds: [await buildUsageCoins(days, limit)] });
-      break;
-
-    case 'activity':
-      await interaction.editReply({ embeds: [await buildUsageActivity(days, timezone)] });
-      break;
-
-    case 'command':
-      await interaction.editReply({
-        embeds: [await buildUsageCommandDetail(interaction.options.getString('name'), days)]
-      });
-      break;
-
-    case 'errors':
-      await interaction.editReply({ embeds: [await buildUsageErrors(days, limit)] });
-      break;
-
-    case 'growth':
-      await interaction.editReply({ embeds: [await buildUsageGrowth(days, timezone)] });
-      break;
-
-    case 'credits':
-      await interaction.editReply({ embeds: [await buildUsageCredits(days, timezone)] });
-      break;
-
     case 'export': {
       // Capped well under Discord's attachment limit; a full dump belongs in psql, not here.
       const rows = await telemetryReports.getRecentEvents(days, Math.min(interaction.options.getInteger('rows') || 5000, 50000));
@@ -4395,42 +4499,208 @@ async function handleUsageCommand(interaction) {
       break;
     }
 
-    case 'storage': {
-      const storage = await telemetryReports.getStorageStats();
-      const writer = telemetry.getWriterStats();
-      const embed = usageEmbed('Telemetry storage', days)
-        .setDescription('Nothing is pruned automatically. Use `/usage prune` when the table gets large.')
-        .addFields({
-          name: 'Table', value: render.codeBlock(render.renderKeyValue([
-            ['Rows', render.compactNumber(storage.rows)],
-            ['On disk', String(storage.total_size)],
-            ['Oldest', storage.oldest ? new Date(storage.oldest).toISOString().slice(0, 10) : '-'],
-            ['Buffered', String(writer.buffered)],
-            ['Settling', String(writer.pendingAutocomplete)],
-            ['Dropped', String(writer.dropped)]
-          ]))
-        });
-      await interaction.editReply({ embeds: [embed] });
+    case 'prune': {
+      const keepDays = interaction.options.getInteger('keep_days');
+      if (interaction.options.getBoolean('confirm')) {
+        // The old two-step flow still works for anyone used to it.
+        const deleted = await telemetryReports.pruneOlderThan(keepDays);
+        console.log(pc.yellow(`Telemetry pruned: ${deleted} events older than ${keepDays} days deleted by ${interaction.user.username}`));
+        await interaction.editReply({ content: `Deleted **${deleted}** events older than ${keepDays} days.` });
+        break;
+      }
+      // Preview with a confirm button: the number on the button is the number that was counted,
+      // so what gets confirmed is what was seen rather than a cutoff re-evaluated later.
+      const count = await telemetryReports.countOlderThan(keepDays);
+      if (count === 0) {
+        await interaction.editReply({ content: `Nothing to prune: there are no events older than **${keepDays} days**.` });
+        break;
+      }
+      await interaction.editReply({
+        content: `This would permanently delete **${count.toLocaleString('en-US')}** events older than **${keepDays} days**. ` +
+          'There is no undo.',
+        components: telemetryComponents.buildPruneComponents(keepDays, count)
+      });
       break;
     }
 
-    case 'prune': {
-      const keepDays = interaction.options.getInteger('keep_days');
-      if (!interaction.options.getBoolean('confirm')) {
+    case 'dashboard': {
+      if (!usageConfig.dashboard.enabled) {
         await interaction.editReply({
-          content: `This would permanently delete every event older than **${keepDays} days**. ` +
-            'Re-run with `confirm: True` if that is what you want.'
+          content: 'The usage dashboard is disabled. Set `"usage": { "dashboard": { "enabled": true } }` in keys.api ' +
+            '(or TSUKIBOT_DASHBOARD_ENABLED=true) and restart.'
         });
         break;
       }
-      const deleted = await telemetryReports.pruneOlderThan(keepDays);
-      console.log(pc.yellow(`Telemetry pruned: ${deleted} events older than ${keepDays} days deleted by ${interaction.user.username}`));
-      await interaction.editReply({ content: `Deleted **${deleted}** events older than ${keepDays} days.` });
+      if (!usageDashboard.address()) {
+        await interaction.editReply({ content: 'The usage dashboard is not listening. Check the startup log for a port clash.' });
+        break;
+      }
+      const { token, expiresAt } = usageDashboard.mintToken(usageConfig.dashboard.tokenTtlHours * 3600000);
+      const link = `${usageDashboardUrl()}/dash?token=${token}`;
+      await interaction.editReply({
+        content: `Your dashboard sign-in link, valid until <t:${Math.floor(expiresAt / 1000)}:f>:\n${link}\n\n` +
+          'Opening it sets a session cookie and drops the token from the address bar. ' +
+          (usageConfig.dashboard.publicUrl
+            ? ''
+            : 'The dashboard listens on loopback, so the link works from the machine the bot runs on (or through an SSH tunnel).')
+      });
+      break;
+    }
+
+    case 'digest': {
+      if (!usageInsights) {
+        await interaction.editReply({ content: 'The digest is not ready yet; try again in a moment.' });
+        break;
+      }
+      const { embed, files } = await usageInsights.buildWeeklyDigest({ timezone: state.timezone });
+      await interaction.editReply({ embeds: [embed], files });
+      break;
+    }
+
+    case 'watchdog': {
+      if (!usageInsights) {
+        await interaction.editReply({ content: 'The watchdog is not ready yet; try again in a moment.' });
+        break;
+      }
+      const alerts = await usageInsights.checkWatchdog({ force: true });
+      if (alerts.length === 0) {
+        await interaction.editReply({
+          content: '✅ All clear: no error spike, latency regression, rate limiting, credit overrun or dropped telemetry batches ' +
+            'in the current check windows.'
+        });
+        break;
+      }
+      await interaction.editReply({ embeds: [usageInsights.buildWatchdogEmbed(alerts)] });
       break;
     }
 
     default:
       await interaction.editReply({ content: 'Unknown usage report.' });
+  }
+}
+
+/**
+ * Reads the shared /usage options into a report state, falling back to the configured defaults
+ * so the owner is not retyping their timezone on every invocation.
+ * @param {object} options interaction.options
+ * @returns {object}
+ */
+function usageStateFromOptions(options) {
+  const defaults = usageConfig.defaults;
+  return {
+    days: options.getInteger('days') || defaults.days,
+    limit: options.getInteger('limit') || defaults.limit,
+    timezone: telemetryReports.normalizeTimezone(options.getString('timezone') || defaults.timezone),
+    includeSearches: options.getBoolean('include_searches') || false,
+    compare: options.getBoolean('compare') || false,
+    name: options.getString('name') || '',
+    image: usageImagesEnabled()
+  };
+}
+
+/**
+ * Builds the full reply for a /usage report: the embed, the chart image when there is one, and
+ * the buttons and menus underneath. Used by the slash command and by every component click.
+ * @param {string} report
+ * @param {object} state
+ * @returns {Promise<object>} an editReply payload
+ */
+async function renderUsageReply(report, state) {
+  const result = await buildUsageReport(report, { ...state, image: state.image && usageImagesEnabled() });
+  const files = [];
+  if (result.chart) {
+    const png = await telemetryCharts.renderPng(result.chart.svg);
+    if (png) files.push(new AttachmentBuilder(png, { name: result.chart.name }));
+    else result.embed.setImage(null); // the chart failed to render; the numbers still stand
+  }
+  return {
+    content: '',
+    embeds: [result.embed],
+    files,
+    // Without this an edit keeps the previous image as well as adding the new one.
+    attachments: [],
+    components: telemetryComponents.buildUsageComponents(report, state, { commandNames: result.commandNames || [] })
+  };
+}
+
+/**
+ * Handles every button and select menu under a /usage reply. Returns false for ids that are not
+ * ours so the caller can log an unknown component.
+ * @param {object} interaction
+ * @returns {Promise<boolean>}
+ */
+async function handleUsageComponent(interaction) {
+  const parsed = telemetryComponents.parseUsageCustomId(interaction.customId);
+  if (!parsed) return false;
+
+  // The reply these sit under is ephemeral to the admin who asked, but the gate is cheap and the
+  // ids are guessable, so check again rather than trust the delivery.
+  if (!isBotAdmin(interaction.user.id)) {
+    await interaction.reply({ content: 'Those controls belong to the bot owner.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  switch (parsed.kind) {
+    case 'report':
+    case 'nav':
+    case 'drill': {
+      let report = parsed.report;
+      const state = { ...parsed.state, image: usageImagesEnabled() };
+      if (parsed.kind === 'nav') report = interaction.values && interaction.values[0];
+      if (parsed.kind === 'drill') {
+        report = 'command';
+        state.name = interaction.values && interaction.values[0];
+      }
+      if (!USAGE_REPORTS[report]) return false;
+      // deferUpdate, so the existing message is edited in place rather than a new one posted.
+      await interaction.deferUpdate();
+      await telemetry.flush();
+      await interaction.editReply(await renderUsageReply(report, state));
+      return true;
+    }
+
+    case 'prune': {
+      await interaction.deferUpdate();
+      const deleted = await telemetryReports.pruneOlderThan(parsed.keepDays);
+      console.log(pc.yellow(`Telemetry pruned: ${deleted} events older than ${parsed.keepDays} days deleted by ${interaction.user.username}`));
+      await interaction.editReply({
+        content: `Deleted **${deleted.toLocaleString('en-US')}** events older than ${parsed.keepDays} days.`,
+        components: telemetryComponents.buildPruneResolvedComponents('Deleted')
+      });
+      return true;
+    }
+
+    case 'prune-cancel':
+      await interaction.update({
+        content: 'Prune cancelled. Nothing was deleted.',
+        components: telemetryComponents.buildPruneResolvedComponents('Cancelled')
+      });
+      return true;
+
+    default:
+      return false;
+  }
+}
+
+/**
+ * DMs a digest or watchdog payload to the configured recipients, or to the application owners
+ * when none are configured. Delivery failures are logged per recipient, never thrown.
+ * @param {object} payload a message payload ({embeds, files, content})
+ */
+async function sendUsageReport(payload) {
+  const recipients = usageConfig.recipients.length > 0 ? usageConfig.recipients : [...applicationOwnerIds];
+  if (recipients.length === 0) {
+    console.log(pc.yellow('Usage report not sent: no recipient is configured and the application owner is not resolved yet.'));
+    return;
+  }
+  for (const id of recipients) {
+    try {
+      const user = await client.users.fetch(id);
+      await user.send(payload);
+    }
+    catch (err) {
+      console.log(pc.yellow(`Could not DM the usage report to ${id}: ` + pc.cyan(err && err.message ? err.message : err)));
+    }
   }
 }
 
@@ -4445,14 +4715,15 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  if (interaction.isButton()) {
+  if (interaction.isButton() || interaction.isStringSelectMenu()) {
     const buttonStart = Date.now();
     try {
       if (interaction.customId.startsWith('chart:')) await handleChartButton(interaction);
+      else if (interaction.customId.startsWith('usage')) await handleUsageComponent(interaction);
       telemetry.recordButton(interaction, { durationMs: Date.now() - buttonStart });
     }
     catch (err) {
-      console.log(pc.red('Error handling button interaction: ' + pc.cyan(err)));
+      console.log(pc.red('Error handling component interaction: ' + pc.cyan(err)));
       telemetry.recordButton(interaction, { outcome: 'error', error: err, durationMs: Date.now() - buttonStart });
     }
     return;

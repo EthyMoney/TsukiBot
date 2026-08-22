@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <title>TsukiBot Usage</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/dash/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>TsukiBot Usage</span></div>
+    <div class="controls">
+      <div class="range" role="group" aria-label="Time window" id="range-buttons">
+        <button class="btn" type="button" data-days="7">7d</button>
+        <button class="btn" type="button" data-days="30">30d</button>
+        <button class="btn" type="button" data-days="90">90d</button>
+        <button class="btn" type="button" data-days="365">1y</button>
+        <button class="btn" type="button" data-days="3650">all</button>
+        <label class="control" title="Window in days (1-3650)">
+          <input id="days-input" type="number" min="1" max="3650" step="1" aria-label="Days">
+          <span>days</span>
+        </label>
+      </div>
+      <label class="control" title="Timezone used for day and hour buckets">
+        <span>TZ</span>
+        <select id="tz-select" aria-label="Timezone"></select>
+      </label>
+      <label class="control toggle" title="Re-fetch the current tab every 60 seconds">
+        <input id="auto-refresh" type="checkbox">
+        <span>Auto-refresh</span>
+      </label>
+      <button class="btn" type="button" id="refresh-btn" title="Refresh now">Refresh</button>
+      <span id="updated-stamp" class="muted num" aria-live="polite">not loaded</span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Report"></nav>
+
+  <div id="banner" class="banner hidden" role="alert"></div>
+
+  <main id="view" class="view"></main>
+
+  <script src="/dash/vendor/chart.umd.js"></script>
+  <script src="/dash/app.js"></script>
+</body>
+</html>

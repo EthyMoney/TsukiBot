@@ -10,8 +10,22 @@
  * requiring main.js starts the bot. Here they are ordinary functions over a
  * database pool, so every report can be built and inspected in a test.
  *
+ * Every builder returns { embed, chart }. The chart is null, or an SVG card
+ * built by telemetry-charts.js that the caller rasterises and attaches; the
+ * embed already names it with setImage('attachment://...'). Builders take an
+ * options object:
+ *
+ *   image:   true when the caller can attach images. The text sparklines and
+ *            block bars are then left out in favour of the real chart, while
+ *            the key-value panels and tables stay, because they carry detail
+ *            a picture cannot.
+ *   compare: true to run the same window one step earlier as well and show
+ *            the change, where a report supports it.
+ *
  * The dispatcher stays in main.js: it needs the interaction, the admin gate and
- * the deferral, none of which belong in a rendering module.
+ * the deferral, none of which belong in a rendering module. buildUsageReport
+ * below is the one place that knows which arguments each report takes, so the
+ * slash command, the window buttons and the report menu all go through it.
  *
  * ------------------------------------------------------------------------ */
 
@@ -24,6 +38,7 @@ const { EmbedBuilder } = require('discord.js');
 const telemetry = require('./telemetry');
 const telemetryReports = require('./telemetry-reports');
 const render = require('./telemetry-render');
+const charts = require('./telemetry-charts');
 
 /* --------------------------------------------------------------------------
  *
@@ -39,10 +54,29 @@ const render = require('./telemetry-render');
  *
  * -------------------------------------------------------------------------- */
 
-// A CoinGecko demo key's monthly allowance. One request is one credit.
+// A CoinGecko demo key's monthly allowance. One request is one credit. The
+// effective budget can be raised for a paid plan with setMonthlyCreditBudget.
 const DEMO_MONTHLY_CREDITS = 10000;
+let monthlyCreditBudget = DEMO_MONTHLY_CREDITS;
 
 const USAGE_EMBED_COLOR = '#5865F2';
+
+/**
+ * Overrides the credit budget the credits report measures against. Anything
+ * that is not a positive number keeps the demo default.
+ * @param {number|string} value
+ * @returns {number} the budget now in effect
+ */
+function setMonthlyCreditBudget(value) {
+  const n = Number(value);
+  monthlyCreditBudget = Number.isFinite(n) && n > 0 ? Math.round(n) : DEMO_MONTHLY_CREDITS;
+  return monthlyCreditBudget;
+}
+
+/** @returns {number} */
+function getMonthlyCreditBudget() {
+  return monthlyCreditBudget;
+}
 
 /**
  * Base embed for every usage report, so the window and timezone a report was
@@ -61,17 +95,66 @@ function usageEmbed(title, days, timezone) {
 }
 
 /**
+ * Change between two counts as a compact arrow string, for the compare option.
+ * @param {number|string} current
+ * @param {number|string} prior
+ * @returns {string} e.g. '▲ +12%', '▼ 8%', '▲ new', '–'
+ */
+function deltaText(current, prior) {
+  const c = Number(current) || 0;
+  const p = Number(prior) || 0;
+  if (c === 0 && p === 0) return '–';
+  if (p === 0) return '▲ new';
+  const pct = Math.round((c - p) / p * 100);
+  if (pct === 0) return '= 0%';
+  return pct > 0 ? `▲ +${pct}%` : `▼ ${Math.abs(pct)}%`;
+}
+
+/**
+ * Names the chart attachment and points the embed at it.
+ * @param {EmbedBuilder} embed
+ * @param {string} report
+ * @param {string} svg
+ * @returns {{embed: EmbedBuilder, chart: {name: string, svg: string}}}
+ */
+function withChart(embed, report, svg) {
+  const name = `usage-${report}.png`;
+  embed.setImage(`attachment://${name}`);
+  return { embed, chart: { name, svg } };
+}
+
+/** @param {EmbedBuilder} embed */
+function textOnly(embed) {
+  return { embed, chart: null };
+}
+
+/** A YYYY-MM-DD label from whatever node-postgres hands back for a date. */
+function isoDay(value) {
+  if (!value) return '-';
+  const key = charts.dayKey(value);
+  return key || '-';
+}
+
+/* --------------------------------------------------------------------------
+ *  Reports
+ * -------------------------------------------------------------------------- */
+
+/**
  * Renders the headline panel: how much the bot is used, by how many people,
  * how reliably, and how fast.
  * @param {number} days
  * @param {string} timezone
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean, compare?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageOverview(days, timezone) {
-  const [stats, series, storage] = await Promise.all([
+async function buildUsageOverview(days, timezone, { image = false, compare = false } = {}) {
+  const [stats, series, storage, comparison] = await Promise.all([
     telemetryReports.getOverview(days),
-    telemetryReports.getDailySeries(Math.min(days, 60), timezone),
-    telemetryReports.getStorageStats()
+    // The text sparkline is one character per day and cannot show more than ~60;
+    // the image has no such limit.
+    telemetryReports.getDailySeries(image ? days : Math.min(days, 60), timezone),
+    telemetryReports.getStorageStats(),
+    compare ? telemetryReports.getOverviewComparison(days) : null
   ]);
 
   const events = Number(stats.events) || 0;
@@ -100,7 +183,7 @@ async function buildUsageOverview(days, timezone) {
     ['Avg time', render.formatDuration(stats.avg_ms)],
     ['Median', render.formatDuration(stats.p50_ms)],
     ['95th pct', render.formatDuration(stats.p95_ms)],
-    ['Busiest day', stats.busiest ? `${new Date(stats.busiest.day).toISOString().slice(0, 10)} (${render.compactNumber(stats.busiest.events)})` : '-'],
+    ['Busiest day', stats.busiest ? `${isoDay(stats.busiest.day)} (${render.compactNumber(stats.busiest.events)})` : '-'],
     ['Events today', render.compactNumber(stats.events_today)]
   ]);
 
@@ -109,6 +192,36 @@ async function buildUsageOverview(days, timezone) {
     { name: 'Reach', value: render.codeBlock(reach), inline: true },
     { name: 'Health', value: render.codeBlock(health), inline: false }
   );
+
+  if (comparison) {
+    embed.addFields({
+      name: `vs the ${days} day${days === 1 ? '' : 's'} before`,
+      value: render.codeBlock(render.renderKeyValue([
+        ['Events', `${render.compactNumber(comparison.events)} ${deltaText(comparison.events, comparison.prior_events)}`],
+        ['Commands', `${render.compactNumber(comparison.command_events)} ${deltaText(comparison.command_events, comparison.prior_command_events)}`],
+        ['Users', `${render.compactNumber(comparison.users)} ${deltaText(comparison.users, comparison.prior_users)}`],
+        ['Servers', `${render.compactNumber(comparison.guilds)} ${deltaText(comparison.guilds, comparison.prior_guilds)}`],
+        ['Errors', `${render.compactNumber(comparison.errors)} ${deltaText(comparison.errors, comparison.prior_errors)}`],
+        ['95th pct', `${render.formatDuration(comparison.p95_ms)} ${deltaText(comparison.p95_ms, comparison.prior_p95_ms)}`],
+        ['CG credits', `${render.compactNumber(comparison.credits)} ${deltaText(comparison.credits, comparison.prior_credits)}`]
+      ]))
+    });
+  }
+
+  const writer = telemetry.getWriterStats();
+  embed.setDescription(
+    `Tracking since **${isoDay(stats.trackingSince)}** · ` +
+    `**${render.compactNumber(stats.lifetimeEvents)}** events all time · ` +
+    `**${storage.total_size}** on disk` +
+    (writer.buffered || writer.dropped
+      ? `\nBuffer: ${writer.buffered} queued, ${writer.pendingAutocomplete} searches settling` +
+        (writer.dropped ? `, ⚠️ ${writer.dropped} dropped` : '')
+      : '')
+  );
+
+  if (image && series.length > 1) {
+    return withChart(embed, 'overview', charts.dailyTrendChart({ series, days, timezone }));
+  }
 
   if (series.length > 1) {
     const spark = render.renderSparkline(series.map(row => row.events));
@@ -120,18 +233,7 @@ async function buildUsageOverview(days, timezone) {
     });
   }
 
-  const writer = telemetry.getWriterStats();
-  embed.setDescription(
-    `Tracking since **${stats.trackingSince ? new Date(stats.trackingSince).toISOString().slice(0, 10) : 'n/a'}** · ` +
-    `**${render.compactNumber(stats.lifetimeEvents)}** events all time · ` +
-    `**${storage.total_size}** on disk` +
-    (writer.buffered || writer.dropped
-      ? `\nBuffer: ${writer.buffered} queued, ${writer.pendingAutocomplete} searches settling` +
-        (writer.dropped ? `, ⚠️ ${writer.dropped} dropped` : '')
-      : '')
-  );
-
-  return embed;
+  return textOnly(embed);
 }
 
 /**
@@ -139,36 +241,63 @@ async function buildUsageOverview(days, timezone) {
  * @param {number} days
  * @param {number} limit
  * @param {boolean} includeAutocomplete
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean, compare?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageCommands(days, limit, includeAutocomplete) {
-  const rows = await telemetryReports.getTopCommands(days, limit, includeAutocomplete);
+async function buildUsageCommands(days, limit, includeAutocomplete, { image = false, compare = false } = {}) {
+  const [rows, prior] = await Promise.all([
+    telemetryReports.getTopCommands(days, limit, includeAutocomplete),
+    compare ? telemetryReports.getTopCommands(days, 200, includeAutocomplete, { priorWindow: true }) : []
+  ]);
   const embed = usageEmbed('Top commands', days);
 
   if (rows.length === 0) {
-    return embed.setDescription('No commands recorded yet in this window.');
+    return textOnly(embed.setDescription('No commands recorded yet in this window.'));
   }
 
   const total = rows.reduce((sum, row) => sum + Number(row.uses), 0);
-  const chart = render.renderBarChart(
-    rows.slice(0, 12).map(row => ({ label: row.name, value: Number(row.uses) })),
-    { width: 18 }
-  );
+  const priorByName = new Map((prior || []).map((row, index) => [row.name, { uses: Number(row.uses), rank: index + 1 }]));
 
-  const table = render.renderTable(rows, [
+  const columns = [
     { key: 'name', label: 'Command', width: 18 },
     { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber },
     { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber },
     { key: 'avg_ms', label: 'Avg', align: 'right', width: 7, format: render.formatDuration },
     { key: 'errors', label: 'Err', align: 'right', width: 5, format: render.compactNumber }
-  ]);
+  ];
+  let tableRows = rows;
+  if (compare) {
+    tableRows = rows.map((row, index) => {
+      const before = priorByName.get(row.name);
+      const rank = !before ? 'new' : before.rank === index + 1 ? '=' : before.rank > index + 1 ? `↑${before.rank - index - 1}` : `↓${index + 1 - before.rank}`;
+      return { ...row, delta: deltaText(row.uses, before ? before.uses : 0), rank };
+    });
+    columns.splice(2, 0, { key: 'delta', label: 'Δ', align: 'right', width: 7 }, { key: 'rank', label: 'Rank', align: 'right', width: 4 });
+    // Drop the average to keep the row inside a phone-width code block.
+    columns.splice(columns.findIndex(c => c.key === 'avg_ms'), 1);
+  }
+  const table = render.renderTable(tableRows, columns);
 
-  embed.setDescription(`**${render.compactNumber(total)}** invocations across **${rows.length}** commands.`);
+  embed.setDescription(`**${render.compactNumber(total)}** invocations across **${rows.length}** commands.` +
+    (compare ? ` Δ and rank are against the ${days} days before.` : ''));
+
+  // The names feed the drill-down menu under the reply.
+  const commandNames = rows.map(row => row.name);
+
+  if (image) {
+    embed.addFields({ name: 'Detail', value: render.codeBlock(table) });
+    return { ...withChart(embed, 'commands', charts.commandBreakdownChart({ rows, days })), commandNames };
+  }
+
+  const chart = render.renderBarChart(
+    rows.slice(0, 12).map(row => ({ label: row.name, value: Number(row.uses) })),
+    { width: 18 }
+  );
   embed.addFields(
     { name: 'Share', value: render.codeBlock(chart) },
     { name: 'Detail', value: render.codeBlock(table) }
   );
-  return embed;
+  return { ...textOnly(embed), commandNames };
 }
 
 /**
@@ -176,14 +305,14 @@ async function buildUsageCommands(days, limit, includeAutocomplete) {
  * what any follow-up query would key on.
  * @param {number} days
  * @param {number} limit
- * @returns {Promise<EmbedBuilder>}
+ * @returns {Promise<{embed: EmbedBuilder, chart: null}>}
  */
 async function buildUsageUsers(days, limit) {
   const rows = await telemetryReports.getTopUsers(days, limit);
   const embed = usageEmbed('Top users', days);
 
   if (rows.length === 0) {
-    return embed.setDescription('No users recorded yet in this window.');
+    return textOnly(embed.setDescription('No users recorded yet in this window.'));
   }
 
   const table = render.renderTable(rows, [
@@ -205,21 +334,21 @@ async function buildUsageUsers(days, limit) {
     { name: 'Activity', value: render.codeBlock(chart) },
     { name: 'Detail', value: render.codeBlock(table) }
   );
-  return embed;
+  return textOnly(embed);
 }
 
 /**
  * Busiest servers.
  * @param {number} days
  * @param {number} limit
- * @returns {Promise<EmbedBuilder>}
+ * @returns {Promise<{embed: EmbedBuilder, chart: null}>}
  */
 async function buildUsageGuilds(days, limit) {
   const rows = await telemetryReports.getTopGuilds(days, limit);
   const embed = usageEmbed('Top servers', days);
 
   if (rows.length === 0) {
-    return embed.setDescription('No server activity recorded yet in this window.');
+    return textOnly(embed.setDescription('No server activity recorded yet in this window.'));
   }
 
   const table = render.renderTable(rows, [
@@ -232,21 +361,25 @@ async function buildUsageGuilds(days, limit) {
 
   embed.setDescription(`**${rows.length}** servers with activity. DM usage is counted in \`/usage overview\`.`);
   embed.addFields({ name: 'Detail', value: render.codeBlock(table) });
-  return embed;
+  return textOnly(embed);
 }
 
 /**
  * Most requested coins.
  * @param {number} days
  * @param {number} limit
- * @returns {Promise<EmbedBuilder>}
+ * @param {{compare?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: null}>}
  */
-async function buildUsageCoins(days, limit) {
-  const rows = await telemetryReports.getTopCoins(days, limit);
+async function buildUsageCoins(days, limit, { compare = false } = {}) {
+  const [rows, prior] = await Promise.all([
+    telemetryReports.getTopCoins(days, limit),
+    compare ? telemetryReports.getTopCoins(days, 200, { priorWindow: true }) : []
+  ]);
   const embed = usageEmbed('Top coins', days);
 
   if (rows.length === 0) {
-    return embed.setDescription('No coin lookups recorded yet in this window.');
+    return textOnly(embed.setDescription('No coin lookups recorded yet in this window.'));
   }
 
   const total = rows.reduce((sum, row) => sum + Number(row.requests), 0);
@@ -255,19 +388,26 @@ async function buildUsageCoins(days, limit) {
     { width: 18, labelWidth: 8 }
   );
 
-  const table = render.renderTable(rows, [
+  const priorByCoin = new Map((prior || []).map(row => [row.coin, Number(row.requests)]));
+  const columns = [
     { key: 'coin', label: 'Coin', width: 10 },
     { key: 'requests', label: 'Lookups', align: 'right', width: 8, format: render.compactNumber },
     { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber },
     { key: 'via_command', label: 'Mostly via', width: 12 }
-  ]);
+  ];
+  let tableRows = rows;
+  if (compare) {
+    tableRows = rows.map(row => ({ ...row, delta: deltaText(row.requests, priorByCoin.get(row.coin) || 0) }));
+    columns.splice(2, 0, { key: 'delta', label: 'Δ', align: 'right', width: 7 });
+  }
 
-  embed.setDescription(`**${render.compactNumber(total)}** coin lookups across **${rows.length}** distinct assets.`);
+  embed.setDescription(`**${render.compactNumber(total)}** coin lookups across **${rows.length}** distinct assets.` +
+    (compare ? ` Δ is against the ${days} days before; see \`/usage trending\` for risers and fallers.` : ''));
   embed.addFields(
     { name: 'Demand', value: render.codeBlock(chart) },
-    { name: 'Detail', value: render.codeBlock(table) }
+    { name: 'Detail', value: render.codeBlock(render.renderTable(tableRows, columns)) }
   );
-  return embed;
+  return textOnly(embed);
 }
 
 /**
@@ -276,9 +416,10 @@ async function buildUsageCoins(days, limit) {
  * the question anyone is actually asking.
  * @param {number} days
  * @param {string} timezone
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageActivity(days, timezone) {
+async function buildUsageActivity(days, timezone, { image = false } = {}) {
   const [hourly, weekly, grid] = await Promise.all([
     telemetryReports.getHourlyActivity(days, timezone),
     telemetryReports.getWeekdayActivity(days, timezone),
@@ -287,7 +428,7 @@ async function buildUsageActivity(days, timezone) {
 
   const embed = usageEmbed('Activity patterns', days, timezone);
   if (hourly.length === 0) {
-    return embed.setDescription('No activity recorded yet in this window.');
+    return textOnly(embed.setDescription('No activity recorded yet in this window.'));
   }
 
   // Fill missing hours so a quiet 3am shows as an empty row rather than vanishing.
@@ -307,12 +448,17 @@ async function buildUsageActivity(days, timezone) {
   const peakDay = weekdayItems.reduce((best, item) => item.value > best.value ? item : best, weekdayItems[0]);
 
   embed.setDescription(`Busiest hour is **${peakHour.label}** and the busiest day is **${peakDay.label}**, in \`${timezone}\`.`);
+
+  if (image) {
+    return withChart(embed, 'activity', charts.activityHeatmapChart({ grid, hourly, weekday: weekly, days, timezone }));
+  }
+
   embed.addFields(
     { name: 'By hour', value: render.codeBlock(render.renderBarChart(hourItems, { width: 14, labelWidth: 5 })) },
     { name: 'By weekday', value: render.codeBlock(render.renderBarChart(weekdayItems, { width: 18, labelWidth: 3 })), inline: true },
     { name: 'Heatmap', value: render.codeBlock(render.renderHeatmap(grid) + '\n' + render.heatmapLegend()) }
   );
-  return embed;
+  return textOnly(embed);
 }
 
 /**
@@ -320,10 +466,12 @@ async function buildUsageActivity(days, timezone) {
  * options they actually supply, and what values they pass.
  * @param {string} command
  * @param {number} days
- * @returns {Promise<EmbedBuilder>}
+ * @returns {Promise<{embed: EmbedBuilder, chart: null}>}
  */
 async function buildUsageCommandDetail(command, days) {
-  const name = String(command || '').replace(/^\//, '').trim().toLowerCase();
+  // Leaderboard names fold the subcommand in ("portfolio show"); the detail
+  // queries key on the bare command, so only the first token is used.
+  const name = String(command || '').replace(/^\//, '').trim().toLowerCase().split(/\s+/)[0] || '';
   const [subcommands, coverage, values] = await Promise.all([
     telemetryReports.getSubcommandSplit(name, days),
     telemetryReports.getOptionCoverage(name, days),
@@ -334,7 +482,7 @@ async function buildUsageCommandDetail(command, days) {
   const total = subcommands.reduce((sum, row) => sum + Number(row.uses), 0);
 
   if (total === 0) {
-    return embed.setDescription(`No recorded invocations of \`/${name}\` in this window. Check the spelling, or widen the window.`);
+    return textOnly(embed.setDescription(`No recorded invocations of \`/${name}\` in this window. Check the spelling, or widen the window.`));
   }
 
   embed.setDescription(`**${render.compactNumber(total)}** invocations of \`/${name}\`.`);
@@ -371,24 +519,27 @@ async function buildUsageCommandDetail(command, days) {
       value: render.codeBlock(render.renderTable(values, [
         { key: 'option', label: 'Option', width: 10 },
         { key: 'value', label: 'Value', width: 20 },
-        { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber }
+        { key: 'uses', label: 'Uses', align: 'right', width: 7, format: render.compactNumber },
+        { key: 'users', label: 'Users', align: 'right', width: 6, format: render.compactNumber }
       ]))
     });
   }
 
-  return embed;
+  return textOnly(embed);
 }
 
 /**
  * What is failing and what is slow, the two things worth acting on.
  * @param {number} days
  * @param {number} limit
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean, compare?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageErrors(days, limit) {
-  const [errors, slowest] = await Promise.all([
+async function buildUsageErrors(days, limit, { image = false, compare = false } = {}) {
+  const [errors, slowest, prior] = await Promise.all([
     telemetryReports.getErrors(days, limit),
-    telemetryReports.getSlowestCommands(days, 10)
+    telemetryReports.getSlowestCommands(days, 10),
+    compare ? telemetryReports.getErrors(days, 200, { priorWindow: true }) : []
   ]);
 
   const embed = usageEmbed('Errors and latency', days);
@@ -398,16 +549,25 @@ async function buildUsageErrors(days, limit) {
   }
   else {
     const total = errors.reduce((sum, row) => sum + Number(row.occurrences), 0);
-    embed.setDescription(`**${render.compactNumber(total)}** failures across **${errors.length}** distinct faults.`);
-    embed.addFields({
-      name: 'Failures',
-      value: render.codeBlock(render.renderTable(errors, [
-        { key: 'command', label: 'Command', width: 12 },
-        { key: 'error_kind', label: 'Error', width: 24 },
-        { key: 'occurrences', label: 'Count', align: 'right', width: 6, format: render.compactNumber },
-        { key: 'last_seen', label: 'Last', width: 9, format: render.formatRelative }
-      ]))
-    });
+    const priorTotal = (prior || []).reduce((sum, row) => sum + Number(row.occurrences), 0);
+    embed.setDescription(`**${render.compactNumber(total)}** failures across **${errors.length}** distinct faults.` +
+      (compare ? ` ${deltaText(total, priorTotal)} vs the ${days} days before.` : ''));
+
+    const priorByFault = new Map((prior || []).map(row => [`${row.command}|${row.error_kind}`, Number(row.occurrences)]));
+    const columns = [
+      { key: 'command', label: 'Command', width: 12 },
+      { key: 'error_kind', label: 'Error', width: 24 },
+      { key: 'occurrences', label: 'Count', align: 'right', width: 6, format: render.compactNumber },
+      { key: 'users_affected', label: 'Users', align: 'right', width: 5, format: render.compactNumber },
+      { key: 'last_seen', label: 'Last', width: 9, format: render.formatRelative }
+    ];
+    let tableRows = errors;
+    if (compare) {
+      tableRows = errors.map(row => ({ ...row, delta: deltaText(row.occurrences, priorByFault.get(`${row.command}|${row.error_kind}`) || 0) }));
+      columns.splice(3, 0, { key: 'delta', label: 'Δ', align: 'right', width: 7 });
+      columns.splice(columns.findIndex(c => c.key === 'last_seen'), 1);
+    }
+    embed.addFields({ name: 'Failures', value: render.codeBlock(render.renderTable(tableRows, columns)) });
   }
 
   if (slowest.length > 0) {
@@ -423,24 +583,31 @@ async function buildUsageErrors(days, limit) {
     });
   }
 
-  return embed;
+  const commandNames = [...new Set([...errors.map(row => row.command), ...slowest.map(row => row.command)])];
+  if (image && (errors.length > 0 || slowest.length > 0)) {
+    return { ...withChart(embed, 'errors', charts.errorsChart({ errors, slowest, days })), commandNames };
+  }
+  return { ...textOnly(embed), commandNames };
 }
 
 /**
- * New versus returning users, and how many days people stick around for.
+ * New versus returning users, how many days people stick around for, and who
+ * churned or came back against the previous window.
  * @param {number} days
  * @param {string} timezone
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageGrowth(days, timezone) {
-  const [growth, retention] = await Promise.all([
+async function buildUsageGrowth(days, timezone, { image = false } = {}) {
+  const [growth, retention, churn] = await Promise.all([
     telemetryReports.getGrowth(days, timezone),
-    telemetryReports.getRetention(days)
+    telemetryReports.getRetention(days),
+    telemetryReports.getChurn(days).catch(() => null)
   ]);
 
   const embed = usageEmbed('Growth and retention', days, timezone);
   if (growth.length === 0) {
-    return embed.setDescription('No activity recorded yet in this window.');
+    return textOnly(embed.setDescription('No activity recorded yet in this window.'));
   }
 
   const newTotal = growth.reduce((sum, row) => sum + Number(row.new_users), 0);
@@ -448,27 +615,37 @@ async function buildUsageGrowth(days, timezone) {
 
   embed.setDescription(
     `**${render.compactNumber(newTotal)}** first-time users in this window. ` +
-    `Peak returning users in a day: **${render.compactNumber(returningPeak)}**.`
+    `Peak returning users in a day: **${render.compactNumber(returningPeak)}**.` +
+    (churn
+      ? `\nVs the ${days} days before: **${render.compactNumber(churn.retained)}** retained, ` +
+        `**${render.compactNumber(churn.churned)}** churned, **${render.compactNumber(churn.resurrected)}** came back.`
+      : '')
   );
 
-  embed.addFields({
-    name: 'Daily active users',
-    value: render.codeBlock(
-      render.renderSparkline(growth.map(row => row.active_users)) + '\n' +
-      'new      ' + render.renderSparkline(growth.map(row => row.new_users))
-    )
-  });
+  if (!image) {
+    embed.addFields({
+      name: 'Daily active users',
+      value: render.codeBlock(
+        render.renderSparkline(growth.map(row => row.active_users)) + '\n' +
+        'new      ' + render.renderSparkline(growth.map(row => row.new_users))
+      )
+    });
+  }
 
   const recent = growth.slice(-12);
   embed.addFields({
     name: 'Recent days',
     value: render.codeBlock(render.renderTable(recent, [
-      { key: 'day', label: 'Day', width: 10, format: (value) => new Date(value).toISOString().slice(5, 10) },
+      { key: 'day', label: 'Day', width: 10, format: (value) => isoDay(value).slice(5) },
       { key: 'active_users', label: 'Active', align: 'right', width: 7, format: render.compactNumber },
       { key: 'new_users', label: 'New', align: 'right', width: 5, format: render.compactNumber },
       { key: 'returning_users', label: 'Return', align: 'right', width: 7, format: render.compactNumber }
     ]))
   });
+
+  if (image) {
+    return withChart(embed, 'growth', charts.growthChart({ growth, retention, churn, days, timezone }));
+  }
 
   if (retention.length > 0) {
     embed.addFields({
@@ -480,7 +657,22 @@ async function buildUsageGrowth(days, timezone) {
     });
   }
 
-  return embed;
+  return textOnly(embed);
+}
+
+/**
+ * Month-end projection for the credits report and the watchdog: month-to-date
+ * plus the last 24 hours' rate for every UTC day left in the month.
+ * @param {object} totals a getApiCreditTotals row
+ * @param {Date} [now]
+ */
+function projectMonthEnd(totals, now = new Date()) {
+  const monthToDate = Number(totals.calls_month) || 0;
+  const perDay = Number(totals.calls_24h) || 0;
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  const dayOfMonth = now.getUTCDate();
+  const daysRemaining = Math.max(0, daysInMonth - dayOfMonth);
+  return { monthToDate, perDay, daysInMonth, dayOfMonth, daysRemaining, projected: monthToDate + perDay * daysRemaining };
 }
 
 /**
@@ -491,41 +683,43 @@ async function buildUsageGrowth(days, timezone) {
  *
  * @param {number} days window for the endpoint breakdown
  * @param {string} timezone
- * @returns {Promise<EmbedBuilder>}
+ * @param {{image?: boolean, compare?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
  */
-async function buildUsageCredits(days, timezone) {
-  const [byEndpoint, totals, daily] = await Promise.all([
+async function buildUsageCredits(days, timezone, { image = false, compare = false } = {}) {
+  const [byEndpoint, totals, daily, monthDaily, comparison] = await Promise.all([
     telemetryReports.getApiCreditsByEndpoint(days),
     telemetryReports.getApiCreditTotals(),
-    telemetryReports.getApiCreditsByDay(Math.min(days, 60), timezone)
+    image ? [] : telemetryReports.getApiCreditsByDay(Math.min(days, 60), timezone),
+    image ? telemetryReports.getApiCreditsMonthToDate() : [],
+    compare ? telemetryReports.getApiCreditsMonthComparison() : null
   ]);
 
   const embed = usageEmbed('CoinGecko credits', days, timezone);
+  const budget = getMonthlyCreditBudget();
 
   if (!totals || Number(totals.calls_total) === 0) {
-    return embed.setDescription(
+    return textOnly(embed.setDescription(
       'No CoinGecko calls recorded yet. Tracking starts when the bot next makes one, so this fills ' +
-      'in within a few minutes of a restart.');
+      'in within a few minutes of a restart.'));
   }
 
-  const monthToDate = Number(totals.calls_month) || 0;
-  const perDay = Number(totals.calls_24h) || 0;
-
-  // Days left in the current month, so the projection lands on the quota's own reset boundary.
   const now = new Date();
-  const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
-  const daysRemaining = Math.max(0, daysInMonth - now.getUTCDate());
-  const projected = monthToDate + perDay * daysRemaining;
-
-  const withinQuota = projected <= DEMO_MONTHLY_CREDITS;
+  const { monthToDate, perDay, daysInMonth, dayOfMonth, projected } = projectMonthEnd(totals, now);
+  const withinQuota = projected <= budget;
   embed.setColor(withinQuota ? '#2ee08a' : '#ff5a76');
 
   embed.setDescription(
-    `**${render.compactNumber(monthToDate)}** of **${render.compactNumber(DEMO_MONTHLY_CREDITS)}** ` +
-    `demo credits used this month (${render.percent(monthToDate, DEMO_MONTHLY_CREDITS, 0)}).\n` +
+    `**${render.compactNumber(monthToDate)}** of **${render.compactNumber(budget)}** ` +
+    `credits used this month (${render.percent(monthToDate, budget, 0)}).\n` +
     `At the last 24 hours' rate of **${render.compactNumber(perDay)}/day**, the month ends at ` +
     `**${render.compactNumber(projected)}** — ` +
-    (withinQuota ? 'within budget. ✅' : '**over budget.** ⚠️'));
+    (withinQuota ? 'within budget. ✅' : '**over budget.** ⚠️') +
+    (comparison
+      ? `\nLast month at this point: **${render.compactNumber(comparison.prior_month_same_point)}** ` +
+        `(${deltaText(monthToDate, comparison.prior_month_same_point)} now) · last month's total: ` +
+        `**${render.compactNumber(comparison.prior_month_total)}**.`
+      : ''));
 
   embed.addFields({
     name: 'Rate',
@@ -535,7 +729,7 @@ async function buildUsageCredits(days, timezone) {
       ['Last 7d', render.compactNumber(totals.calls_7d)],
       ['This month', render.compactNumber(monthToDate)],
       ['Projected', render.compactNumber(projected)],
-      ['Budget', render.compactNumber(DEMO_MONTHLY_CREDITS)],
+      ['Budget', render.compactNumber(budget)],
       ['Rate limited', render.compactNumber(totals.ratelimited)]
     ]))
   });
@@ -548,23 +742,32 @@ async function buildUsageCredits(days, timezone) {
       share: render.percent(row.calls, total, 1)
     }));
 
-    embed.addFields(
-      {
+    if (!image) {
+      embed.addFields({
         name: 'Where the credits go',
         value: render.codeBlock(render.renderBarChart(
           withShare.slice(0, 10).map(row => ({ label: row.endpoint, value: Number(row.calls) })),
           { width: 16, labelWidth: 16 }))
-      },
-      {
-        name: 'Detail',
-        value: render.codeBlock(render.renderTable(withShare, [
-          { key: 'endpoint', label: 'Endpoint', width: 18 },
-          { key: 'calls', label: 'Calls', align: 'right', width: 7, format: render.compactNumber },
-          { key: 'share', label: 'Share', align: 'right', width: 7 },
-          { key: 'ratelimited', label: '429s', align: 'right', width: 5, format: render.compactNumber },
-          { key: 'avg_ms', label: 'Avg', align: 'right', width: 7, format: render.formatDuration }
-        ]))
       });
+    }
+    embed.addFields({
+      name: 'Detail',
+      value: render.codeBlock(render.renderTable(withShare, [
+        { key: 'endpoint', label: 'Endpoint', width: 18 },
+        { key: 'calls', label: 'Calls', align: 'right', width: 7, format: render.compactNumber },
+        { key: 'share', label: 'Share', align: 'right', width: 7 },
+        { key: 'ratelimited', label: '429s', align: 'right', width: 5, format: render.compactNumber },
+        { key: 'errors', label: 'Err', align: 'right', width: 5, format: render.compactNumber },
+        { key: 'avg_ms', label: 'Avg', align: 'right', width: 7, format: render.formatDuration }
+      ]))
+    });
+  }
+
+  if (image) {
+    const monthLabel = now.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return withChart(embed, 'credits', charts.creditBurndownChart({
+      monthDaily, budget, monthToDate, projected, perDay, daysInMonth, dayOfMonth, monthLabel, byEndpoint
+    }));
   }
 
   if (daily.length > 1) {
@@ -577,11 +780,254 @@ async function buildUsageCredits(days, timezone) {
     });
   }
 
-  return embed;
+  return textOnly(embed);
+}
+
+/**
+ * Table size, row count and writer health.
+ * @param {number} days only used for the footer
+ * @returns {Promise<{embed: EmbedBuilder, chart: null}>}
+ */
+async function buildUsageStorage(days) {
+  const storage = await telemetryReports.getStorageStats();
+  const writer = telemetry.getWriterStats();
+  const embed = usageEmbed('Telemetry storage', days)
+    .setDescription('Nothing is pruned automatically. Use `/usage prune` when the table gets large.')
+    .addFields({
+      name: 'Table',
+      value: render.codeBlock(render.renderKeyValue([
+        ['Rows', render.compactNumber(storage.rows)],
+        ['On disk', String(storage.total_size)],
+        ['Oldest', isoDay(storage.oldest)],
+        ['Buffered', String(writer.buffered)],
+        ['Settling', String(writer.pendingAutocomplete)],
+        ['Dropped', String(writer.dropped)]
+      ]))
+    });
+  if (writer.dropped) {
+    embed.setDescription(embed.data.description +
+      `\n⚠️ **${writer.dropped}** events were dropped because a write failed; check the database connection.`);
+  }
+  return textOnly(embed);
+}
+
+/**
+ * Splits momentum rows into risers and fallers. A prior-window floor keeps
+ * "2 requests became 6" out of the risers; coins below it are left to the
+ * new-coins list.
+ * @param {Array<object>} rows getCoinMomentum rows
+ * @param {number} [minPrior]
+ */
+function rankMomentum(rows, minPrior = 3) {
+  const scored = (rows || []).map(row => {
+    const current = Number(row.current_requests) || 0;
+    const prior = Number(row.prior_requests) || 0;
+    return { ...row, current, prior, delta: current - prior, pct: prior > 0 ? (current - prior) / prior : null };
+  });
+  const risers = scored
+    .filter(row => row.delta > 0 && (row.prior >= minPrior || (row.prior === 0 && row.current >= minPrior)))
+    .sort((a, b) => (b.pct === null ? Infinity : b.pct) - (a.pct === null ? Infinity : a.pct) || b.delta - a.delta);
+  const fallers = scored
+    .filter(row => row.delta < 0 && row.prior >= minPrior)
+    .sort((a, b) => (a.pct - b.pct) || (a.delta - b.delta));
+  return { risers, fallers };
+}
+
+/**
+ * Coin demand momentum: what is rising, what is fading, and what is new.
+ * @param {number} days
+ * @param {number} limit
+ * @param {{image?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
+ */
+async function buildUsageTrending(days, limit, { image = false } = {}) {
+  const [momentum, fresh] = await Promise.all([
+    telemetryReports.getCoinMomentum(days, 300),
+    telemetryReports.getNewCoins(days, limit)
+  ]);
+  const embed = usageEmbed('Coin momentum', days);
+  const { risers, fallers } = rankMomentum(momentum);
+
+  if (momentum.length === 0) {
+    return textOnly(embed.setDescription('No coin lookups recorded in this window or the one before it.'));
+  }
+
+  const top = risers.slice(0, limit);
+  const bottom = fallers.slice(0, limit);
+  embed.setDescription(
+    `Against the **${days}** days before: **${risers.length}** coins rising, **${fallers.length}** fading, ` +
+    `**${fresh.length}** requested for the first time.` +
+    (top[0] ? ` Biggest riser: **${top[0].coin}** (${deltaText(top[0].current, top[0].prior)}).` : ''));
+
+  const pctLabel = (row) => row.pct === null ? 'new' : `${row.pct >= 0 ? '+' : ''}${Math.round(row.pct * 100)}%`;
+  if (!image) {
+    if (top.length > 0) {
+      embed.addFields({
+        name: 'Risers',
+        value: render.codeBlock(render.renderBarChart(
+          top.slice(0, 10).map(row => ({ label: `${row.coin} ${pctLabel(row)}`, value: row.delta })),
+          { width: 14, labelWidth: 12 }))
+      });
+    }
+    if (bottom.length > 0) {
+      embed.addFields({
+        name: 'Fallers',
+        value: render.codeBlock(render.renderBarChart(
+          bottom.slice(0, 10).map(row => ({ label: `${row.coin} ${pctLabel(row)}`, value: Math.abs(row.delta) })),
+          { width: 14, labelWidth: 12 }))
+      });
+    }
+  }
+
+  const movers = [...top.slice(0, Math.ceil(limit / 2)), ...bottom.slice(0, Math.floor(limit / 2))];
+  if (movers.length > 0) {
+    embed.addFields({
+      name: 'Movers',
+      value: render.codeBlock(render.renderTable(movers.map(row => ({
+        coin: row.coin, now: row.current, before: row.prior, change: pctLabel(row),
+        users: row.current_users, via: row.via_command
+      })), [
+        { key: 'coin', label: 'Coin', width: 8 },
+        { key: 'now', label: 'Now', align: 'right', width: 6, format: render.compactNumber },
+        { key: 'before', label: 'Before', align: 'right', width: 6, format: render.compactNumber },
+        { key: 'change', label: 'Change', align: 'right', width: 6 },
+        { key: 'users', label: 'Users', align: 'right', width: 5, format: render.compactNumber },
+        { key: 'via', label: 'Via', width: 9 }
+      ]))
+    });
+  }
+
+  if (fresh.length > 0) {
+    embed.addFields({
+      name: 'Requested for the first time',
+      value: render.codeBlock(render.renderTable(fresh, [
+        { key: 'coin', label: 'Coin', width: 10 },
+        { key: 'requests', label: 'Lookups', align: 'right', width: 7, format: render.compactNumber },
+        { key: 'users', label: 'Users', align: 'right', width: 5, format: render.compactNumber },
+        { key: 'via_command', label: 'Via', width: 9 },
+        { key: 'first_seen', label: 'First', width: 9, format: render.formatRelative }
+      ]))
+    });
+  }
+
+  if (image && (top.length > 0 || bottom.length > 0)) {
+    return withChart(embed, 'trending', charts.momentumChart({ risers: top, fallers: bottom, days }));
+  }
+  return textOnly(embed);
+}
+
+/**
+ * Do autocomplete searches turn into commands, and what do people search for
+ * that they never run?
+ * @param {number} days
+ * @param {number} limit
+ * @param {{image?: boolean}} [options]
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
+ */
+async function buildUsageFunnel(days, limit, { image = false } = {}) {
+  const [funnel, abandoned] = await Promise.all([
+    telemetryReports.getSearchFunnel(days, limit),
+    telemetryReports.getAbandonedSearches(days, limit)
+  ]);
+  const embed = usageEmbed('Search → command funnel', days);
+
+  if (funnel.length === 0) {
+    return textOnly(embed.setDescription('No autocomplete searches recorded in this window.'));
+  }
+
+  const searches = funnel.reduce((sum, row) => sum + Number(row.searches), 0);
+  const converted = funnel.reduce((sum, row) => sum + Number(row.converted), 0);
+  embed.setDescription(
+    `**${render.compactNumber(searches)}** searches, **${render.compactNumber(converted)}** followed by the command ` +
+    `within a minute (**${render.percent(converted, searches, 0)}**). A search that never converts is a coin the ` +
+    'picker could not find, or a user who changed their mind.');
+
+  const rows = funnel.map(row => ({ ...row, rate: render.percent(row.converted, row.searches, 0) }));
+  embed.addFields({
+    name: 'By command',
+    value: render.codeBlock(render.renderTable(rows, [
+      { key: 'command', label: 'Command', width: 12 },
+      { key: 'searches', label: 'Searches', align: 'right', width: 8, format: render.compactNumber },
+      { key: 'converted', label: 'Ran it', align: 'right', width: 7, format: render.compactNumber },
+      { key: 'rate', label: 'Rate', align: 'right', width: 5 },
+      { key: 'users', label: 'Users', align: 'right', width: 5, format: render.compactNumber }
+    ]))
+  });
+
+  if (abandoned.length > 0) {
+    embed.addFields({
+      name: 'Searched but never run',
+      value: render.codeBlock(render.renderTable(abandoned, [
+        { key: 'command', label: 'Command', width: 10 },
+        { key: 'query', label: 'Query', width: 18 },
+        { key: 'searches', label: 'Times', align: 'right', width: 5, format: render.compactNumber },
+        { key: 'users', label: 'Users', align: 'right', width: 5, format: render.compactNumber }
+      ]))
+    });
+  }
+
+  if (image) {
+    return withChart(embed, 'funnel', charts.funnelChart({ funnel, days }));
+  }
+  return textOnly(embed);
+}
+
+/* --------------------------------------------------------------------------
+ *  Dispatch
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Every report a window button or the report menu can re-render, with the
+ * arguments each one takes. The slash command, the buttons and the menu all
+ * resolve through here so the argument mapping exists exactly once.
+ *
+ * state: { days, limit, timezone, includeSearches, compare, name, image }
+ */
+const REPORTS = {
+  overview: { label: 'Overview', build: (s) => buildUsageOverview(s.days, s.timezone, { image: s.image, compare: s.compare }) },
+  commands: { label: 'Commands', build: (s) => buildUsageCommands(s.days, s.limit, s.includeSearches, { image: s.image, compare: s.compare }) },
+  users: { label: 'Users', build: (s) => buildUsageUsers(s.days, s.limit) },
+  servers: { label: 'Servers', build: (s) => buildUsageGuilds(s.days, s.limit) },
+  coins: { label: 'Coins', build: (s) => buildUsageCoins(s.days, s.limit, { compare: s.compare }) },
+  trending: { label: 'Coin momentum', build: (s) => buildUsageTrending(s.days, s.limit, { image: s.image }) },
+  activity: { label: 'Activity', build: (s) => buildUsageActivity(s.days, s.timezone, { image: s.image }) },
+  command: { label: 'Command detail', build: (s) => buildUsageCommandDetail(s.name, s.days), needsName: true },
+  errors: { label: 'Errors & latency', build: (s) => buildUsageErrors(s.days, s.limit, { image: s.image, compare: s.compare }) },
+  growth: { label: 'Growth', build: (s) => buildUsageGrowth(s.days, s.timezone, { image: s.image }) },
+  funnel: { label: 'Search funnel', build: (s) => buildUsageFunnel(s.days, s.limit, { image: s.image }) },
+  credits: { label: 'CoinGecko credits', build: (s) => buildUsageCredits(s.days, s.timezone, { image: s.image, compare: s.compare }) },
+  storage: { label: 'Storage', build: (s) => buildUsageStorage(s.days) }
+};
+
+/** Report names in menu order. */
+const REPORT_NAMES = Object.keys(REPORTS);
+
+/**
+ * Builds any report by name from a state object.
+ * @param {string} report one of REPORT_NAMES
+ * @param {{days: number, limit: number, timezone: string, includeSearches?: boolean, compare?: boolean, name?: string, image?: boolean}} state
+ * @returns {Promise<{embed: EmbedBuilder, chart: object|null}>}
+ */
+async function buildUsageReport(report, state) {
+  const entry = REPORTS[report];
+  if (!entry) throw new Error(`Unknown usage report: ${report}`);
+  const normalized = {
+    days: Math.max(1, Math.min(3650, Math.round(Number(state.days) || 30))),
+    limit: Math.max(1, Math.min(50, Math.round(Number(state.limit) || 15))),
+    timezone: telemetryReports.normalizeTimezone(state.timezone),
+    includeSearches: Boolean(state.includeSearches),
+    compare: Boolean(state.compare),
+    name: state.name || '',
+    image: Boolean(state.image)
+  };
+  return entry.build(normalized);
 }
 
 module.exports = {
   usageEmbed,
+  deltaText,
+  projectMonthEnd,
+  rankMomentum,
   buildUsageOverview,
   buildUsageCommands,
   buildUsageUsers,
@@ -592,6 +1038,14 @@ module.exports = {
   buildUsageErrors,
   buildUsageGrowth,
   buildUsageCredits,
+  buildUsageStorage,
+  buildUsageTrending,
+  buildUsageFunnel,
+  buildUsageReport,
+  REPORTS,
+  REPORT_NAMES,
+  setMonthlyCreditBudget,
+  getMonthlyCreditBudget,
   DEMO_MONTHLY_CREDITS,
   USAGE_EMBED_COLOR
 };

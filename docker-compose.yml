@@ -73,6 +73,15 @@ services:
       # NODE_OPTIONS: "--max-old-space-size=6144"   # mirrors process.json (pm2)
       # COINGECKO_API_KEY / COINGECKO_PRO_API_KEY can be set here instead of
       # in keys.api if you prefer env-supplied keys.
+      #
+      # Usage telemetry dashboard (see the `ports:` note below). Inside a
+      # container the app has to bind 0.0.0.0 for a published port to reach
+      # it; loopback inside the container is not the host's loopback.
+      # TSUKIBOT_DASHBOARD_HOST: "0.0.0.0"
+      # TSUKIBOT_DASHBOARD_PORT: "8090"
+      # TSUKIBOT_DASHBOARD_URL: "http://127.0.0.1:8090"   # what /usage dashboard prints
+      # TSUKIBOT_USAGE_TIMEZONE: "America/Chicago"       # default for the reports
+      # CG_MONTHLY_CREDITS: "10000"                      # your CoinGecko plan's credits
 
     volumes:
       # keys.api is MOUNTED, never baked into the image (.dockerignore excludes
@@ -87,11 +96,18 @@ services:
       postgres:
         condition: service_healthy
 
-    # No `ports:` on purpose. The chart server (127.0.0.1:8080) and the prices
+    # No `ports:` by default. The chart server (127.0.0.1:8080) and the prices
     # API (127.0.0.1:3330) bind to loopback by design -- they are internal
     # plumbing for puppeteer, not public endpoints. Publishing them would not
     # even work: a loopback-bound listener is unreachable from outside the
     # container's network namespace.
+    #
+    # The one thing worth publishing is the usage dashboard, and only to the
+    # host's own loopback: set TSUKIBOT_DASHBOARD_HOST=0.0.0.0 above (so the
+    # app binds the container's interfaces) and uncomment this, which maps it
+    # to 127.0.0.1 on the host and nowhere else. Sign in with /usage dashboard.
+    # ports:
+    #   - "127.0.0.1:8090:8090"
 
   postgres:
     image: postgres:16

@@ -67,6 +67,11 @@ A few things worth knowing:
   `/usage`. The table creates itself on first start. Access is limited to the Discord application
   owner, resolved automatically; add others with `"botAdmins": ["id", ...]` in `keys.api`. Nothing
   is pruned automatically, so run `/usage prune` if the table ever outgrows its usefulness.
++ **Reports come as real charts**, with window buttons and a report menu under every reply, a
+  **browser dashboard** on `127.0.0.1:8090` (`/usage dashboard` for a sign-in link), a **weekly
+  digest DM** with week-over-week deltas, and a **watchdog** that DMs the owner on error spikes,
+  latency regressions, CoinGecko rate limiting, a credit overrun or dropped telemetry. All of it is
+  configured under `"usage"` in `keys.api` (see the keys guide) and none of it needs Chromium.
 + **`/usage` is not a global command.** It deploys only to the server set as `ownerGuild` in
   `keys.api`, because a global command is visible to every server admin and to everyone in DMs no
   matter what `default_member_permissions` says. Set that field before `npm run deploy`.

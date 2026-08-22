@@ -48,6 +48,29 @@ function normalizeTimezone(tz) {
   return cleaned;
 }
 
+/**
+ * How far back a window is shifted. A report comparing "these N days" with "the
+ * N days before" runs the same query twice, the second time shifted by one whole
+ * window; everything else passes zero so the window ends at NOW().
+ * @param {number} days
+ * @param {boolean} priorWindow
+ * @returns {string}
+ */
+function shiftInterval(days, priorWindow) {
+  return priorWindow ? windowInterval(days) : '0 days';
+}
+
+/**
+ * Hour-granularity window for the watchdog checks, which look at the last few
+ * hours rather than days. Bounded like windowInterval.
+ * @param {number} hours
+ * @returns {string}
+ */
+function hoursInterval(hours) {
+  const n = Math.max(1, Math.min(24 * 30, Math.round(Number(hours) || 24)));
+  return `${n} hours`;
+}
+
 async function query(text, values) {
   if (!pool) throw new Error('Telemetry reports are not connected to a database.');
   const result = await pool.query(text, values);
@@ -78,13 +101,18 @@ async function getOverview(days) {
       COUNT(*) FILTER (WHERE event_type = 'system')               AS system_events,
       COUNT(*) FILTER (WHERE outcome = 'error')                   AS errors,
       COUNT(*) FILTER (WHERE guild_id IS NULL)                    AS dm_events,
-      ROUND(AVG(duration_ms))                                     AS avg_ms,
-      PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY duration_ms)    AS p50_ms,
-      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)   AS p95_ms,
+      ROUND(AVG(duration_ms))     FILTER (WHERE event_type = 'command')  AS avg_ms,
+      PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY duration_ms)
+                                  FILTER (WHERE event_type = 'command')  AS p50_ms,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)
+                                  FILTER (WHERE event_type = 'command')  AS p95_ms,
       MIN(occurred_at)                                            AS first_event
     FROM tsukibot.usage_events
     WHERE occurred_at > NOW() - $1::interval
   `, [interval]);
+  // The latency figures are restricted to slash commands on purpose. Autocomplete rows carry no
+  // duration (Postgres ignores the NULLs), but every CoinGecko call and button press records one,
+  // and letting those in made "median command time" describe the bot's HTTP client instead.
 
   // Rolling actives are absolute, not window-relative: DAU means today whatever
   // window the rest of the report uses.
@@ -237,8 +265,10 @@ async function getApiCreditsByDay(days, timezone) {
  * @param {number} days
  * @param {number} limit
  * @param {boolean} includeAutocomplete
+ * @param {{priorWindow?: boolean}} [options] priorWindow shifts the window back by its own length,
+ *   which is how the compare option gets "the N days before these N days" from the same query
  */
-async function getTopCommands(days, limit, includeAutocomplete = false) {
+async function getTopCommands(days, limit, includeAutocomplete = false, { priorWindow = false } = {}) {
   return query(`
     SELECT
       command || COALESCE(' ' || subcommand, '')  AS name,
@@ -249,12 +279,13 @@ async function getTopCommands(days, limit, includeAutocomplete = false) {
       COUNT(*) FILTER (WHERE outcome = 'error')   AS errors,
       MAX(occurred_at)                            AS last_used
     FROM tsukibot.usage_events
-    WHERE occurred_at > NOW() - $1::interval
+    WHERE occurred_at > NOW() - $4::interval - $1::interval
+      AND occurred_at <= NOW() - $4::interval
       AND (event_type = 'command' OR ($3 AND event_type <> 'system'))
     GROUP BY name
     ORDER BY uses DESC
     LIMIT $2
-  `, [windowInterval(days), limit, includeAutocomplete]);
+  `, [windowInterval(days), limit, includeAutocomplete, shiftInterval(days, priorWindow)]);
 }
 
 /**
@@ -311,8 +342,9 @@ async function getTopGuilds(days, limit) {
  * array is what makes this a single grouped scan instead of a reparse of params.
  * @param {number} days
  * @param {number} limit
+ * @param {{priorWindow?: boolean}} [options] see getTopCommands
  */
-async function getTopCoins(days, limit) {
+async function getTopCoins(days, limit, { priorWindow = false } = {}) {
   return query(`
     SELECT
       coin,
@@ -320,11 +352,12 @@ async function getTopCoins(days, limit) {
       COUNT(DISTINCT user_id)                AS users,
       MODE() WITHIN GROUP (ORDER BY command) AS via_command
     FROM tsukibot.usage_events, UNNEST(coins) AS coin
-    WHERE occurred_at > NOW() - $1::interval
+    WHERE occurred_at > NOW() - $3::interval - $1::interval
+      AND occurred_at <= NOW() - $3::interval
     GROUP BY coin
     ORDER BY requests DESC
     LIMIT $2
-  `, [windowInterval(days), limit]);
+  `, [windowInterval(days), limit, shiftInterval(days, priorWindow)]);
 }
 
 /* --------------------------------------------------------------------------
@@ -378,7 +411,8 @@ async function getActivityGrid(days, timezone) {
     SELECT
       EXTRACT(DOW  FROM occurred_at AT TIME ZONE $2)::int AS weekday,
       EXTRACT(HOUR FROM occurred_at AT TIME ZONE $2)::int AS hour,
-      COUNT(*)                                            AS events
+      COUNT(*)                                            AS events,
+      COUNT(DISTINCT user_id)                             AS users
     FROM tsukibot.usage_events
     WHERE occurred_at > NOW() - $1::interval
     GROUP BY weekday, hour
@@ -395,7 +429,8 @@ async function getDailySeries(days, timezone) {
     SELECT
       DATE(occurred_at AT TIME ZONE $2)  AS day,
       COUNT(*)                           AS events,
-      COUNT(DISTINCT user_id)            AS users
+      COUNT(DISTINCT user_id)            AS users,
+      COUNT(*) FILTER (WHERE outcome = 'error') AS errors
     FROM tsukibot.usage_events
     WHERE occurred_at > NOW() - $1::interval
     GROUP BY day
@@ -483,8 +518,9 @@ async function getSubcommandSplit(command, days) {
  * message so the same fault does not spread across dozens of rows.
  * @param {number} days
  * @param {number} limit
+ * @param {{priorWindow?: boolean}} [options] see getTopCommands
  */
-async function getErrors(days, limit) {
+async function getErrors(days, limit, { priorWindow = false } = {}) {
   return query(`
     SELECT
       command,
@@ -493,12 +529,13 @@ async function getErrors(days, limit) {
       COUNT(DISTINCT user_id)         AS users_affected,
       MAX(occurred_at)                AS last_seen
     FROM tsukibot.usage_events
-    WHERE occurred_at > NOW() - $1::interval
+    WHERE occurred_at > NOW() - $3::interval - $1::interval
+      AND occurred_at <= NOW() - $3::interval
       AND outcome = 'error'
     GROUP BY command, error_kind
     ORDER BY occurrences DESC
     LIMIT $2
-  `, [windowInterval(days), limit]);
+  `, [windowInterval(days), limit, shiftInterval(days, priorWindow)]);
 }
 
 /**
@@ -639,32 +676,456 @@ async function pruneOlderThan(days) {
   return result.rowCount;
 }
 
+/**
+ * How many rows a prune would remove. Shown on the confirmation button so the
+ * admin confirms a number they have seen, not a cutoff they have imagined.
+ * @param {number} days
+ * @returns {Promise<number>}
+ */
+async function countOlderThan(days) {
+  const [row] = await query(
+    'SELECT COUNT(*) AS rows FROM tsukibot.usage_events WHERE occurred_at < NOW() - $1::interval',
+    [windowInterval(days)]
+  );
+  return Number(row.rows) || 0;
+}
+
+/**
+ * Raw events narrowed by whatever the caller supplies. This is what the
+ * dashboard's drill-downs (click a coin, a user, an error kind) run, and it
+ * exists because filtering a LIMIT-capped getRecentEvents client-side silently
+ * shows a partial picture. Every filter is a bind parameter; the SQL is
+ * assembled only from fixed fragments.
+ * @param {object} filters
+ * @param {number} [filters.days]
+ * @param {number} [filters.limit]
+ * @param {string} [filters.command]
+ * @param {string} [filters.userId]
+ * @param {string} [filters.guildId]
+ * @param {string} [filters.coin] ticker, matched against the coins array
+ * @param {string} [filters.outcome]
+ * @param {string} [filters.errorKind]
+ * @param {string} [filters.eventType]
+ */
+async function getRecentEventsFiltered(filters = {}) {
+  const values = [windowInterval(filters.days)];
+  const clauses = ['occurred_at > NOW() - $1::interval'];
+  const add = (clause, value) => {
+    values.push(value);
+    clauses.push(clause.replace('?', '$' + values.length));
+  };
+  if (filters.command) add('command = ?', String(filters.command));
+  if (filters.userId) add('user_id = ?', String(filters.userId));
+  if (filters.guildId) add('guild_id = ?', String(filters.guildId));
+  if (filters.coin) add('coins @> ARRAY[?]::text[]', String(filters.coin).toUpperCase());
+  if (filters.outcome) add('outcome = ?', String(filters.outcome));
+  if (filters.errorKind) add('error_kind = ?', String(filters.errorKind));
+  if (filters.eventType) add('event_type = ?', String(filters.eventType));
+
+  values.push(Math.max(1, Math.min(5000, Math.round(Number(filters.limit) || 200))));
+  return query(`
+    SELECT event_id, occurred_at, event_type, command, subcommand, user_id, username,
+           guild_id, guild_name, channel_id, params, coins, outcome, error_kind, duration_ms
+    FROM tsukibot.usage_events
+    WHERE ${clauses.join(' AND ')}
+    ORDER BY occurred_at DESC
+    LIMIT $${values.length}
+  `, values);
+}
+
+/* --------------------------------------------------------------------------
+ *  Comparisons over time
+ *
+ *  The reports above all answer "what happened in the last N days". The ones
+ *  here answer "compared with what": the same window one step earlier, or the
+ *  same point in the previous month. That is what the compare option, the
+ *  weekly digest and the momentum report are built on.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * The headline numbers for a window and for the window before it, in one scan
+ * of 2N days. Percentiles are command-only for the reason given in getOverview.
+ * @param {number} days
+ */
+async function getOverviewComparison(days) {
+  const [row] = await query(`
+    SELECT
+      COUNT(*)                FILTER (WHERE occurred_at >  NOW() - $1::interval)   AS events,
+      COUNT(*)                FILTER (WHERE occurred_at <= NOW() - $1::interval)   AS prior_events,
+      COUNT(DISTINCT user_id) FILTER (WHERE occurred_at >  NOW() - $1::interval)   AS users,
+      COUNT(DISTINCT user_id) FILTER (WHERE occurred_at <= NOW() - $1::interval)   AS prior_users,
+      COUNT(DISTINCT guild_id) FILTER (WHERE occurred_at >  NOW() - $1::interval)  AS guilds,
+      COUNT(DISTINCT guild_id) FILTER (WHERE occurred_at <= NOW() - $1::interval)  AS prior_guilds,
+      COUNT(*) FILTER (WHERE event_type = 'command' AND occurred_at >  NOW() - $1::interval) AS command_events,
+      COUNT(*) FILTER (WHERE event_type = 'command' AND occurred_at <= NOW() - $1::interval) AS prior_command_events,
+      COUNT(*) FILTER (WHERE outcome = 'error' AND occurred_at >  NOW() - $1::interval)      AS errors,
+      COUNT(*) FILTER (WHERE outcome = 'error' AND occurred_at <= NOW() - $1::interval)      AS prior_errors,
+      COUNT(*) FILTER (WHERE command = 'coingecko-call' AND occurred_at >  NOW() - $1::interval) AS credits,
+      COUNT(*) FILTER (WHERE command = 'coingecko-call' AND occurred_at <= NOW() - $1::interval) AS prior_credits,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)
+        FILTER (WHERE event_type = 'command' AND occurred_at >  NOW() - $1::interval)         AS p95_ms,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)
+        FILTER (WHERE event_type = 'command' AND occurred_at <= NOW() - $1::interval)         AS prior_p95_ms
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - ($1::interval * 2)
+  `, [windowInterval(days)]);
+  return row;
+}
+
+/**
+ * This month's CoinGecko spend against the same point of last month, and last
+ * month's final total. The same-point comparison is what makes "are we burning
+ * faster than last month" answerable on the 8th rather than the 31st.
+ */
+async function getApiCreditsMonthComparison() {
+  const [row] = await query(`
+    SELECT
+      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW()))                       AS month_to_date,
+      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                         AND occurred_at <  DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                                            + (NOW() - DATE_TRUNC('month', NOW())))           AS prior_month_same_point,
+      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                         AND occurred_at <  DATE_TRUNC('month', NOW()))                       AS prior_month_total
+    FROM tsukibot.usage_events
+    WHERE command = 'coingecko-call'
+      AND occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+  `);
+  return row;
+}
+
+/**
+ * Credits per day since the start of the current month, for the burn-down
+ * chart. Anchored to the month boundary rather than to "the last N days": a
+ * trailing window misses the first of the month on the 31st and can include
+ * last month's tail, and the chart would be wrong exactly when it matters.
+ * Days are bucketed the same way calls_month is counted, so the two agree.
+ */
+async function getApiCreditsMonthToDate() {
+  return query(`
+    SELECT DATE(occurred_at) AS day, COUNT(*) AS credits
+    FROM tsukibot.usage_events
+    WHERE occurred_at >= DATE_TRUNC('month', NOW()) AND command = 'coingecko-call'
+    GROUP BY day ORDER BY day
+  `);
+}
+
+/**
+ * Credits per day split by endpoint, for the stacked chart that shows which
+ * work is eating the budget over time rather than in total.
+ * @param {number} days
+ * @param {string} timezone
+ */
+async function getApiCreditsByDayAndEndpoint(days, timezone) {
+  return query(`
+    SELECT
+      DATE(occurred_at AT TIME ZONE $2)                       AS day,
+      COALESCE(params->>'endpoint', subcommand, 'unknown')    AS endpoint,
+      COUNT(*)                                                AS calls,
+      COUNT(*) FILTER (WHERE outcome = 'ratelimited')         AS ratelimited
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval AND command = 'coingecko-call'
+    GROUP BY day, endpoint
+    ORDER BY day, calls DESC
+  `, [windowInterval(days), normalizeTimezone(timezone)]);
+}
+
+/**
+ * Command latency per day. Nothing else gives latency a time axis, so a
+ * regression that crept in last Tuesday is invisible in the window percentiles.
+ * @param {number} days
+ * @param {string} timezone
+ */
+async function getLatencyByDay(days, timezone) {
+  return query(`
+    SELECT
+      DATE(occurred_at AT TIME ZONE $2)                          AS day,
+      COUNT(*)                                                   AS samples,
+      PERCENTILE_DISC(0.5)  WITHIN GROUP (ORDER BY duration_ms)  AS p50_ms,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)  AS p95_ms
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval
+      AND event_type = 'command' AND duration_ms IS NOT NULL
+    GROUP BY day
+    ORDER BY day
+  `, [windowInterval(days), normalizeTimezone(timezone)]);
+}
+
+/**
+ * Coin demand in this window against the one before it. Returns every coin seen
+ * in either window (capped), with the request and user counts on both sides, so
+ * the caller can rank risers and fallers and tell one power user hammering a
+ * coin from broad new interest.
+ * @param {number} days
+ * @param {number} limit
+ */
+async function getCoinMomentum(days, limit) {
+  return query(`
+    SELECT
+      coin,
+      COUNT(*)                FILTER (WHERE e.occurred_at >  NOW() - $1::interval) AS current_requests,
+      COUNT(*)                FILTER (WHERE e.occurred_at <= NOW() - $1::interval) AS prior_requests,
+      COUNT(DISTINCT user_id) FILTER (WHERE e.occurred_at >  NOW() - $1::interval) AS current_users,
+      COUNT(DISTINCT user_id) FILTER (WHERE e.occurred_at <= NOW() - $1::interval) AS prior_users,
+      MODE() WITHIN GROUP (ORDER BY command)                                       AS via_command
+    FROM tsukibot.usage_events e, UNNEST(e.coins) AS coin
+    WHERE e.occurred_at > NOW() - ($1::interval * 2)
+    GROUP BY coin
+    ORDER BY GREATEST(
+      COUNT(*) FILTER (WHERE e.occurred_at >  NOW() - $1::interval),
+      COUNT(*) FILTER (WHERE e.occurred_at <= NOW() - $1::interval)) DESC
+    LIMIT $2
+  `, [windowInterval(days), limit]);
+}
+
+/**
+ * Coins requested for the first time ever inside the window. The all-history
+ * scan is the point: "new" means new to the bot, not new to this window.
+ * @param {number} days
+ * @param {number} limit
+ */
+async function getNewCoins(days, limit) {
+  return query(`
+    WITH first_seen AS (
+      SELECT coin,
+             MIN(e.occurred_at)                     AS first_seen,
+             COUNT(*)                               AS requests,
+             COUNT(DISTINCT e.user_id)              AS users,
+             MODE() WITHIN GROUP (ORDER BY command) AS via_command
+      FROM tsukibot.usage_events e, UNNEST(e.coins) AS coin
+      GROUP BY coin
+    )
+    SELECT coin, first_seen, requests, users, via_command
+    FROM first_seen
+    WHERE first_seen > NOW() - $1::interval
+    ORDER BY requests DESC
+    LIMIT $2
+  `, [windowInterval(days), limit]);
+}
+
+/**
+ * Did a search turn into a command? Each settled autocomplete row is paired with
+ * a command event by the same user on the same command close to it in time.
+ *
+ * The join window starts BEFORE the search row, not at it: a search's
+ * occurred_at is its settle time, stamped a few seconds after the last
+ * keystroke, so a user who picks a suggestion and submits at once produces a
+ * command event timestamped before their own search. A forward-only window
+ * would undercount exactly the conversions that worked best.
+ * @param {number} days
+ * @param {number} limit
+ */
+async function getSearchFunnel(days, limit) {
+  return query(`
+    WITH searches AS (
+      SELECT event_id, occurred_at, user_id, command
+      FROM tsukibot.usage_events
+      WHERE occurred_at > NOW() - $1::interval AND event_type = 'autocomplete'
+    )
+    SELECT
+      s.command,
+      COUNT(*) AS searches,
+      COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM tsukibot.usage_events c
+        WHERE c.event_type = 'command' AND c.user_id = s.user_id AND c.command = s.command
+          AND c.occurred_at BETWEEN s.occurred_at - INTERVAL '10 seconds'
+                                AND s.occurred_at + INTERVAL '60 seconds'
+      )) AS converted,
+      COUNT(DISTINCT s.user_id) AS users
+    FROM searches s
+    GROUP BY s.command
+    ORDER BY searches DESC
+    LIMIT $2
+  `, [windowInterval(days), limit]);
+}
+
+/**
+ * What people type into a picker and then never run: direct evidence of coins
+ * the picker cannot find or tickers the normaliser misses.
+ * @param {number} days
+ * @param {number} limit
+ */
+async function getAbandonedSearches(days, limit) {
+  return query(`
+    WITH searches AS (
+      SELECT event_id, occurred_at, user_id, command, params->>'query' AS query
+      FROM tsukibot.usage_events
+      WHERE occurred_at > NOW() - $1::interval AND event_type = 'autocomplete'
+        AND params->>'query' IS NOT NULL
+    )
+    SELECT s.command, s.query, COUNT(*) AS searches, COUNT(DISTINCT s.user_id) AS users
+    FROM searches s
+    WHERE NOT EXISTS (
+      SELECT 1 FROM tsukibot.usage_events c
+      WHERE c.event_type = 'command' AND c.user_id = s.user_id AND c.command = s.command
+        AND c.occurred_at BETWEEN s.occurred_at - INTERVAL '10 seconds'
+                              AND s.occurred_at + INTERVAL '60 seconds'
+    )
+    GROUP BY s.command, s.query
+    ORDER BY searches DESC
+    LIMIT $2
+  `, [windowInterval(days), limit]);
+}
+
+/**
+ * Who stopped coming and who came back: users active in the previous window but
+ * not this one (churned), and users active now who skipped the previous window
+ * after being seen before it (resurrected). The simple counts that a proper
+ * cohort curve would need a year of data to improve on.
+ * @param {number} days
+ */
+async function getChurn(days) {
+  const [row] = await query(`
+    WITH current_users AS (
+      SELECT DISTINCT user_id FROM tsukibot.usage_events
+      WHERE occurred_at > NOW() - $1::interval AND event_type <> 'system'
+    ),
+    prior_users AS (
+      SELECT DISTINCT user_id FROM tsukibot.usage_events
+      WHERE occurred_at <= NOW() - $1::interval AND occurred_at > NOW() - ($1::interval * 2)
+        AND event_type <> 'system'
+    ),
+    older_users AS (
+      SELECT DISTINCT user_id FROM tsukibot.usage_events
+      WHERE occurred_at <= NOW() - ($1::interval * 2) AND event_type <> 'system'
+    )
+    SELECT
+      (SELECT COUNT(*) FROM current_users)                                                   AS active,
+      (SELECT COUNT(*) FROM current_users WHERE user_id IN (SELECT user_id FROM prior_users)) AS retained,
+      (SELECT COUNT(*) FROM prior_users WHERE user_id NOT IN (SELECT user_id FROM current_users)) AS churned,
+      (SELECT COUNT(*) FROM current_users
+        WHERE user_id NOT IN (SELECT user_id FROM prior_users)
+          AND user_id IN (SELECT user_id FROM older_users))                                  AS resurrected
+  `, [windowInterval(days)]);
+  return row;
+}
+
+/* --------------------------------------------------------------------------
+ *  Watchdog windows
+ *
+ *  Short recent windows against a seven-day baseline. Hobby-scale traffic makes
+ *  one-hour baselines noise, so callers are expected to use windows of several
+ *  hours and to apply minimum-volume floors before calling anything a spike.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Error rate over the last N hours and over the trailing seven days, for
+ * user-initiated events only (a failed CoinGecko call is reported separately).
+ * @param {number} hours
+ */
+async function getErrorRateWindows(hours) {
+  const [row] = await query(`
+    SELECT
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - $1::interval)                          AS recent_events,
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - $1::interval AND outcome = 'error')    AS recent_errors,
+      COUNT(*)                                                                             AS baseline_events,
+      COUNT(*) FILTER (WHERE outcome = 'error')                                            AS baseline_errors
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - INTERVAL '7 days'
+      AND event_type IN ('command', 'button')
+  `, [hoursInterval(hours)]);
+  return row;
+}
+
+/**
+ * The faults behind a recent error spike, so the alert can say which one.
+ * @param {number} hours
+ * @param {number} limit
+ */
+async function getRecentErrorKinds(hours, limit) {
+  return query(`
+    SELECT command, COALESCE(error_kind, 'unknown') AS error_kind,
+           COUNT(*) AS occurrences, COUNT(DISTINCT user_id) AS users_affected
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval AND outcome = 'error'
+      AND event_type IN ('command', 'button')
+    GROUP BY command, error_kind
+    ORDER BY occurrences DESC
+    LIMIT $2
+  `, [hoursInterval(hours), limit]);
+}
+
+/**
+ * Per-command p95 over the last N hours against the trailing week, for commands
+ * with enough recent samples to mean anything.
+ * @param {number} hours
+ * @param {number} minSamples
+ */
+async function getLatencyRegressions(hours, minSamples) {
+  return query(`
+    SELECT
+      command,
+      COUNT(*) FILTER (WHERE occurred_at > NOW() - $1::interval)                          AS recent_samples,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)
+        FILTER (WHERE occurred_at > NOW() - $1::interval)                                 AS recent_p95_ms,
+      COUNT(*)                                                                             AS baseline_samples,
+      PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)                            AS baseline_p95_ms
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - INTERVAL '7 days'
+      AND event_type = 'command' AND duration_ms IS NOT NULL
+    GROUP BY command
+    HAVING COUNT(*) FILTER (WHERE occurred_at > NOW() - $1::interval) >= $2
+    ORDER BY recent_p95_ms DESC
+  `, [hoursInterval(hours), minSamples]);
+}
+
+/**
+ * CoinGecko calls that were rate limited recently. Any at all is worth a word:
+ * a 429 still spends the credit and returns nothing.
+ * @param {number} hours
+ */
+async function getRecentRateLimits(hours) {
+  const [row] = await query(`
+    SELECT COUNT(*) AS ratelimited, MAX(occurred_at) AS last_seen
+    FROM tsukibot.usage_events
+    WHERE occurred_at > NOW() - $1::interval
+      AND command = 'coingecko-call' AND outcome = 'ratelimited'
+  `, [hoursInterval(hours)]);
+  return row;
+}
+
 module.exports = {
   init,
   windowInterval,
+  hoursInterval,
   normalizeTimezone,
   getActivityRate,
   getApiCreditsByEndpoint,
   getApiCreditTotals,
   getApiCreditsByDay,
+  getApiCreditsMonthToDate,
+  getApiCreditsByDayAndEndpoint,
+  getApiCreditsMonthComparison,
   perMinuteRate,
   getOverview,
+  getOverviewComparison,
   getTopCommands,
   getTopUsers,
   getTopGuilds,
   getTopCoins,
+  getCoinMomentum,
+  getNewCoins,
   getHourlyActivity,
   getWeekdayActivity,
   getActivityGrid,
   getDailySeries,
+  getLatencyByDay,
   getParameterUsage,
   getOptionCoverage,
   getSubcommandSplit,
   getErrors,
   getSlowestCommands,
+  getSearchFunnel,
+  getAbandonedSearches,
   getGrowth,
   getRetention,
+  getChurn,
+  getErrorRateWindows,
+  getRecentErrorKinds,
+  getLatencyRegressions,
+  getRecentRateLimits,
   getRecentEvents,
+  getRecentEventsFiltered,
   getStorageStats,
+  countOlderThan,
   pruneOlderThan
 };

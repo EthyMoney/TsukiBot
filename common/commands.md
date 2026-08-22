@@ -251,22 +251,52 @@ that any server admin can override, and it does not apply in DMs at all.
 
 | Subcommand | What it answers |
 | --- | --- |
-| `/usage overview` | Volume, reach (daily/weekly/monthly actives), error rate, latency percentiles, and a daily trend sparkline. |
-| `/usage commands` | Most used commands, with unique users, average time and error counts. |
+| `/usage overview` | Volume, reach (daily/weekly/monthly actives), error rate, latency percentiles, and a chart of events, errors and distinct users per day. |
+| `/usage commands` | Most used commands, with unique users, average time and error counts, as a bar chart with the error share in red. |
 | `/usage users` | Most active users, their favorite command, and how many distinct days each was active. |
 | `/usage servers` | Busiest servers. DM usage is reported separately in `overview`. |
 | `/usage coins` | Most requested coins across every command that names one. |
-| `/usage activity` | When the bot gets used: by hour, by weekday, and a weekday x hour heatmap. Takes a `timezone`. |
+| `/usage trending` | Coin momentum: the biggest risers and fallers against the previous window, and coins requested for the first time. |
+| `/usage activity` | When the bot gets used: a real weekday x hour heatmap with hour and weekday marginals. Takes a `timezone`. |
 | `/usage command` | Deep dive on one command: subcommand split, which options people actually supply, and the most common values. |
-| `/usage errors` | What is failing, grouped by fault, plus the slowest commands. |
-| `/usage growth` | New vs returning users per day, and how many days users stay active. |
+| `/usage errors` | What is failing, grouped by fault, plus the slowest commands as avg / p95 / max ranges. |
+| `/usage growth` | New vs returning users per day, how many days users stay active, and who churned or came back. |
+| `/usage funnel` | Do autocomplete searches turn into commands, per command, and what gets searched but never run. |
 | `/usage export` | Download raw events as a CSV attachment. |
-| `/usage credits` | CoinGecko API credit spend by endpoint, with a projection against the 10,000/month demo quota. |
+| `/usage credits` | CoinGecko API credit spend: a month-to-date burn-down against the quota with a projection, and the per-endpoint breakdown. |
 | `/usage storage` | Table size, row count, and write-buffer health. |
-| `/usage prune` | Permanently delete events older than a cutoff. Requires `confirm: True`. |
+| `/usage dashboard` | A sign-in link for the browser dashboard (see below). |
+| `/usage digest` | Build the weekly digest now instead of waiting for Monday. |
+| `/usage watchdog` | Run the watchdog checks now and show what would alert. |
+| `/usage prune` | Permanently delete events older than a cutoff. Shows the row count and a red confirm button; `confirm: True` skips the button. |
 
 Most subcommands take a `days` window (default 30) and a `limit`. The time-based ones take an IANA
-`timezone` such as `America/Chicago`, since UTC hours do not answer "when are my users awake".
+`timezone` such as `America/Chicago`, since UTC hours do not answer "when are my users awake". The
+defaults for all three can be set once in `keys.api` under `usage.defaults` so you stop typing them.
+
+**Charts, buttons and menus.** Reports that have something to draw come with a real chart image
+(rendered server-side, no Chromium needed) in place of the old unicode sparklines; the tables and
+key-value panels stay because they carry detail a picture cannot. Every report reply carries a row
+of window buttons (7d / 30d / 90d / 1y / refresh) and a menu to jump to any other report, all of
+which edit the same message in place; `/usage commands` and `/usage errors` add a menu to open the
+deep dive on a listed command. `overview`, `commands`, `coins`, `errors` and `credits` take
+`compare: True` to show the change against the window before.
+
+**The dashboard.** `/usage dashboard` mints a sign-in link for a browser dashboard the bot serves
+on `127.0.0.1:8090` (configurable under `usage.dashboard` in `keys.api`): an overview with KPI
+tiles and period comparison, full sortable leaderboards with click-through drill-downs, coin
+momentum, the activity heatmap, errors with full fault strings, growth, a credits burn-down with a
+projection band, the search funnel, and a filterable raw event view. The link works from the
+machine the bot runs on (or through an SSH tunnel); in Docker, see the notes in
+`docker-compose.yml`.
+
+**The bot reports to you.** Every Monday at 09:00 (configurable) the application owner gets a DM
+with the weekly digest: week-over-week deltas, top commands with rank movement, coin movers, credit
+spend against the quota, and a this-week-vs-last-week chart. A watchdog runs every 30 minutes and
+DMs only when something trips: an error-rate spike (with the faults behind it), a latency
+regression, CoinGecko rate limiting, a credit projection over the quota, or telemetry batches
+being dropped. Each condition fires at most once a day. Both are configured under `usage.digest`
+and `usage.watchdog` in `keys.api`, and neither runs in dev mode.
 
 **What gets recorded:** every slash command (with its options), every button press, every
 autocomplete search, and the bot's own automated actions such as a fired price alert or a scheduled

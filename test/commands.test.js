@@ -223,3 +223,40 @@ test('owner-only commands still carry a restrictive permission default', () => {
       `/${command.name} should still set default_member_permissions inside the owner guild`);
   }
 });
+
+/* --------------------------------------------
+
+    /usage subcommands.
+
+    handleUsageCommand dispatches report subcommands through the REPORTS table in
+    telemetry-embeds.js and everything else through its own switch. A subcommand registered with
+    Discord but present in neither is a dead menu entry; a report builder with no subcommand is
+    unreachable. Both are drift, and both are checked here.
+
+  -------------------------------------------- */
+
+test('every /usage subcommand is either a report or handled in handleUsageCommand', () => {
+  const { REPORT_NAMES } = require('../src/telemetry-embeds');
+  const usage = commands.find(c => c.name === 'usage');
+  assert.ok(usage, '/usage is not registered');
+  const subcommands = usage.options.filter(o => o.type === 1).map(o => o.name);
+
+  const handlerStart = mainSource.indexOf('async function handleUsageCommand');
+  assert.notEqual(handlerStart, -1, 'handleUsageCommand not found in main.js');
+  const handlerBody = mainSource.slice(handlerStart, mainSource.indexOf('\nfunction usageStateFromOptions', handlerStart));
+  const handled = new Set([...handlerBody.matchAll(/^ {4}case '([a-z0-9-]+)':/gm)].map(m => m[1]));
+
+  const orphaned = subcommands.filter(name => !REPORT_NAMES.includes(name) && !handled.has(name));
+  assert.deepEqual(orphaned, [], `registered /usage subcommands with no handler: ${orphaned.join(', ')}`);
+
+  const unreachable = REPORT_NAMES.filter(name => !subcommands.includes(name));
+  assert.deepEqual(unreachable, [], `report builders with no /usage subcommand: ${unreachable.join(', ')}`);
+
+  const stale = [...handled].filter(name => !subcommands.includes(name));
+  assert.deepEqual(stale, [], `handleUsageCommand cases with no registered subcommand: ${stale.join(', ')}`);
+});
+
+test('main.js handles select menus as well as buttons, since /usage uses both', () => {
+  assert.match(mainSource, /interaction\.isStringSelectMenu\(\)/, 'the report and drill-down menus need an isStringSelectMenu branch');
+  assert.match(mainSource, /attachments:\s*\[\]/, 'swapping a chart image on edit needs attachments: [] or the old image is kept');
+});

@@ -40,6 +40,7 @@
     "@anthropic-ai/sdk": "^0.117.1",
     "@google-cloud/translate": "^10.0.1",
     "ccxt": "^4.5.73",
+    "chart.js": "^4.5.1",
     "didyoumean": "^1.2.2",
     "discord.js": "^14.27.0",
     "express": "^5.2.1",
@@ -51,6 +52,7 @@
     "picocolors": "^1.1.1",
     "puppeteer": "^25.7.0",
     "puppeteer-cluster": "^0.25.0",
+    "sharp": "^0.35.3",
     "topgg-autoposter": "^2.0.2",
     "web3": "^4.16.0"
   },

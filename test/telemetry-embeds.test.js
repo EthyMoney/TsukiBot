@@ -25,18 +25,47 @@ const render = require('../src/telemetry-render');
     So these tests drive the real builder functions with a fake pool that returns realistic rows -
     strings for bigints and numerics, real Dates for timestamps, exactly as node-postgres does.
 
+    Every builder returns { embed, chart }: the chart is an SVG card when the caller asked for
+    images and the data supports one, and null otherwise. Both paths are driven here.
+
   -------------------------------------------- */
 
 /**
  * A pool whose responses mimic node-postgres: COUNT(*) and EXTRACT come back as strings, and
  * timestamps as Date objects. Returning plain numbers here would let type bugs pass.
+ *
+ * Lookup is by the first registered fragment the SQL contains, in insertion order, so the more
+ * specific fragments are listed before the generic ones they would otherwise lose to.
  */
 function makePool(overrides = {}) {
   const now = new Date();
   const ago = (mins) => new Date(now.getTime() - mins * 60000);
 
   const defaults = {
-    // matched by a distinctive fragment of each query
+    // ---- specific fragments first ----
+    'AS prior_events': [{
+      events: '9001', prior_events: '8000', users: '95', prior_users: '100', guilds: '12', prior_guilds: '12',
+      command_events: '7000', prior_command_events: '6000', errors: '23', prior_errors: '40',
+      credits: '4820', prior_credits: '5100', p95_ms: '1200', prior_p95_ms: '900'
+    }],
+    'AS prior_month_same_point': [{ month_to_date: '4820', prior_month_same_point: '5300', prior_month_total: '8100' }],
+    'AS day, COUNT(*) AS credits': [
+      { day: ago(2880), credits: '288' }, { day: ago(1440), credits: '302' }, { day: ago(10), credits: '120' }
+    ],
+    'AS current_requests': [
+      { coin: 'SOL', current_requests: '140', prior_requests: '40', current_users: '22', prior_users: '9', via_command: 'price' },
+      { coin: 'DOGE', current_requests: '20', prior_requests: '90', current_users: '6', prior_users: '20', via_command: 'cg' },
+      { coin: 'PEPE', current_requests: '12', prior_requests: '0', current_users: '5', prior_users: '0', via_command: 'price' }
+    ],
+    'WITH first_seen AS': [{ coin: 'WIF', first_seen: ago(400), requests: '9', users: '3', via_command: 'price' }],
+    'FILTER (WHERE EXISTS': [
+      { command: 'price', searches: '400', converted: '320', users: '60' },
+      { command: 'cg', searches: '150', converted: '90', users: '30' }
+    ],
+    'WHERE NOT EXISTS': [{ command: 'price', query: 'hypercoin', searches: '6', users: '4' }],
+    'WITH current_users AS': [{ active: '61', retained: '40', churned: '9', resurrected: '4' }],
+
+    // ---- the originals ----
     'AS events_1h': [{
       events_1h: '12', events_24h: '480', events_total: '9001',
       first_event: ago(100000), tracked_minutes: '100000.5'
@@ -65,14 +94,14 @@ function makePool(overrides = {}) {
       { coin: 'BTC', requests: '2600', users: '77', via_command: 'price' },
       { coin: 'ETH', requests: '1900', users: '70', via_command: 'cg' }
     ],
+    'AS hour,\n      COUNT(*)                                            AS events': [
+      { weekday: 1, hour: 14, events: '300', users: '20' }, { weekday: 5, hour: 20, events: '500', users: '31' }
+    ],
     'AS hour,': [{ hour: 14, events: '600', users: '40' }, { hour: 15, events: '450', users: '35' }],
     'AS weekday,\n      COUNT': [{ weekday: 1, events: '900', users: '50' }],
     'AS weekday,': [{ weekday: 1, events: '900', users: '50' }],
-    'AS hour,\n      COUNT(*)                                            AS events': [
-      { weekday: 1, hour: 14, events: '300' }
-    ],
     'AS day,\n      COUNT(*)                           AS events': [
-      { day: ago(2880), events: '400', users: '30' }, { day: ago(1440), events: '512', users: '35' }
+      { day: ago(2880), events: '400', users: '30', errors: '2' }, { day: ago(1440), events: '512', users: '35', errors: '0' }
     ],
     'jsonb_each_text(params) AS kv': [{ option: 'coin', value: 'btc', uses: '900', users: '60' }],
     'WITH invocations AS': [{ option: 'coin', supplied: '900', total_invocations: '1000' }],
@@ -116,71 +145,81 @@ function makePool(overrides = {}) {
   };
 }
 
-/** Every builder, with the arguments handleUsageCommand passes it. */
+/** A pool that behaves like an empty table: aggregates return one all-null row, lists nothing. */
+function emptyPool() {
+  return {
+    async query(text) {
+      if (text.includes('AS events_1h')) return { rows: [{ events_1h: '0', events_24h: '0', events_total: '0', first_event: null, tracked_minutes: null }] };
+      if (text.includes('AS dau')) return { rows: [{ dau: '0', wau: '0', mau: '0', events_today: '0' }] };
+      if (text.includes('AS lifetime_events')) return { rows: [{ lifetime_events: '0', tracking_since: null }] };
+      if (text.includes('AS prior_events')) return { rows: [{ events: '0', prior_events: '0', users: '0', prior_users: '0', guilds: '0', prior_guilds: '0', command_events: '0', prior_command_events: '0', errors: '0', prior_errors: '0', credits: '0', prior_credits: '0', p95_ms: null, prior_p95_ms: null }] };
+      if (text.includes('AS command_events')) return { rows: [{ events: '0', users: '0', guilds: '0', commands: '0', command_events: '0', autocomplete_events: '0', button_events: '0', system_events: '0', errors: '0', dm_events: '0', avg_ms: null, p50_ms: null, p95_ms: null, first_event: null }] };
+      if (text.includes('pg_size_pretty')) return { rows: [{ rows: '0', total_size: '0 bytes', oldest: null }] };
+      if (text.includes('AS calls_total')) return { rows: [{ calls_total: '0', calls_1h: '0', calls_24h: '0', calls_7d: '0', calls_month: '0', ratelimited: '0', first_call: null }] };
+      if (text.includes('AS prior_month_same_point')) return { rows: [{ month_to_date: '0', prior_month_same_point: '0', prior_month_total: '0' }] };
+      if (text.includes('WITH current_users AS')) return { rows: [{ active: '0', retained: '0', churned: '0', resurrected: '0' }] };
+      return { rows: [] };
+    }
+  };
+}
+
+/** Every builder, with the arguments handleUsageCommand passes it, in text mode. */
 const BUILDERS = [
-  ['overview', (d, tz) => embeds.buildUsageOverview(d, tz)],
-  ['commands', (d) => embeds.buildUsageCommands(d, 15, false)],
+  ['overview', (d, tz, o) => embeds.buildUsageOverview(d, tz, o)],
+  ['commands', (d, tz, o) => embeds.buildUsageCommands(d, 15, false, o)],
   ['users', (d) => embeds.buildUsageUsers(d, 15)],
   ['servers', (d) => embeds.buildUsageGuilds(d, 15)],
-  ['coins', (d) => embeds.buildUsageCoins(d, 15)],
-  ['activity', (d, tz) => embeds.buildUsageActivity(d, tz)],
+  ['coins', (d, tz, o) => embeds.buildUsageCoins(d, 15, o)],
+  ['activity', (d, tz, o) => embeds.buildUsageActivity(d, tz, o)],
   ['command detail', (d) => embeds.buildUsageCommandDetail('price', d)],
-  ['errors', (d) => embeds.buildUsageErrors(d, 15)],
-  ['growth', (d, tz) => embeds.buildUsageGrowth(d, tz)],
-  ['credits', (d, tz) => embeds.buildUsageCredits(d, tz)]
+  ['errors', (d, tz, o) => embeds.buildUsageErrors(d, 15, o)],
+  ['growth', (d, tz, o) => embeds.buildUsageGrowth(d, tz, o)],
+  ['credits', (d, tz, o) => embeds.buildUsageCredits(d, tz, o)],
+  ['storage', (d) => embeds.buildUsageStorage(d)],
+  ['trending', (d, tz, o) => embeds.buildUsageTrending(d, 15, o)],
+  ['funnel', (d, tz, o) => embeds.buildUsageFunnel(d, 15, o)]
 ];
+
+function assertWellFormed(name, json) {
+  assert.ok(json.title, `/usage ${name} produced no title`);
+
+  // Discord rejects the whole message if any field value exceeds 1024 or the description 4096.
+  for (const field of json.fields || []) {
+    assert.ok(field.value.length <= 1024,
+      `/usage ${name}: field "${field.name}" is ${field.value.length} chars, over the 1024 limit`);
+    assert.ok(field.name.length <= 256, `/usage ${name}: field name too long`);
+  }
+  if (json.description) {
+    assert.ok(json.description.length <= 4096,
+      `/usage ${name}: description is ${json.description.length} chars, over the 4096 limit`);
+  }
+
+  // A formatter that throws is one bug; a formatter that silently stringifies the row is the
+  // other. Both show up here.
+  const blob = JSON.stringify(json);
+  for (const leak of ['undefined', 'NaN', '[object Object]', 'Infinity']) {
+    assert.ok(!blob.includes(leak), `/usage ${name} leaked "${leak}" into its output`);
+  }
+}
 
 for (const [name, build] of BUILDERS) {
   test(`/usage ${name} builds an embed from realistic rows`, async () => {
     reports.init({ dbPool: makePool() });
-    const embed = await build(30, 'UTC');
-    const json = embed.toJSON();
-
-    assert.ok(json.title, `/usage ${name} produced no title`);
-
-    // Discord rejects the whole message if any field value exceeds 1024 or the description 4096.
-    for (const field of json.fields || []) {
-      assert.ok(field.value.length <= 1024,
-        `/usage ${name}: field "${field.name}" is ${field.value.length} chars, over the 1024 limit`);
-      assert.ok(field.name.length <= 256, `/usage ${name}: field name too long`);
-    }
-    if (json.description) {
-      assert.ok(json.description.length <= 4096,
-        `/usage ${name}: description is ${json.description.length} chars, over the 4096 limit`);
-    }
-
-    // A formatter that throws is one bug; a formatter that silently stringifies the row is the
-    // other. Both show up here.
-    const blob = JSON.stringify(json);
-    for (const leak of ['undefined', 'NaN', '[object Object]', 'Infinity']) {
-      assert.ok(!blob.includes(leak), `/usage ${name} leaked "${leak}" into its output`);
-    }
+    const result = await build(30, 'UTC', {});
+    assert.ok(result && result.embed, `/usage ${name} must return { embed, chart }`);
+    assert.equal(result.chart, null, `/usage ${name} must not produce a chart unless images were requested`);
+    assertWellFormed(name, result.embed.toJSON());
   });
 }
 
 for (const [name, build] of BUILDERS) {
   test(`/usage ${name} handles an empty result set`, async () => {
     // What a fresh deployment sees. Every builder must degrade rather than throw.
-    const empty = new Proxy({}, { get: () => undefined });
-    reports.init({
-      dbPool: {
-        async query(text) {
-          // The aggregate queries still return one all-null row when the table is empty.
-          if (text.includes('AS events_1h')) return { rows: [{ events_1h: '0', events_24h: '0', events_total: '0', first_event: null, tracked_minutes: null }] };
-          if (text.includes('AS dau')) return { rows: [{ dau: '0', wau: '0', mau: '0', events_today: '0' }] };
-          if (text.includes('AS lifetime_events')) return { rows: [{ lifetime_events: '0', tracking_since: null }] };
-          if (text.includes('AS command_events')) return { rows: [{ events: '0', users: '0', guilds: '0', commands: '0', command_events: '0', autocomplete_events: '0', button_events: '0', system_events: '0', errors: '0', dm_events: '0', avg_ms: null, p50_ms: null, p95_ms: null, first_event: null }] };
-          if (text.includes('pg_size_pretty')) return { rows: [{ rows: '0', total_size: '0 bytes', oldest: null }] };
-          if (text.includes('AS calls_total')) return { rows: [{ calls_total: '0', calls_1h: '0', calls_24h: '0', calls_7d: '0', calls_month: '0', ratelimited: '0', first_call: null }] };
-          return { rows: [] };
-        }
-      }
-    });
-    void empty;
-
-    const embed = await build(30, 'UTC');
+    reports.init({ dbPool: emptyPool() });
+    const { embed, chart } = await build(30, 'UTC', { image: true, compare: true });
     const json = embed.toJSON();
     assert.ok(json.title, `/usage ${name} produced no title when empty`);
+    assert.equal(chart, null, `/usage ${name} drew a chart of nothing`);
 
     const blob = JSON.stringify(json);
     for (const leak of ['undefined', 'NaN', '[object Object]', 'Infinity']) {
@@ -188,6 +227,172 @@ for (const [name, build] of BUILDERS) {
     }
   });
 }
+
+/* --------------------------------------------
+
+    Image mode: the chart replaces the text chart fields and the embed points at the attachment
+    the caller will add under that exact name.
+
+  -------------------------------------------- */
+
+const IMAGE_REPORTS = ['overview', 'commands', 'activity', 'errors', 'growth', 'credits', 'trending', 'funnel'];
+
+for (const [name, build] of BUILDERS.filter(([n]) => IMAGE_REPORTS.includes(n))) {
+  test(`/usage ${name} with images returns an SVG chart and names the attachment`, async () => {
+    reports.init({ dbPool: makePool() });
+    const { embed, chart } = await build(30, 'UTC', { image: true });
+    const json = embed.toJSON();
+    assertWellFormed(name, json);
+
+    assert.ok(chart, `/usage ${name} produced no chart in image mode`);
+    assert.match(chart.name, /^usage-[a-z]+\.png$/);
+    assert.ok(chart.svg.startsWith('<svg'), 'chart must be an SVG document');
+    assert.equal(json.image && json.image.url, `attachment://${chart.name}`,
+      'the embed must reference the attachment by the chart name');
+
+    // The unicode sparkline and block bars are what the image replaces.
+    const fieldNames = (json.fields || []).map(f => f.name);
+    assert.ok(!fieldNames.some(n => /^Daily volume|^Share$|^By hour|^Heatmap|^Daily active users|^Where the credits go|^Daily credits|^Risers|^Fallers/.test(n)),
+      `/usage ${name} kept a text chart field alongside the image: ${fieldNames.join(', ')}`);
+  });
+}
+
+test('/usage overview in image mode asks for the full window rather than the 60 day sparkline cap', async () => {
+  const seen = [];
+  const pool = makePool();
+  reports.init({
+    dbPool: {
+      async query(text, values) {
+        if (text.includes('AS day,\n      COUNT(*)                           AS events')) seen.push(values[0]);
+        return pool.query(text, values);
+      }
+    }
+  });
+  await embeds.buildUsageOverview(400, 'UTC', { image: false });
+  await embeds.buildUsageOverview(400, 'UTC', { image: true });
+  assert.deepEqual(seen, ['60 days', '400 days']);
+});
+
+test('/usage credits in image mode draws the month from its first day, not a trailing window', async () => {
+  const queries = [];
+  const pool = makePool();
+  reports.init({ dbPool: { async query(text, values) { queries.push(text); return pool.query(text, values); } } });
+  await embeds.buildUsageCredits(30, 'UTC', { image: true });
+  assert.ok(queries.some(q => q.includes('DATE_TRUNC(\'month\', NOW()) AND command = \'coingecko-call\'')),
+    'the burn-down must query from the month boundary');
+  assert.ok(!queries.some(q => q.includes('AS day, COUNT(*) AS calls')),
+    'the trailing-window daily series is not needed when the chart is drawn');
+});
+
+test('/usage credits measures against the configured budget', async () => {
+  reports.init({ dbPool: makePool() });
+  try {
+    embeds.setMonthlyCreditBudget(500000);
+    const { embed } = await embeds.buildUsageCredits(30, 'UTC');
+    assert.match(embed.toJSON().description, /of \*\*500k\*\*/);
+    assert.equal(embed.toJSON().color, 0x2ee08a, 'a huge budget means the projection is within quota');
+  }
+  finally {
+    embeds.setMonthlyCreditBudget(null);
+  }
+  assert.equal(embeds.getMonthlyCreditBudget(), embeds.DEMO_MONTHLY_CREDITS, 'a bad value restores the demo default');
+});
+
+/* --------------------------------------------
+
+    Compare mode: the same window one step earlier, shown as a delta.
+
+  -------------------------------------------- */
+
+test('/usage overview with compare adds a delta panel', async () => {
+  reports.init({ dbPool: makePool() });
+  const { embed } = await embeds.buildUsageOverview(30, 'UTC', { compare: true });
+  const json = embed.toJSON();
+  const panel = json.fields.find(f => /vs the 30 days before/.test(f.name));
+  assert.ok(panel, 'compare must add a "vs the N days before" panel');
+  assert.match(panel.value, /Events.*▲ \+13%/, 'events 9001 vs 8000 is +13%');
+  assert.match(panel.value, /Errors.*▼ 42%/, 'errors 23 vs 40 is -42.5%, rounded half up');
+  assertWellFormed('overview compare', json);
+});
+
+test('/usage commands with compare adds rank movement', async () => {
+  reports.init({ dbPool: makePool() });
+  const { embed } = await embeds.buildUsageCommands(30, 15, false, { compare: true });
+  const json = embed.toJSON();
+  const detail = json.fields.find(f => f.name === 'Detail');
+  assert.match(detail.value, /Rank/);
+  assert.match(detail.value, /= 0%/, 'identical prior rows give a zero delta');
+  assertWellFormed('commands compare', json);
+});
+
+test('/usage coins, errors and credits accept compare without leaking', async () => {
+  reports.init({ dbPool: makePool() });
+  for (const [name, build] of [
+    ['coins', () => embeds.buildUsageCoins(30, 15, { compare: true })],
+    ['errors', () => embeds.buildUsageErrors(30, 15, { compare: true })],
+    ['credits', () => embeds.buildUsageCredits(30, 'UTC', { compare: true })]
+  ]) {
+    const { embed } = await build();
+    assertWellFormed(name + ' compare', embed.toJSON());
+  }
+  const { embed } = await embeds.buildUsageCredits(30, 'UTC', { compare: true });
+  assert.match(embed.toJSON().description, /Last month at this point/);
+});
+
+test('deltaText describes change compactly', () => {
+  assert.equal(embeds.deltaText(110, 100), '▲ +10%');
+  assert.equal(embeds.deltaText(90, 100), '▼ 10%');
+  assert.equal(embeds.deltaText(100, 100), '= 0%');
+  assert.equal(embeds.deltaText(5, 0), '▲ new');
+  assert.equal(embeds.deltaText(0, 0), '–');
+  assert.equal(embeds.deltaText('12', '10'), '▲ +20%');
+});
+
+test('rankMomentum separates risers from fallers and floors the noise', () => {
+  const { risers, fallers } = embeds.rankMomentum([
+    { coin: 'SOL', current_requests: '140', prior_requests: '40' },
+    { coin: 'DOGE', current_requests: '20', prior_requests: '90' },
+    { coin: 'TINY', current_requests: '6', prior_requests: '2' },
+    { coin: 'NEW', current_requests: '12', prior_requests: '0' },
+    { coin: 'FLAT', current_requests: '50', prior_requests: '50' }
+  ]);
+  assert.deepEqual(risers.map(r => r.coin), ['NEW', 'SOL'], 'a brand-new coin ranks as the biggest riser, the 2-to-6 one is noise');
+  assert.deepEqual(fallers.map(r => r.coin), ['DOGE']);
+});
+
+test('projectMonthEnd extrapolates the 24h rate over the UTC days left', () => {
+  const totals = { calls_month: '3000', calls_24h: '100' };
+  const tenth = new Date(Date.UTC(2026, 7, 10, 12));
+  const projection = embeds.projectMonthEnd(totals, tenth);
+  assert.equal(projection.daysInMonth, 31);
+  assert.equal(projection.daysRemaining, 21);
+  assert.equal(projection.projected, 3000 + 21 * 100);
+});
+
+/* --------------------------------------------
+
+    The dispatcher: every report reachable by name with a normalized state.
+
+  -------------------------------------------- */
+
+test('buildUsageReport resolves every report name and normalizes the state', async () => {
+  reports.init({ dbPool: makePool() });
+  for (const name of embeds.REPORT_NAMES) {
+    const { embed } = await embeds.buildUsageReport(name, { days: '99999', limit: 0, timezone: 'not a zone', name: '/portfolio show' });
+    const json = embed.toJSON();
+    assert.ok(json.title, `report ${name} built nothing`);
+    assert.match(json.footer.text, /Last 3650 days/, `report ${name} did not clamp the window`);
+  }
+  await assert.rejects(() => embeds.buildUsageReport('nope', {}), /Unknown usage report/);
+});
+
+test('buildUsageReport hands the command detail its bare command name', async () => {
+  const seen = [];
+  const pool = makePool();
+  reports.init({ dbPool: { async query(text, values) { if (text.includes('COALESCE(subcommand')) seen.push(values[0]); return pool.query(text, values); } } });
+  await embeds.buildUsageReport('command', { days: 30, name: 'Portfolio show' });
+  assert.deepEqual(seen, ['portfolio']);
+});
 
 /* --------------------------------------------
 

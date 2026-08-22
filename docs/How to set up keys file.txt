@@ -171,3 +171,50 @@ Note that alert latency is bounded by the cache refresh, so shortening the cache
 interval speeds alerts up too, at 4 credits per extra pass.
 
 If you upgrade to a paid CoinGecko plan, raise CG_MAX_PAGES to cache more coins.
+
+
+USAGE TELEMETRY OPTIONS (optional)
+
+Everything about /usage beyond the raw reports is configured in one block. All of
+it is optional; the defaults give you chart images, a dashboard on loopback, and a
+Monday digest to the application owner without any configuration.
+
+  "usage": {
+    "defaults":  { "timezone": "America/Chicago", "days": 30, "limit": 15 },
+    "images":    true,
+    "creditBudget": 10000,
+    "recipients": ["123456789012345678"],
+    "dashboard": { "enabled": true, "host": "127.0.0.1", "port": 8090,
+                   "publicUrl": "", "tokenTtlHours": 12 },
+    "digest":    { "enabled": true, "dayOfWeek": 1, "hour": 9, "timezone": "America/Chicago" },
+    "watchdog":  { "enabled": true, "intervalMinutes": 30 }
+  }
+
+"defaults"     -> what /usage uses when you leave days / limit / timezone blank,
+                  so you stop typing your timezone on every report.
+"images"       -> false to go back to text-only reports (the unicode sparklines).
+                  Images are rendered with sharp, no Chromium involved.
+"creditBudget" -> your CoinGecko plan's monthly credits. The credits report, the
+                  digest and the watchdog measure against this. Default 10000 (a
+                  demo key). Also CG_MONTHLY_CREDITS in the environment.
+"recipients"   -> Discord user ids that receive the weekly digest and watchdog
+                  DMs. When empty they go to the application owner(s) resolved
+                  at startup. An array of id strings, like botAdmins.
+"dashboard"    -> the browser dashboard. /usage dashboard prints a sign-in link
+                  (a random token, valid tokenTtlHours, set as an HttpOnly
+                  cookie). It listens on loopback, so open it on the machine the
+                  bot runs on or through an SSH tunnel (ssh -L 8090:127.0.0.1:8090
+                  host). "publicUrl" is only what the link says, for when a
+                  tunnel or reverse proxy changes the address. Environment:
+                  TSUKIBOT_DASHBOARD_ENABLED / _HOST / _PORT / _URL.
+                  In Docker set host to 0.0.0.0 and publish "127.0.0.1:8090:8090";
+                  see docker-compose.yml.
+"digest"       -> the weekly DM. dayOfWeek 0 = Sunday .. 6 = Saturday, hour 0-23,
+                  fired in "timezone" (not the server's). TSUKIBOT_DIGEST_ENABLED.
+"watchdog"     -> the periodic checks (error-rate spike, latency regression,
+                  CoinGecko 429s, credit projection over budget, dropped telemetry
+                  batches). Each condition DMs at most once a day.
+                  TSUKIBOT_WATCHDOG_ENABLED.
+
+Neither the digest nor the watchdog runs in dev mode (-d), so a development
+instance never DMs anyone.
