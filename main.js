@@ -3884,12 +3884,22 @@ async function runScheduledPost(post) {
 async function runDueScheduledPosts() {
   // Claim due jobs by stamping last_run in the same statement that selects them, so a slow post
   // can never be picked up twice by the next tick.
+  //
+  // Timestamps are anchored to whole-minute boundaries and advanced by whole interval multiples
+  // from their scheduled baseline, with a 30s jitter buffer. Stamping NOW() directly would record
+  // sub-minute seconds/milliseconds; because node-schedule wakes on :00, that forced every check
+  // to miss the top-of-minute tick and slip by +1 minute each run, compounding into monotonic drift.
   const due = await dbPool.query(`
     UPDATE tsukibot.scheduled_posts
-    SET last_run = NOW()
+    SET last_run = CASE
+      WHEN last_run IS NULL THEN date_trunc('minute', NOW())
+      ELSE date_trunc('minute', last_run) + (interval_minutes * INTERVAL '1 minute') *
+           GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (NOW() - date_trunc('minute', last_run) + INTERVAL '30 seconds')) / (interval_minutes * 60)))::integer
+    END
     WHERE job_id IN (
       SELECT job_id FROM tsukibot.scheduled_posts
-      WHERE last_run IS NULL OR last_run + (interval_minutes * INTERVAL '1 minute') <= NOW()
+      WHERE last_run IS NULL
+         OR date_trunc('minute', last_run) + (interval_minutes * INTERVAL '1 minute') - INTERVAL '30 seconds' <= NOW()
     )
     RETURNING *;
   `);
