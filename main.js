@@ -6940,9 +6940,12 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 process.on('unhandledRejection', err => {
   // If the error is a chromium restart failure from within puppeteer, we will restart the whole bot process because puppeteer will stop working if we don't.
   // This is really rare to happen, but if it does, this will keep the bot working normally without manual intervention.
-  if (err.toString().includes('Unable to restart chrome.')) {
+  // String(err) rather than err.toString(): a rejection with a null/undefined reason would
+  // otherwise throw inside the handler that is meant to be the last line of defence.
+  if (String(err).includes('Unable to restart chrome.')) {
     console.log(pc.yellowBright('CHROMIUM RESTART FAILURE DETECTED!  RESTARTING BOT PROCESS TO FIX...'));
     process.kill(process.pid, 'SIGTERM'); //graceful exit, then pm2 will detect this and restart again
+    return; // without this we asked the process to exit and then carried on logging as if it were survivable
   }
   console.error(pc.redBright('----------------------------------UNHANDLED REJECTION DETECTED----------------------------------'));
   console.error(err);
@@ -6969,13 +6972,92 @@ if (!devMode) {
 
 
 // Jack in, Megaman. Execute.
+//
+// Losing the gateway has to be fatal. On 2026-09-22 the WAN blipped while the bot was starting,
+// client.login() rejected, the rejection was swallowed by the unhandledRejection handler above, and
+// the process then ran for twelve hours doing background work without ever having authenticated.
+// pm2 reported it "online" the whole time because the process was alive, so nothing restarted it and
+// no process-liveness check could see the failure. Every scheduled job failed with
+// "Expected token to be set for this request, but none was present".
+//
+// The rule now: if we cannot reach a ready gateway, exit non-zero and let pm2 restart us.
+
+const LOGIN_BACKOFF_MS = [5000, 15000, 30000, 60000, 120000]; // one entry per retry after the first attempt
+const READY_TIMEOUT_MS = 120000;
+
+let isReady = false;
+let readyWatchdog = null;
+
+// login() resolving only means the handshake got far enough to accept the token. The gateway can
+// still fail to finish becoming ready, which is its own silent-failure mode, so it gets its own
+// deadline. Armed only after login succeeds, otherwise the retry budget below would outlive it.
+function armReadyWatchdog() {
+  if (isReady || readyWatchdog) return;
+  readyWatchdog = setTimeout(() => {
+    console.error(pc.redBright('Discord client never became ready within ' + (READY_TIMEOUT_MS / 1000) + 's. Exiting so pm2 restarts the process.'));
+    process.exit(1);
+  }, READY_TIMEOUT_MS);
+}
+
+function clearReadyWatchdog() {
+  isReady = true;
+  if (readyWatchdog) { clearTimeout(readyWatchdog); readyWatchdog = null; }
+}
+
+// 'ready' is the discord.js v14 name and 'clientReady' is the v15 one. Listening for both keeps this
+// working across that upgrade; whichever does not exist simply never fires.
+for (const readyEvent of ['ready', 'clientReady']) {
+  client.once(readyEvent, () => {
+    if (isReady) return; // v14.27 emits both names, so only announce the first one
+    clearReadyWatchdog();
+    console.log(pc.green(pc.bold('Connected to Discord as ' + ((client.user && client.user.tag) || 'unknown') + '.')));
+  });
+}
+
+// An invalidated session cannot be resumed. A fresh process is the only recovery.
+client.on('invalidated', () => {
+  console.error(pc.redBright('Discord session was invalidated and cannot be resumed. Exiting so pm2 restarts the process.'));
+  process.exit(1);
+});
+
+// Retrying only helps a transient network fault. A rejected token or disallowed intents fails
+// identically every time, so those exit straight away instead of burning the retry budget and
+// delaying the signal that something is genuinely misconfigured.
+function isUnrecoverableLoginError(err) {
+  const text = String((err && err.code) || '') + ' ' + String((err && err.message) || err || '');
+  return /TokenInvalid|DisallowedIntents|Unauthorized|4004|4014/i.test(text);
+}
+
+async function loginWithRetry(token) {
+  const attempts = LOGIN_BACKOFF_MS.length + 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await client.login(token);
+      if (attempt > 1) console.log(pc.green('Discord login succeeded on attempt ' + attempt + '.'));
+      armReadyWatchdog();
+      return;
+    }
+    catch (err) {
+      console.error(pc.redBright('Discord login attempt ' + attempt + '/' + attempts + ' failed: ' + ((err && err.message) || err)));
+      if (isUnrecoverableLoginError(err)) {
+        console.error(pc.redBright('That is a credential or intents problem, which retrying will not fix. Exiting.'));
+        process.exit(1);
+      }
+      if (attempt === attempts) {
+        console.error(pc.redBright('Could not reach Discord after ' + attempts + ' attempts. Exiting so pm2 restarts the process.'));
+        process.exit(1);
+      }
+      const wait = LOGIN_BACKOFF_MS[attempt - 1];
+      console.log(pc.yellow('Retrying Discord login in ' + (wait / 1000) + 's...'));
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+}
+
 if (devMode) {
   console.log(pc.cyan('Logging in with dev token...'));
-  client.login(keys.devToken);
 }
-else {
-  client.login(keys.token);
-}
+loginWithRetry(devMode ? keys.devToken : keys.token);
 
 
 
