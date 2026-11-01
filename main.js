@@ -96,7 +96,6 @@ const { Client, GatewayIntentBits, ShardClientUtil, ActivityType, EmbedBuilder, 
 const ccxt = require('ccxt');
 const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
-const { Web3 } = require('web3');
 
 // Google Cloud language translations
 const googleProjectID = keys.googleCloudProjectID;
@@ -394,7 +393,7 @@ const clientBybit = new ccxt.bybit();
 const clientOkx = new ccxt.okx();
 const finnhubClient = new finnhub.DefaultApi(keys.finnhub);
 const translate = new Translate({ projectId: googleProjectID, keyFilename: googleProjectApiKeyPath });
-const web3eth = new Web3(`https://mainnet.infura.io/v3/${keys.infura}`);
+const ethereumRpcUrl = `https://mainnet.infura.io/v3/${keys.infura}`;
 
 // Reload Coins
 const reloaderCG = require('./getCoinsCG');
@@ -405,6 +404,9 @@ const {
   abbreviateNumber, capitalizeFirstLetter, chunkString, formatUsd, formatUsdAmount,
   isAlphaNumeric, numberWithCommas, sleep, trimDecimalPlaces, validURL
 } = require('./src/util/format');
+
+// ENS lookups, hex quantities and address checks, in place of web3.js (archived upstream).
+const { getEnsOwner, hexToNumber, isAddress } = require('./src/util/ethereum');
 
 // Donation and footer stuff
 const quote = 'Enjoying TsukiBot? Tell your friends!';
@@ -2215,7 +2217,7 @@ async function getEtherBalance(author, address, channel, action = 'b') {
     // nothing attached, which left the caller's deferred reply hanging forever.
     let owner;
     try {
-      owner = await web3eth.eth.ens.getOwner(address);
+      owner = await getEnsOwner(ethereumRpcUrl, address);
     }
     catch (err) {
       console.log(pc.red('ENS lookup failed: ' + pc.cyan(err && err.message ? err.message : err)));
@@ -2250,8 +2252,8 @@ async function getEtherBalance(author, address, channel, action = 'b') {
       const tx = await res2.json();
       if (tx.result !== null) {
         if (tx.result.blockNumber !== null) {
-          channel.send('Transaction included in block `' + Number(Web3.utils.hexToNumber(tx.result.blockNumber)) + '`.' +
-            (block.result ? ' Confirmations: `' + (1 + Number(Web3.utils.hexToNumber(block.result)) - Number(Web3.utils.hexToNumber(tx.result.blockNumber))) + '`' : ''));
+          channel.send('Transaction included in block `' + hexToNumber(tx.result.blockNumber) + '`.' +
+            (block.result ? ' Confirmations: `' + (1 + hexToNumber(block.result) - hexToNumber(tx.result.blockNumber)) + '`' : ''));
         } else {
           channel.send('Transaction not yet mined.');
         }
@@ -4030,8 +4032,8 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
       return;
     }
     // filter out any invalid cg coins and other input and notify user of them accordingly
-    const cleanedCoins = coins.filter(e => e && isAlphaNumeric(e) && pairs_CG_arr.includes(e.toUpperCase()) && !Web3.utils.isAddress(e));
-    const invalidCoins = coins.filter(e => !e || !isAlphaNumeric(e) || !pairs_CG_arr.includes(e.toUpperCase()) || Web3.utils.isAddress(e));
+    const cleanedCoins = coins.filter(e => e && isAlphaNumeric(e) && pairs_CG_arr.includes(e.toUpperCase()) && !isAddress(e));
+    const invalidCoins = coins.filter(e => !e || !isAlphaNumeric(e) || !pairs_CG_arr.includes(e.toUpperCase()) || isAddress(e));
     let invalidCoinsMessage = '';
     if (invalidCoins.length > 0) {
       invalidCoinsMessage = '\nNOTE: The following coins were invalid tickers or not found on CoinGecko and have been automatically excluded: `' + invalidCoins.toString() + '`';
