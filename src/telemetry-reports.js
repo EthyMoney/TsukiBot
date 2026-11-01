@@ -71,6 +71,23 @@ function hoursInterval(hours) {
   return `${n} hours`;
 }
 
+/*
+ * CoinGecko's credit month starts at 00:00 UTC on the 1st, and the projections
+ * count the days left in UTC. A bare DATE_TRUNC('month', NOW()) truncates in the
+ * session timezone instead (America/Chicago on the production server), so for
+ * the first five or six hours of every UTC month calls_month was still all of
+ * last month. The bounds below do their month arithmetic on UTC wall-clock time
+ * and convert back, so they do not depend on the server's TimeZone setting.
+ */
+const UTC_NOW = `(NOW() AT TIME ZONE 'UTC')`;
+const UTC_MONTH_START_LOCAL = `DATE_TRUNC('month', ${UTC_NOW})`;
+const UTC_MONTH_START = `(${UTC_MONTH_START_LOCAL} AT TIME ZONE 'UTC')`;
+const UTC_PRIOR_MONTH_START = `((${UTC_MONTH_START_LOCAL} - INTERVAL '1 month') AT TIME ZONE 'UTC')`;
+/** The same elapsed time into last month, capped at its end for the 29th-31st of a longer month. */
+const UTC_PRIOR_MONTH_SAME_POINT =
+  `(LEAST(${UTC_MONTH_START_LOCAL} - INTERVAL '1 month' + (${UTC_NOW} - ${UTC_MONTH_START_LOCAL}), ` +
+  `${UTC_MONTH_START_LOCAL}) AT TIME ZONE 'UTC')`;
+
 async function query(text, values) {
   if (!pool) throw new Error('Telemetry reports are not connected to a database.');
   const result = await pool.query(text, values);
@@ -231,7 +248,7 @@ async function getApiCreditTotals() {
       COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '1 hour')             AS calls_1h,
       COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '24 hours')           AS calls_24h,
       COUNT(*) FILTER (WHERE occurred_at > NOW() - INTERVAL '7 days')             AS calls_7d,
-      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW()))           AS calls_month,
+      COUNT(*) FILTER (WHERE occurred_at >= ${UTC_MONTH_START})                   AS calls_month,
       COUNT(*) FILTER (WHERE outcome = 'ratelimited')                             AS ratelimited,
       MIN(occurred_at)                                                            AS first_call
     FROM tsukibot.usage_events
@@ -780,15 +797,12 @@ async function getOverviewComparison(days) {
 async function getApiCreditsMonthComparison() {
   const [row] = await query(`
     SELECT
-      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW()))                       AS month_to_date,
-      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-                         AND occurred_at <  DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-                                            + (NOW() - DATE_TRUNC('month', NOW())))           AS prior_month_same_point,
-      COUNT(*) FILTER (WHERE occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-                         AND occurred_at <  DATE_TRUNC('month', NOW()))                       AS prior_month_total
+      COUNT(*) FILTER (WHERE occurred_at >= ${UTC_MONTH_START})                               AS month_to_date,
+      COUNT(*) FILTER (WHERE occurred_at <  ${UTC_PRIOR_MONTH_SAME_POINT})                    AS prior_month_same_point,
+      COUNT(*) FILTER (WHERE occurred_at <  ${UTC_MONTH_START})                               AS prior_month_total
     FROM tsukibot.usage_events
     WHERE command = 'coingecko-call'
-      AND occurred_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+      AND occurred_at >= ${UTC_PRIOR_MONTH_START}
   `);
   return row;
 }
@@ -798,13 +812,13 @@ async function getApiCreditsMonthComparison() {
  * chart. Anchored to the month boundary rather than to "the last N days": a
  * trailing window misses the first of the month on the 31st and can include
  * last month's tail, and the chart would be wrong exactly when it matters.
- * Days are bucketed the same way calls_month is counted, so the two agree.
+ * Days are bucketed in UTC, the same way calls_month is counted, so the two agree.
  */
 async function getApiCreditsMonthToDate() {
   return query(`
-    SELECT DATE(occurred_at) AS day, COUNT(*) AS credits
+    SELECT DATE(occurred_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS credits
     FROM tsukibot.usage_events
-    WHERE occurred_at >= DATE_TRUNC('month', NOW()) AND command = 'coingecko-call'
+    WHERE occurred_at >= ${UTC_MONTH_START} AND command = 'coingecko-call'
     GROUP BY day ORDER BY day
   `);
 }

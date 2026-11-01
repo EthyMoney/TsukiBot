@@ -300,8 +300,9 @@ test('/usage credits in image mode draws the month from its first day, not a tra
   const pool = makePool();
   reports.init({ dbPool: { async query(text, values) { queries.push(text); return pool.query(text, values); } } });
   await embeds.buildUsageCredits(30, 'UTC', { image: true });
-  assert.ok(queries.some(q => q.includes('DATE_TRUNC(\'month\', NOW()) AND command = \'coingecko-call\'')),
-    'the burn-down must query from the month boundary');
+  assert.ok(queries.some(q => q.includes('occurred_at >= (DATE_TRUNC(\'month\', (NOW() AT TIME ZONE \'UTC\')) ' +
+    'AT TIME ZONE \'UTC\') AND command = \'coingecko-call\'')),
+    'the burn-down must query from the UTC month boundary');
   assert.ok(!queries.some(q => q.includes('AS day, COUNT(*) AS calls')),
     'the trailing-window daily series is not needed when the chart is drawn');
 });
