@@ -343,6 +343,7 @@ const commands = [
     .addSubcommand(s => s.setName('digest').setDescription('Build the weekly usage digest now, instead of waiting for the scheduled DM.')
       .addStringOption(o => o.setName('timezone').setDescription('IANA timezone for the daily buckets (default from keys.api, else UTC)')))
     .addSubcommand(s => s.setName('watchdog').setDescription('Run the telemetry watchdog checks now and show what would alert.'))
+    .addSubcommand(s => s.setName('error-summary').setDescription('Build the daily error summary now: failures, the error log, and what to fix.'))
     .addSubcommand(s => s.setName('prune').setDescription('Permanently delete events older than a cutoff, after a confirmation button.')
       .addIntegerOption(o => o.setName('keep_days').setDescription('Keep events newer than this many days').setRequired(true).setMinValue(1).setMaxValue(3650))
       .addBooleanOption(o => o.setName('confirm').setDescription('Skip the confirmation button and delete immediately'))),

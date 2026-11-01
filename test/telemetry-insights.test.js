@@ -134,7 +134,7 @@ function makeCharts({ png = Buffer.from('png'), available = true } = {}) {
 }
 
 /** One fully wired instance with a movable clock and a send spy. */
-function setup({ reports, telemetry, charts, config, send, getBudget, clock = FIXED_NOW } = {}) {
+function setup({ reports, telemetry, charts, config, send, getBudget, summarize, readErrorLog, clock = FIXED_NOW } = {}) {
   const state = { clock, sent: [], logged: [], errors: [] };
   const deps = {
     reports: reports || makeReports(),
@@ -142,6 +142,8 @@ function setup({ reports, telemetry, charts, config, send, getBudget, clock = FI
     charts: charts || makeCharts(),
     send: send || (async (payload) => { state.sent.push(payload); }),
     getBudget: getBudget || (() => 10000),
+    summarize,
+    readErrorLog,
     config,
     log: (m) => state.logged.push(m),
     logError: (m) => state.errors.push(m),
@@ -784,8 +786,9 @@ test('config is deep-merged over the defaults and exposed', () => {
 });
 
 test('DEFAULT_CONFIG has the documented shape', () => {
-  assert.deepEqual(Object.keys(DEFAULT_CONFIG).sort(), ['digest', 'watchdog']);
+  assert.deepEqual(Object.keys(DEFAULT_CONFIG).sort(), ['digest', 'errorSummary', 'watchdog']);
   assert.deepEqual(DEFAULT_CONFIG.digest, { enabled: true, dayOfWeek: 1, hour: 9, timezone: 'UTC', days: 7 });
+  assert.deepEqual(DEFAULT_CONFIG.errorSummary, { enabled: true, hour: 8, timezone: 'UTC', hours: 24 });
   assert.deepEqual(Object.keys(DEFAULT_CONFIG.watchdog).sort(), [
     'enabled', 'errorRateFloor', 'errorRateMultiplier', 'errorWindowHours', 'intervalMinutes',
     'latencyFloorMs', 'latencyMinSamples', 'latencyMultiplier', 'latencyWindowHours',
@@ -865,4 +868,122 @@ test('digest shows the standing state without deltas when only one snapshot exis
   const fields = (await none.insights.buildWeeklyDigest()).embed.toJSON().fields;
   assert.ok(!fields.some(f => f.name.startsWith('Set up')));
   assert.equal(none.state.errors.length, 0, 'an empty snapshot table is not an error');
+});
+
+/* --------------------------------------------
+    AI summary, AI spend and lookup misses in the digest
+  -------------------------------------------- */
+
+const { EmbedBuilder } = require('discord.js');
+const { EMBED_TOTAL_LIMIT, embedLength, fitEmbed } = require('../src/telemetry-insights');
+
+test('the digest leads with the AI summary, written from the digest itself', async () => {
+  const seen = [];
+  const { insights } = setup({ summarize: async (kind, facts) => { seen.push([kind, facts]); return '• Usage is up 14%.'; } });
+  const fields = (await insights.buildWeeklyDigest()).embed.toJSON().fields;
+  assert.equal(fields[0].name, 'What changed');
+  assert.equal(fields[0].value, '• Usage is up 14%.');
+  assert.equal(seen[0][0], 'digest');
+  assert.match(seen[0][1], /Top commands/);
+  assert.ok(!seen[0][1].includes('```'), 'code fences are stripped from the facts');
+});
+
+test('a failing summarizer leaves the rest of the digest intact', async () => {
+  const { insights, state } = setup({ summarize: async () => { throw new Error('API down'); } });
+  const fields = (await insights.buildWeeklyDigest()).embed.toJSON().fields;
+  assert.ok(!fields.some(f => f.name === 'What changed'));
+  assert.ok(fields.some(f => f.name === 'Top commands'));
+  assert.ok(state.errors.some(e => /ai summary failed/.test(e)));
+});
+
+test('AI spend and lookup misses appear when the reports provide them', async () => {
+  const reports = makeReports({
+    getAiUsage: (days, opts = {}) => opts.priorWindow
+      ? [{ feature: 'ask', calls: '5', cost_usd: '0.20', web_searches: '1' }]
+      : [{ feature: 'why', calls: '10', cost_usd: '1.50', web_searches: '30' }, { feature: 'ask', calls: '20', cost_usd: '0.80', web_searches: '4' }],
+    getLookupMisses: [
+      { query: 'etherium', misses: '4', users: '3', suggested: 'ETH', commands: 'cg', total_misses: '9' },
+      { query: 'dog `hat`', misses: '2', users: '1', suggested: 'none', commands: 'why', total_misses: '9' }
+    ]
+  });
+  const fields = (await setup({ reports }).insights.buildWeeklyDigest()).embed.toJSON().fields;
+  const aiField = fields.find(f => f.name === 'AI features');
+  assert.match(aiField.value, /\*\*30\*\* calls · about \*\*\$2\.30\*\* \(▲/);
+  assert.match(aiField.value, /why 10 \(~\$1\.50\)/);
+  const misses = fields.find(f => f.name === 'Coin lookups that found nothing');
+  assert.match(misses.value, /\*\*9\*\* misses · `etherium` ×4 → ETH/);
+  assert.ok(!misses.value.includes('`hat`'), 'a backtick in a query cannot break out of its code span');
+});
+
+test('reports without the AI queries still build a digest, without those fields', async () => {
+  const names = (await setup().insights.buildWeeklyDigest()).embed.toJSON().fields.map(f => f.name);
+  assert.ok(!names.includes('AI features') && !names.includes('Coin lookups that found nothing'));
+  assert.ok(names.includes('Top commands'));
+});
+
+test('fitEmbed drops optional fields, least important first, until the embed fits', () => {
+  const embed = new EmbedBuilder().setTitle('t').setDescription('d'.repeat(1000));
+  for (const name of ['Keep me', 'Coins', 'AI features', 'Coin lookups that found nothing']) {
+    embed.addFields({ name, value: 'v'.repeat(1020) });
+  }
+  embed.addFields({ name: 'Also keep', value: 'v'.repeat(1020) }, { name: 'Extra keep', value: 'v'.repeat(1020) });
+  assert.ok(embedLength(embed) > EMBED_TOTAL_LIMIT + 1000, 'needs two fields dropped to fit');
+  fitEmbed(embed, ['Coin lookups that found nothing', 'AI features', 'Retention', 'Coins']);
+  const names = embed.toJSON().fields.map(f => f.name);
+  assert.ok(embedLength(embed) <= EMBED_TOTAL_LIMIT);
+  assert.deepEqual(names, ['Keep me', 'Coins', 'Also keep', 'Extra keep'], 'drops in order and stops as soon as it fits');
+});
+
+/* --------------------------------------------
+    Daily error summary
+  -------------------------------------------- */
+
+test('the error summary is skipped when nothing failed and the log is clean', async () => {
+  const { insights, state } = setup({
+    reports: makeReports({ getErrors: [] }),
+    readErrorLog: async () => ({ text: '', distinct: 0, total: 0 })
+  });
+  assert.equal(await insights.buildErrorSummary(), null);
+  assert.equal(await insights.sendErrorSummary(), false);
+  assert.equal(state.sent.length, 0);
+});
+
+test('the error summary combines failed commands and the error log, led by the AI read', async () => {
+  let facts;
+  const reports = makeReports({
+    getErrors: [{ command: 'hmap', error_kind: '50013', occurrences: '6', users_affected: '3', last_seen: ago(60) }]
+  });
+  const { insights, state, telemetry } = setup({
+    reports,
+    readErrorLog: async () => ({ text: '12x TypeError: x is undefined\n    at foo (main.js:10:5)\n3x fetch failed', distinct: 2, total: 15 }),
+    summarize: async (kind, f) => { facts = f; return kind === 'errors' ? '• `50013` in hmap: missing permission.' : null; }
+  });
+  const json = (await insights.buildErrorSummary()).embed.toJSON();
+  assert.match(json.title, /Daily error summary/);
+  assert.equal(json.description, '• `50013` in hmap: missing permission.');
+  assert.match(json.fields[0].name, /Failed commands and jobs · 6/);
+  assert.match(json.fields[1].name, /Error log · 15 lines, 2 distinct/);
+  assert.ok(!json.fields[1].value.includes('at foo'), 'stack frames are left out of the field');
+  assert.match(facts, /hmap \| 50013 \| 6 \| 3/);
+  assert.match(facts, /at foo/, 'the summarizer still sees where it happened');
+
+  assert.equal(await insights.sendErrorSummary(), true);
+  assert.equal(state.sent.length, 1);
+  assert.ok(telemetry.events.some(e => e.command === 'error-summary'));
+});
+
+test('the error summary reads the last 24 hours and falls back to raw counts without AI', async () => {
+  let since;
+  const { insights } = setup({
+    reports: makeReports({ getErrors: [] }),
+    readErrorLog: async (sinceMs) => { since = sinceMs; return { text: '1x boom', distinct: 1, total: 1 }; }
+  });
+  const result = await insights.buildErrorSummary();
+  assert.equal(since, FIXED_NOW.getTime() - 24 * 3600e3);
+  assert.match(result.embed.toJSON().description, /raw counts/);
+});
+
+test('errorSummaryRule runs daily at the configured hour and timezone', () => {
+  const { insights } = setup({ config: { errorSummary: { hour: 7, timezone: 'America/Chicago' } } });
+  assert.deepEqual(insights.errorSummaryRule(), { rule: '0 7 * * *', tz: 'America/Chicago' });
 });

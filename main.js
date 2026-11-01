@@ -234,6 +234,7 @@ function resolveUsageConfig(source) {
   const dashboard = section('dashboard');
   const digest = section('digest');
   const watchdog = section('watchdog');
+  const errorSummary = section('errorSummary');
 
   return {
     defaults: {
@@ -261,6 +262,12 @@ function resolveUsageConfig(source) {
     watchdog: {
       enabled: bool(env.TSUKIBOT_WATCHDOG_ENABLED, watchdog.enabled !== false),
       intervalMinutes: int(watchdog.intervalMinutes, 30, 5, 60)
+    },
+    errorSummary: {
+      enabled: bool(env.TSUKIBOT_ERROR_SUMMARY_ENABLED, errorSummary.enabled !== false),
+      hour: int(errorSummary.hour, 8, 0, 23),
+      timezone: telemetryReports.normalizeTimezone(errorSummary.timezone || digest.timezone || defaults.timezone || 'UTC'),
+      hours: 24
     }
   };
 }
@@ -406,6 +413,8 @@ const { getEnsOwner, hexToNumber, isAddress } = require('./src/util/ethereum');
 const ai = require('./src/ai');
 const { buildMarketTools, coinFacts, coinFactsText } = require('./src/ai-tools');
 const chartAi = require('./src/ai-chart');
+const coinSuggest = require('./src/coin-suggest');
+const { redactSecrets, summarizeLogTail } = require('./src/error-log');
 
 // Donation and footer stuff
 const quote = 'Enjoying TsukiBot? Tell your friends!';
@@ -879,6 +888,7 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     messageHeader = '__CoinGecko__ Price for:\n';
   }
   let message = '';
+  const missingCoins = []; // inputs that matched no coin, answered with suggestions below
   let ep, bp, up; //pricing values (ep=ethprice, bp=btcprice, up=usdprice)
 
   for (let i = 0; i < coins.length; i++) {
@@ -905,12 +915,17 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     // otherwise process as normal call and look for symbols
     else {
       if (!cgArrayDict[coins[i]]) {
-        let g = didyoumean(coins[i], Object.keys(cgArrayDict));
-        if (!g)
+        // A full name ("bitcoin") or a rank is not a ticker. Resolve those before guessing at a
+        // typo: they used to fall through to didyoumean and, finding nothing, vanish silently.
+        const byName = findCachedCoin(coins[i]);
+        const g = byName && cgArrayDict[byName.symbol.toUpperCase()]
+          ? byName.symbol.toUpperCase()
+          : didyoumean(coins[i], Object.keys(cgArrayDict));
+        if (!g) {
+          missingCoins.push(coins[i]);
           continue;
-        else {
-          coins[i] = g;
         }
+        coins[i] = g;
       }
       // look through cache and get each matching coin, but skip those damn worthless peg coins!
       cgArrayDictParsed.forEach((coinObject) => {
@@ -1050,11 +1065,33 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     }
   }
 
+  const askingForHelp = coins.length == 1 && coins.includes('HELP');
+
+  // Nothing matched at all. This used to send nothing, which a slash command shows as "The
+  // application did not respond"; now it says what was not found and suggests what was meant.
+  if (missingCoins.length > 0 && message.length === 0 && message_part1.length === 0 && !askingForHelp) {
+    replyCoinsNotFound(interaction, channel, missingCoins, 'cg').catch(err => {
+      console.log(pc.red('Could not send the /cg not-found reply: ') + pc.cyan(err && err.message ? err.message : err));
+    });
+    return;
+  }
+
+  // Some matched: price those, and name the rest with a quick typo suggestion. This reply cannot
+  // wait for Claude, so only the free typo matching runs here.
+  if (missingCoins.length > 0 && !askingForHelp) {
+    const notes = missingCoins.slice(0, 5).map(query => {
+      const suggestions = coinSuggest.suggestCoins(query, coinSuggestionPool(), { limit: 1 });
+      if (interaction) noteCoinMiss(interaction, 'cg', query, suggestions);
+      return '`' + cleanQuery(query) + '`' + (suggestions.length ? ` (did you mean ${suggestions[0].symbol.toUpperCase()}?)` : '');
+    });
+    message += '\nNot found: ' + notes.join(', ');
+  }
+
   // Random invite notification message
   message += (Math.random() > 0.99) ? '\n' + quote + ' ' + botInviteAdd : '';
 
   // Check for confused people looking for help, and prompt them for the real help command
-  if (coins.length == 1 && coins.includes('HELP')) {
+  if (askingForHelp) {
     message += '\nLooking for the help with using the bot? Use `/help`.';
   }
 
@@ -1509,14 +1546,9 @@ async function getCoinDescription(coin1, channel, author, interaction) {
     }
   }
   else {
-    if (interaction) {
-      interaction.reply('**Error:** __' + coin1 + '__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.');
-      return;
-    }
-    else {
-      channel.send('**Error:** __' + coin1 + '__ was not found on CoinGecko. Make sure you are entering either the ticker symbol or full name.');
-      return;
-    }
+    const notFound = await coinNotFoundMessage(coin1, { interaction: interaction || (channel && channel.interaction) || null, command: 'info' });
+    if (interaction) await interaction.reply(notFound);
+    else await channel.send(notFound);
   }
 }
 
@@ -1900,12 +1932,14 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
       });
     }
     else {
-      if (interaction) {
-        interaction.editReply('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!');
-      }
-      else {
-        channel.send('One or more of your coins were not found on CoinGecko or available fiat pairs. Check your input and try again!' + '\nIf you need help, use `/help` to see the guide for this command.');
-      }
+      // Name which side was not found, with suggestions, rather than "one or more of your coins".
+      const missing = [!found1 && coin1, !found2 && coin2].filter(Boolean);
+      Promise.all(missing.map(query => coinNotFoundMessage(query, { interaction, command: 'convert' })))
+        .then(lines => {
+          const text = lines.join('\n') + '\nFiat currencies work too, e.g. `usd` or `eur`.';
+          return interaction ? interaction.editReply(text) : channel.send(text);
+        })
+        .catch(err => console.log(pc.red('Could not send the conversion not-found reply: ') + pc.cyan(err && err.message ? err.message : err)));
     }
   }
   catch (err) {
@@ -2822,7 +2856,7 @@ async function getAllTimeHigh(coinInput, channel, interaction) {
 
   const coin = await resolveCoin(coinInput);
   if (!coin) {
-    await reply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    await reply(await coinNotFoundMessage(coinInput, { interaction, command: 'ath' }));
     return;
   }
 
@@ -2869,7 +2903,7 @@ async function compareCoins(coin1Input, coin2Input, channel, interaction) {
   const [coinA, coinB] = await Promise.all([resolveCoin(coin1Input), resolveCoin(coin2Input)]);
   const missing = !coinA ? coin1Input : !coinB ? coin2Input : null;
   if (missing) {
-    await reply(`Couldn't find **${missing}** on CoinGecko. Try the ticker symbol or the full name.`);
+    await reply(await coinNotFoundMessage(missing, { interaction, command: 'compare' }));
     return;
   }
   if (coinA.id === coinB.id) {
@@ -3010,7 +3044,7 @@ async function ensureAlertsTable() {
 async function addPriceAlert(interaction, coinInput, targetPrice) {
   const coin = await resolveCoin(coinInput);
   if (!coin) {
-    await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    await interaction.editReply(await coinNotFoundMessage(coinInput, { interaction, command: 'alert' }));
     return;
   }
   if (!(targetPrice > 0)) {
@@ -3195,13 +3229,22 @@ async function runPriceAlertScan() {
   const toDeliver = triggered.filter(t => claimedIds.has(String(t.alert.alert_id)));
   if (toDeliver.length === 0) return;
 
+  // One context line per coin, started for all of them at once and shared by every alert on it.
+  const contexts = new Map();
   for (const { alert, price } of toDeliver) {
+    if (!contexts.has(alert.coin_id)) contexts.set(alert.coin_id, alertContextFor(alert, price));
+  }
+
+  for (const { alert, price } of toDeliver) {
+    const context = await contexts.get(alert.coin_id);
     const embed = new EmbedBuilder()
       .setTitle(`${alert.symbol} is ${alert.direction} ${formatUsd(Number(alert.target_price))}`)
-      .setDescription(`**${alert.coin_name}** is now **${formatUsd(price)}**.`)
+      .setDescription(`**${alert.coin_name}** is now **${formatUsd(price)}**.` + (context ? `\n\n${context.text}` : ''))
       .setColor(alert.direction === 'above' ? '#2ee08a' : '#ff5a76')
-      .setFooter({ text: 'TsukiBot price alert' })
+      .setFooter({ text: 'TsukiBot price alert' + (context ? ' · context written by AI' : '') })
       .setTimestamp();
+    const contextSource = context ? sourcesField(context.sources) : null;
+    if (contextSource) embed.addFields({ ...contextSource, name: 'Source' });
 
     // Recorded per alert with how it was delivered, so "are DMs actually reaching people" is
     // answerable rather than guessed at.
@@ -3272,7 +3315,7 @@ async function ensureHoldingsTable() {
 async function setHolding(interaction, coinInput, amount) {
   const coin = await resolveCoin(coinInput);
   if (!coin) {
-    await interaction.editReply(`Couldn't find **${coinInput}** on CoinGecko. Try the ticker symbol or the full name.`);
+    await interaction.editReply(await coinNotFoundMessage(coinInput, { interaction, command: 'portfolio' }));
     return;
   }
 
@@ -3898,7 +3941,7 @@ async function explainCoinMove(interaction, coinInput) {
     const coin = await resolveCoin(coinInput);
     if (!coin) {
       aiQuota.refund(interaction.user.id);
-      await interaction.editReply(`I couldn't find a coin matching \`${sanitizeCoinGeckoText(coinInput).slice(0, 40)}\`. Try its ticker or full name.`);
+      await interaction.editReply(await coinNotFoundMessage(coinInput, { interaction, command: 'why' }));
       return;
     }
 
@@ -4054,6 +4097,236 @@ async function translateMessage(interaction, text, targetLanguage) {
     aiQuota.refund(interaction.user.id);
     logAiFailure('translate', err);
     await interaction.editReply(aiFailureMessage(err));
+  }
+}
+
+/* --------------------------------------------
+
+    "Did you mean" for coin lookups that found nothing.
+
+    Typo and prefix matching over CoinGecko's full coin list runs first and is free. Claude is
+    asked only when that finds nothing or the query reads like a description, and every coin it
+    names is checked against the real list before it is shown. Answers are cached per query for a
+    day, and spend only the bot-wide budget: a typo should not use up someone's daily AI answers.
+
+    Each miss from a user is recorded as a "coin-not-found" telemetry event with what was
+    suggested, so the weekly digest shows how often lookups miss and what people were after.
+
+  -------------------------------------------- */
+
+const SUGGESTION_CACHE_MS = 24 * 60 * 60 * 1000;
+const suggestionCache = new Map();
+let suggestionPool = { builtAt: 0, size: -1, coins: [] };
+
+/** CoinGecko's full coin list with market cap ranks from the cache, rebuilt when the list changes. */
+function coinSuggestionPool() {
+  if (suggestionPool.size === cgCoinList.length && Date.now() - suggestionPool.builtAt < 30 * 60 * 1000) {
+    return suggestionPool.coins;
+  }
+  const ranks = new Map(cgArrayDictParsed.map(coin => [coin.id, coin.market_cap_rank]));
+  const coins = cgCoinList
+    .filter(coin => coin && coin.id && coin.symbol)
+    .map(coin => ({ id: coin.id, symbol: coin.symbol, name: coin.name || coin.id, rank: ranks.get(coin.id) || null }));
+  suggestionPool = { builtAt: Date.now(), size: cgCoinList.length, coins };
+  return coins;
+}
+
+/**
+ * The real coin an AI guess refers to: ticker and name together first, then the name alone, then
+ * the ticker alone but only for a coin in the market cache, so an obscure token sharing a big
+ * ticker is never offered.
+ */
+function matchGuess(guess, pool) {
+  const symbol = String(guess.symbol || '').toLowerCase();
+  const name = coinSuggest.normalize(guess.name);
+  const best = (list) => list.sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity))[0] || null;
+  const bySymbol = pool.filter(coin => coin.symbol.toLowerCase() === symbol);
+  return best(bySymbol.filter(coin => coinSuggest.normalize(coin.name) === name || coinSuggest.normalize(coin.id) === name)) ||
+    best(pool.filter(coin => coinSuggest.normalize(coin.name) === name)) ||
+    best(bySymbol.filter(coin => coin.rank)) ||
+    null;
+}
+
+/**
+ * Up to three coins the user probably meant, best first.
+ * @param {string} query
+ * @returns {Promise<Array<{id: string, symbol: string, name: string, rank: number|null}>>}
+ */
+async function suggestCoinsFor(query) {
+  const key = coinSuggest.normalize(query);
+  if (key.length < 2) return [];
+  const cached = suggestionCache.get(key);
+  if (cached && Date.now() - cached.at < SUGGESTION_CACHE_MS) return cached.suggestions;
+
+  const pool = coinSuggestionPool();
+  let suggestions = coinSuggest.suggestCoins(query, pool);
+  // A close typo match is the answer already. Claude is for when there is none, or when a
+  // description only produced loose matches.
+  const worthAsking = suggestions.length === 0 || (coinSuggest.looksDescriptive(query) && suggestions[0].score > 1);
+  if (worthAsking && key.length >= 3 && getAnthropicClient() && aiQuota.take(null).ok) {
+    try {
+      const startedAt = Date.now();
+      const result = await ai.guessCoins(getAnthropicClient(), String(query).slice(0, 100));
+      recordAiCall('coin-guess', result.usage, { durationMs: Date.now() - startedAt });
+      const guessed = result.guesses.map(guess => matchGuess(guess, pool)).filter(Boolean);
+      const seen = new Set();
+      suggestions = [...guessed, ...suggestions].filter(coin => !seen.has(coin.id) && seen.add(coin.id)).slice(0, 3);
+    }
+    catch (err) {
+      logAiFailure('coin-guess', err);
+    }
+  }
+  cacheSet(suggestionCache, key, { suggestions, at: Date.now() }, 500);
+  return suggestions;
+}
+
+/** User input made safe to echo: no markdown, mentions or line breaks. */
+function cleanQuery(query) {
+  return sanitizeCoinGeckoText(query).replace(/[*_~|<>@#\\]/g, '').slice(0, 40);
+}
+
+/** Records a lookup a user made that found nothing, with what was suggested. */
+function noteCoinMiss(interaction, command, query, suggestions) {
+  telemetry.recordSystemEvent('coin-not-found', {
+    subcommand: command,
+    userId: interaction && interaction.user ? interaction.user.id : undefined,
+    guildId: interaction ? interaction.guildId : undefined,
+    channelId: interaction ? interaction.channelId : undefined,
+    params: {
+      query: String(query).slice(0, 100),
+      suggested: suggestions.length ? suggestions.map(coin => coin.symbol.toUpperCase()).join(' ') : 'none'
+    }
+  });
+}
+
+/**
+ * The reply for a coin that was not found, with suggestions. Records the miss when it came from
+ * a user, so scheduled posts with a dead coin do not count every half hour.
+ * @param {string} query
+ * @param {{interaction?: object|null, command: string}} options
+ * @returns {Promise<string>}
+ */
+async function coinNotFoundMessage(query, { interaction = null, command }) {
+  const suggestions = await suggestCoinsFor(query).catch(() => []);
+  if (interaction) noteCoinMiss(interaction, command, query, suggestions);
+  const hint = coinSuggest.formatSuggestions(suggestions);
+  return `Couldn't find **${cleanQuery(query)}** on CoinGecko. ` + (hint || 'Try the ticker symbol or the full name.');
+}
+
+/** Answers a price request where nothing matched, deferring first because suggestions can take a moment. */
+async function replyCoinsNotFound(interaction, channel, queries, command) {
+  if (interaction && !interaction.deferred && !interaction.replied) await interaction.deferReply();
+  const lines = await Promise.all(queries.slice(0, 3).map(query => coinNotFoundMessage(query, { interaction, command })));
+  if (interaction) await interaction.editReply(lines.join('\n'));
+  else if (channel) await channel.send(lines.join('\n'));
+}
+
+/* --------------------------------------------
+
+    Price alert context.
+
+    One AI-written sentence on what the coin and the market were doing when an alert fired, with
+    a news search behind it. Every alert on the same coin shares it for half an hour, and it gives
+    up after 30 seconds, so a slow answer never holds an alert back. Skipped when AI is not
+    configured or the daily budget is spent. Spends only the bot-wide budget.
+
+  -------------------------------------------- */
+
+const ALERT_CONTEXT_CACHE_MS = 30 * 60 * 1000;
+const ALERT_CONTEXT_TIMEOUT_MS = 30 * 1000;
+const alertContexts = new Map();
+
+/**
+ * @param {object} alert a pricealerts row
+ * @param {number} price the price that triggered it
+ * @returns {Promise<{text: string, sources: Array<object>}|null>}
+ */
+async function alertContextFor(alert, price) {
+  const client = getAnthropicClient();
+  if (!client) return null;
+  const cached = alertContexts.get(alert.coin_id);
+  if (cached && Date.now() - cached.at < ALERT_CONTEXT_CACHE_MS) return cached;
+  if (!aiQuota.take(null).ok) return null;
+
+  const startedAt = Date.now();
+  const coin = findCachedCoinById(alert.coin_id);
+  const work = (async () => {
+    const result = await ai.writeAlertContext(client, {
+      name: alert.coin_name,
+      symbol: alert.symbol,
+      direction: alert.direction,
+      target: Number(alert.target_price),
+      price,
+      facts: coin ? coinFactsText(coinFacts(coin)) : `Price (USD): ${price}`,
+      marketFacts: await marketContextText()
+    });
+    recordAiCall('alert-context', result.usage, { userId: alert.user_id, durationMs: Date.now() - startedAt });
+    const entry = { text: result.text, sources: result.sources, at: Date.now() };
+    cacheSet(alertContexts, alert.coin_id, entry);
+    return entry;
+  })();
+  const timeout = new Promise(resolve => setTimeout(() => resolve(null), ALERT_CONTEXT_TIMEOUT_MS).unref());
+  return Promise.race([work.catch(err => { logAiFailure('alert-context', err); return null; }), timeout]);
+}
+
+/* --------------------------------------------
+
+    Owner reports: the AI section of the weekly digest, and the daily error summary.
+
+    The report figures and the error log are redacted before they are sent: every string in
+    keys.api long enough to be a credential is removed, along with anything shaped like a key or
+    token. Both spend only the bot-wide budget.
+
+  -------------------------------------------- */
+
+const ERROR_LOG_TAIL_BYTES = 1024 * 1024;
+
+/** Every string in keys.api long enough to be a credential. */
+function secretValues() {
+  const values = [];
+  const walk = (value) => {
+    if (typeof value === 'string') {
+      if (value.length >= 8) values.push(value);
+    }
+    else if (value && typeof value === 'object') {
+      Object.values(value).forEach(walk);
+    }
+  };
+  walk(keys);
+  if (process.env.ANTHROPIC_API_KEY) values.push(process.env.ANTHROPIC_API_KEY);
+  return values;
+}
+
+/** The AI summary a digest or error summary leads with, or null when AI is off or fails. */
+async function summarizeOwnerReport(kind, facts) {
+  const client = getAnthropicClient();
+  if (!client || !aiQuota.take(null).ok) return null;
+  const startedAt = Date.now();
+  const result = await ai.summarizeReport(client, kind, redactSecrets(facts, secretValues()));
+  recordAiCall(kind === 'errors' ? 'error-summary' : 'digest-summary', result.usage, { durationMs: Date.now() - startedAt });
+  return result.text;
+}
+
+/**
+ * The bot's own error log since sinceMs, collapsed and redacted. PM2 passes the log's path in
+ * pm_err_log_path; run any other way there is no log to read, and this returns null.
+ * @param {number} sinceMs
+ */
+async function readRecentErrorLog(sinceMs) {
+  const logPath = process.env.pm_err_log_path;
+  if (!logPath) return null;
+  const handle = await fs.promises.open(logPath, 'r');
+  try {
+    const { size } = await handle.stat();
+    const length = Math.min(size, ERROR_LOG_TAIL_BYTES);
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, size - length);
+    // A tail that starts mid-file starts mid-line, so its first line is dropped.
+    const text = buffer.toString('utf8').split('\n').slice(size > length ? 1 : 0).join('\n');
+    return summarizeLogTail(text, { sinceMs, secrets: secretValues() });
+  }
+  finally {
+    await handle.close();
   }
 }
 
@@ -4618,7 +4891,9 @@ client.on('clientReady', () => {
     telemetry,
     send: sendUsageReport,
     getBudget: getMonthlyCreditBudget,
-    config: { digest: usageConfig.digest, watchdog: usageConfig.watchdog },
+    summarize: getAnthropicClient() ? summarizeOwnerReport : undefined,
+    readErrorLog: readRecentErrorLog,
+    config: { digest: usageConfig.digest, watchdog: usageConfig.watchdog, errorSummary: usageConfig.errorSummary },
     log: (msg) => console.log(pc.green(msg)),
     logError: (msg) => console.log(pc.red(msg))
   });
@@ -4631,6 +4906,9 @@ client.on('clientReady', () => {
     }
     if (usageConfig.watchdog.enabled) {
       schedule.scheduleJob(usageInsights.watchdogRule(), insightTask('usageWatchdog', () => usageInsights.runWatchdog()));
+    }
+    if (usageConfig.errorSummary.enabled) {
+      schedule.scheduleJob(usageInsights.errorSummaryRule(), insightTask('errorSummary', () => usageInsights.sendErrorSummary()));
     }
   }
 
@@ -4692,6 +4970,8 @@ function makeResponder(interaction) {
   return {
     // expose the guild for legacy functions that read channel.guild.name
     guild: interaction.guild,
+    // and the interaction, so a legacy function can attribute what it records to the user
+    interaction,
     send: async (payload) => {
       try {
         if (!firstResponseSent) {
@@ -5115,6 +5395,18 @@ async function handleUsageCommand(interaction) {
         break;
       }
       await interaction.editReply({ embeds: [usageInsights.buildWatchdogEmbed(alerts)] });
+      break;
+    }
+
+    case 'error-summary': {
+      if (!usageInsights) {
+        await interaction.editReply({ content: 'The error summary is not ready yet; try again in a moment.' });
+        break;
+      }
+      const summary = await usageInsights.buildErrorSummary();
+      await interaction.editReply(summary
+        ? { embeds: [summary.embed] }
+        : { content: '✅ Nothing failed in the last 24 hours, and the error log is clean.' });
       break;
     }
 

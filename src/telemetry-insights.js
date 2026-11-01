@@ -5,14 +5,15 @@
  * Proactive insights: the bot reports to its owner instead of waiting to be
  * asked. /usage answers questions; this module raises them.
  *
- * Two outputs, built on the comparison and watchdog queries in
+ * Three outputs, built on the comparison and watchdog queries in
  * telemetry-reports.js:
  *
  *   1. The weekly digest. One embed of week-over-week deltas - volume, reach,
- *      reliability, latency, credits, which commands and coins moved - plus a
- *      this-week-vs-last-week chart. Deltas rather than totals because a total
- *      needs a memory of last week's total to mean anything, and the owner does
- *      not have one.
+ *      reliability, latency, credits, which commands and coins moved, AI spend
+ *      and coin lookups that found nothing - plus a this-week-vs-last-week
+ *      chart. Deltas rather than totals because a total needs a memory of last
+ *      week's total to mean anything, and the owner does not have one. When a
+ *      summarizer is injected, a short AI-written "What changed" leads it.
  *
  *   2. The watchdog. Threshold checks run every half hour: error-rate spike,
  *      latency regression, CoinGecko rate limiting, credit budget overrun, and
@@ -21,6 +22,10 @@
  *      noise: three errors out of five events is a 60% error rate and also
  *      nothing. Alerts are debounced in memory to once per condition per UTC
  *      day, so a condition that stays tripped produces one DM, not forty-eight.
+ *
+ *   3. The daily error summary. Failed commands from telemetry and the bot's
+ *      own error log, collapsed, with an AI read of what each failure is and
+ *      what to fix first. Sent only when something failed.
  *
  * The dropped-batch check runs first and without SQL, because the likeliest
  * cause of dropped batches is the database being down - in which case every
@@ -68,8 +73,47 @@ const DEFAULT_CONFIG = {
     latencyMultiplier: 2,
     latencyFloorMs: 2000,
     rateLimitWindowHours: 24
+  },
+  errorSummary: {
+    enabled: true,
+    hour: 8,           // daily, in `timezone`
+    timezone: 'UTC',
+    hours: 24
   }
 };
+
+/** Discord rejects an embed whose title, description, fields and footer exceed 6000 characters. */
+const EMBED_TOTAL_LIMIT = 6000;
+
+function embedLength(embed) {
+  const data = embed.toJSON ? embed.toJSON() : embed;
+  return (data.title || '').length + (data.description || '').length +
+    ((data.footer && data.footer.text) || '').length + ((data.author && data.author.name) || '').length +
+    (data.fields || []).reduce((sum, field) => sum + field.name.length + field.value.length, 0);
+}
+
+/**
+ * Drops optional fields, in the order given, until the embed fits Discord's total length limit.
+ * A digest a few characters over the limit would otherwise not be delivered at all.
+ * @param {object} embed EmbedBuilder
+ * @param {Array<string>} droppable field-name prefixes, least important first
+ */
+function fitEmbed(embed, droppable) {
+  for (const prefix of droppable) {
+    if (embedLength(embed) <= EMBED_TOTAL_LIMIT - 50) return;
+    const index = (embed.data.fields || []).findIndex(field => field.name.startsWith(prefix));
+    if (index >= 0) embed.spliceFields(index, 1);
+  }
+}
+
+/** The embed as plain text, which is what the AI summary is written from. */
+function embedText(embed) {
+  const data = embed.toJSON ? embed.toJSON() : embed;
+  const strip = (value) => String(value || '').replace(/```\n?/g, '');
+  return [strip(data.description), ...(data.fields || []).map(field => `${field.name}\n${strip(field.value)}`)]
+    .filter(Boolean)
+    .join('\n\n');
+}
 
 /* --------------------------------------------------------------------------
  *  Pure helpers
@@ -169,6 +213,11 @@ function mergeConfig(base, override) {
  * @param {object} [deps.embeds] telemetry-embeds; only usageEmbed and DEMO_MONTHLY_CREDITS are used
  * @param {object} [deps.render] telemetry-render
  * @param {() => number} [deps.getBudget] monthly CoinGecko credit budget
+ * @param {(kind: 'digest'|'errors', facts: string) => Promise<string|null>} [deps.summarize]
+ *   writes the AI section of the digest or the error summary from the report's figures; absent
+ *   when AI is not configured, and the reports go out without it
+ * @param {(sinceMs: number) => Promise<{text: string, distinct: number, total: number}|null>} [deps.readErrorLog]
+ *   the bot's own error log since a time, collapsed and redacted (src/error-log.js)
  * @param {object} [deps.config] deep-merged over DEFAULT_CONFIG
  * @param {(msg: string) => void} [deps.log]
  * @param {(msg: string) => void} [deps.logError]
@@ -182,6 +231,8 @@ function createInsights({
   render,
   send,
   getBudget,
+  summarize,
+  readErrorLog,
   config,
   log,
   logError,
@@ -201,6 +252,8 @@ function createInsights({
   log = typeof log === 'function' ? log : () => { };
   logError = typeof logError === 'function' ? logError : () => { };
   now = typeof now === 'function' ? now : () => new Date();
+  summarize = typeof summarize === 'function' ? summarize : null;
+  readErrorLog = typeof readErrorLog === 'function' ? readErrorLog : null;
 
   const resolved = mergeConfig(DEFAULT_CONFIG, config);
 
@@ -303,8 +356,9 @@ function createInsights({
 
     const overview = (await reports.getOverviewComparison(days)) || {};
 
+    const optional = (name, ...args) => (typeof reports[name] === 'function' ? reports[name](...args) : null);
     const [topNow, topPrior, coinsNow, coinsPrior, momentum, newCoins, creditTotals, creditMonth,
-      rateLimits, churn, series, featureDelta] = await Promise.all([
+      rateLimits, churn, series, featureDelta, aiNow, aiPrior, misses] = await Promise.all([
       section('top commands', () => reports.getTopCommands(days, 10, false), []),
       section('prior top commands', () => reports.getTopCommands(days, 50, false, { priorWindow: true }), []),
       section('top coins', () => reports.getTopCoins(days, 10), []),
@@ -319,7 +373,10 @@ function createInsights({
       // What users have set up (alerts, portfolios, schedules, watchlists) against the snapshot
       // taken `days` ago. Optional: the snapshot table fills in daily, so a fresh install has none.
       section('feature snapshots', () => (typeof reports.getFeatureSnapshotDelta === 'function'
-        ? reports.getFeatureSnapshotDelta(days) : null), null)
+        ? reports.getFeatureSnapshotDelta(days) : null), null),
+      section('ai usage', () => optional('getAiUsage', days), []),
+      section('prior ai usage', () => optional('getAiUsage', days, { priorWindow: true }), []),
+      section('lookup misses', () => optional('getLookupMisses', days, 5), [])
     ]);
 
     const embed = embeds.usageEmbed('Weekly usage digest', days, timezone);
@@ -435,6 +492,37 @@ function createInsights({
       });
     }
 
+    // AI features -----------------------------------------------------------
+    if (aiNow.length || aiPrior.length) {
+      const calls = rows => rows.reduce((sum, row) => sum + num(row.calls), 0);
+      const cost = rows => rows.reduce((sum, row) => sum + num(row.cost_usd), 0);
+      const usd = value => '$' + value.toFixed(2);
+      const perFeature = aiNow.slice(0, 6).map(row => `${row.feature} ${compact(row.calls)} (~${usd(num(row.cost_usd))})`);
+      embed.addFields({
+        name: 'AI features',
+        value: render.truncate(
+          `**${compact(calls(aiNow))}** calls · about **${usd(cost(aiNow))}** (${deltaText(cost(aiNow), cost(aiPrior))})` +
+          (perFeature.length ? '\n' + perFeature.join(' · ') : ''), 1000)
+      });
+    }
+
+    // Lookups that found nothing ----------------------------------------------
+    if (misses.length) {
+      const top = misses.map(row => `\`${render.truncate(String(row.query || '').replace(/`/g, ''), 30)}\` ×${compact(row.misses)}` +
+        (row.suggested && row.suggested !== 'none' ? ` → ${row.suggested}` : ''));
+      embed.addFields({
+        name: 'Coin lookups that found nothing',
+        value: render.truncate(`**${compact(misses[0].total_misses)}** misses · ${top.join(' · ')}`, 1000)
+      });
+    }
+
+    // What changed (AI) -------------------------------------------------------
+    if (summarize) {
+      const summary = await section('ai summary', () => summarize('digest', embedText(embed)), null);
+      if (summary) embed.spliceFields(0, 0, { name: 'What changed', value: render.truncate(summary, 1000) });
+    }
+    fitEmbed(embed, ['Coin lookups that found nothing', 'AI features', 'Retention', 'Coins']);
+
     // Chart -----------------------------------------------------------------
     let files = [];
     try {
@@ -477,6 +565,99 @@ function createInsights({
       }
       catch {
         // telemetry is fire-and-forget by contract; nothing more to do
+      }
+      return false;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+   *  Daily error summary
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * The last day's failures: failed commands from telemetry, the bot's own error log collapsed,
+   * and an AI read of both when AI is configured. The watchdog catches a spike as it happens;
+   * this is the calmer look at everything that went wrong, including what never spiked.
+   * @param {{hours?: number}} [options]
+   * @returns {Promise<{embed: object, telemetryErrors: number, logLines: number}|null>} null when
+   *          nothing failed and the log is clean
+   */
+  async function buildErrorSummary({ hours = resolved.errorSummary.hours } = {}) {
+    hours = clamp(hours, 1, 24 * 7, 24);
+    const sinceMs = now().getTime() - hours * 3600e3;
+    const [errors, logTail] = await Promise.all([
+      section('errors', () => reports.getErrors(hours / 24, 15), []),
+      section('error log', () => (readErrorLog ? readErrorLog(sinceMs) : null), null)
+    ]);
+    const telemetryErrors = errors.reduce((sum, row) => sum + num(row.occurrences), 0);
+    const logLines = logTail ? num(logTail.total) : 0;
+    if (telemetryErrors === 0 && logLines === 0) return null;
+
+    const embed = embeds.usageEmbed('Daily error summary', Math.max(1, Math.round(hours / 24)), resolved.errorSummary.timezone);
+    embed.setColor(COLOR_WARNING);
+
+    const errorRows = errors.slice(0, 10).map(row => ({ command: row.command, kind: row.error_kind, count: row.occurrences }));
+    embed.addFields({
+      name: `Failed commands and jobs · ${compact(telemetryErrors)}`,
+      value: errorRows.length
+        ? render.codeBlock(render.renderTable(errorRows, [
+          { key: 'command', label: 'Where', width: 16 },
+          { key: 'kind', label: 'Error', width: 34 },
+          { key: 'count', label: 'Count', width: 5, align: 'right', format: compact }
+        ]))
+        : 'None recorded.'
+    });
+    if (logTail && logLines > 0) {
+      embed.addFields({
+        name: `Error log · ${compact(logLines)} lines, ${compact(logTail.distinct)} distinct`,
+        value: render.codeBlock(logTail.text.split('\n').filter(line => !line.startsWith('    ')).slice(0, 8).join('\n'))
+      });
+    }
+
+    let summary = null;
+    if (summarize) {
+      const facts = [
+        `Failed commands and jobs in the last ${hours} hours (where | error kind | count | users affected):`,
+        errors.length ? errors.map(row => `${row.command} | ${row.error_kind} | ${num(row.occurrences)} | ${num(row.users_affected)}`).join('\n') : 'none',
+        '',
+        `Error log, last ${hours} hours (count x line, first stack frame indented):`,
+        logTail && logTail.text ? logTail.text : 'empty'
+      ].join('\n');
+      summary = await section('ai error summary', () => summarize('errors', facts), null);
+    }
+    embed.setDescription(summary
+      ? render.truncate(summary, 3000)
+      : (summarize ? 'The AI summary is unavailable right now; the raw counts are below.' : 'The raw counts are below.'));
+    fitEmbed(embed, ['Error log']);
+    return { embed, telemetryErrors, logLines };
+  }
+
+  /**
+   * Builds and delivers the error summary when there is anything to report. Never throws.
+   * @returns {Promise<boolean>} whether it was sent
+   */
+  async function sendErrorSummary() {
+    try {
+      const summary = await buildErrorSummary();
+      if (!summary) {
+        log('Daily error summary: nothing failed, so nothing was sent.');
+        return false;
+      }
+      await send({ embeds: [summary.embed] });
+      telemetry.recordSystemEvent('error-summary', {
+        params: { telemetry_errors: summary.telemetryErrors, log_lines: summary.logLines },
+        outcome: 'ok'
+      });
+      log('Sent the daily error summary.');
+      return true;
+    }
+    catch (err) {
+      logError('Daily error summary failed: ' + (err && err.message ? err.message : err));
+      try {
+        telemetry.recordSystemEvent('error-summary', { outcome: 'error', error: err });
+      }
+      catch {
+        // telemetry is fire-and-forget by contract
       }
       return false;
     }
@@ -714,6 +895,16 @@ function createInsights({
   }
 
   /**
+   * node-schedule's {rule, tz} form for the error summary: daily at the configured local hour.
+   * @returns {{rule: string, tz: string}}
+   */
+  function errorSummaryRule() {
+    const e = resolved.errorSummary;
+    const hour = clamp(e.hour, 0, 23, DEFAULT_CONFIG.errorSummary.hour);
+    return { rule: `0 ${hour} * * *`, tz: e.timezone || 'UTC' };
+  }
+
+  /**
    * Cron string for the watchdog: every N minutes, N clamped to 5..60.
    * @returns {string}
    */
@@ -736,6 +927,9 @@ function createInsights({
   return {
     buildWeeklyDigest,
     sendWeeklyDigest,
+    buildErrorSummary,
+    sendErrorSummary,
+    errorSummaryRule,
     checkWatchdog,
     buildWatchdogEmbed,
     runWatchdog,
@@ -752,5 +946,8 @@ function createInsights({
 module.exports = {
   createInsights,
   DEFAULT_CONFIG,
-  deltaText
+  EMBED_TOTAL_LIMIT,
+  deltaText,
+  embedLength,
+  fitEmbed
 };

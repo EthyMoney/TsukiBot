@@ -188,7 +188,8 @@ Monday digest to the application owner without any configuration.
     "dashboard": { "enabled": true, "host": "127.0.0.1", "port": 8090,
                    "publicUrl": "", "tokenTtlHours": 12 },
     "digest":    { "enabled": true, "dayOfWeek": 1, "hour": 9, "timezone": "America/Chicago" },
-    "watchdog":  { "enabled": true, "intervalMinutes": 30 }
+    "watchdog":  { "enabled": true, "intervalMinutes": 30 },
+    "errorSummary": { "enabled": true, "hour": 8, "timezone": "America/Chicago" }
   }
 
 "defaults"     -> what /usage uses when you leave days / limit / timezone blank,
@@ -223,9 +224,21 @@ Monday digest to the application owner without any configuration.
                   CoinGecko 429s, credit projection over budget, dropped telemetry
                   batches). Each condition DMs at most once a day.
                   TSUKIBOT_WATCHDOG_ENABLED.
+"errorSummary" -> a daily DM at "hour" (in "timezone", default the digest's) of
+                  everything that failed in the last 24 hours: failed commands
+                  from telemetry and the bot's own PM2 error log, with repeats
+                  collapsed. With the "anthropic" key it leads with an AI read of
+                  what each failure is and what to fix first; the log is stripped
+                  of every keys.api value and anything shaped like a credential
+                  before it is sent. Nothing is sent on a clean day.
+                  TSUKIBOT_ERROR_SUMMARY_ENABLED.
 
-Neither the digest nor the watchdog runs in dev mode (-d), so a development
-instance never DMs anyone.
+With the "anthropic" key, the weekly digest also opens with an AI "What changed"
+section. The digest shows AI spend per feature and coin lookups that found nothing
+whether or not AI is configured.
+
+None of the digest, the watchdog or the error summary runs in dev mode (-d), so a
+development instance never DMs anyone.
 
 
 AI OPTIONS (optional)

@@ -79,7 +79,7 @@ function hoursInterval(hours) {
  * last month. The bounds below do their month arithmetic on UTC wall-clock time
  * and convert back, so they do not depend on the server's TimeZone setting.
  */
-const UTC_NOW = `(NOW() AT TIME ZONE 'UTC')`;
+const UTC_NOW = '(NOW() AT TIME ZONE \'UTC\')';
 const UTC_MONTH_START_LOCAL = `DATE_TRUNC('month', ${UTC_NOW})`;
 const UTC_MONTH_START = `(${UTC_MONTH_START_LOCAL} AT TIME ZONE 'UTC')`;
 const UTC_PRIOR_MONTH_START = `((${UTC_MONTH_START_LOCAL} - INTERVAL '1 month') AT TIME ZONE 'UTC')`;
@@ -529,6 +529,51 @@ async function getSubcommandSplit(command, days) {
 /* --------------------------------------------------------------------------
  *  Reliability
  * -------------------------------------------------------------------------- */
+
+/**
+ * Claude spend by feature, from the "ai-call" event main.js records for every AI request
+ * (estimated cost, tokens and web searches in params).
+ * @param {number} days
+ * @param {{priorWindow?: boolean}} [options] see getTopCommands
+ */
+async function getAiUsage(days, { priorWindow = false } = {}) {
+  return query(`
+    SELECT
+      COALESCE(subcommand, 'unknown')                              AS feature,
+      COUNT(*)                                                      AS calls,
+      COALESCE(SUM((params->>'est_cost_usd')::numeric), 0)          AS cost_usd,
+      COALESCE(SUM((params->>'web_searches')::numeric), 0)          AS web_searches
+    FROM tsukibot.usage_events
+    WHERE command = 'ai-call'
+      AND occurred_at > NOW() - $2::interval - $1::interval
+      AND occurred_at <= NOW() - $2::interval
+    GROUP BY 1
+    ORDER BY cost_usd DESC
+  `, [windowInterval(days), shiftInterval(days, priorWindow)]);
+}
+
+/**
+ * Coin lookups that found nothing, most frequent first, from the "coin-not-found" events.
+ * total_misses counts every miss in the window, not only the rows returned.
+ * @param {number} days
+ * @param {number} limit
+ */
+async function getLookupMisses(days, limit) {
+  return query(`
+    SELECT
+      LOWER(params->>'query')                     AS query,
+      COUNT(*)                                     AS misses,
+      COUNT(DISTINCT user_id)                      AS users,
+      MAX(params->>'suggested')                    AS suggested,
+      STRING_AGG(DISTINCT subcommand, ', ')        AS commands,
+      SUM(COUNT(*)) OVER ()                        AS total_misses
+    FROM tsukibot.usage_events
+    WHERE command = 'coin-not-found' AND occurred_at > NOW() - $1::interval
+    GROUP BY 1
+    ORDER BY misses DESC
+    LIMIT $2
+  `, [windowInterval(days), limit]);
+}
 
 /**
  * What is failing, grouped by the classified error kind rather than the raw
@@ -1415,6 +1460,8 @@ module.exports = {
   getOptionCoverage,
   getSubcommandSplit,
   getErrors,
+  getAiUsage,
+  getLookupMisses,
   getSlowestCommands,
   getSearchFunnel,
   getAbandonedSearches,

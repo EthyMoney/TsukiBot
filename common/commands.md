@@ -14,8 +14,10 @@ To resolve permissions issues, kick the bot and add it back using [THIS INVITE L
 ## Prices
 
 ### `/cg <coins>`
-Get CoinGecko prices for one or more coins. This is the fastest and most commonly used price command, and it supports thousands of coins listed on CoinGecko plus tokens tracked by CoinGecko Onchain. Provide tickers or one token contract address.
-+ `coins` *(required)* — space-separated tickers, e.g. `btc eth glm`, or one contract address, e.g. `0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`
+Get CoinGecko prices for one or more coins. This is the fastest and most commonly used price command, and it supports thousands of coins listed on CoinGecko plus tokens tracked by CoinGecko Onchain. Provide tickers, full names, or one token contract address.
++ `coins` *(required)* — space-separated tickers or names, e.g. `btc eth glm` or `bitcoin`, or one contract address, e.g. `0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`
+
+If a coin can't be found, here or in any other command that takes a coin, the bot suggests what you probably meant, e.g. `etherium` → **Ethereum (ETH)**. Typos are matched instantly; a description like "the dog coin with a hat" is worked out by AI.
 
 ### `/price <exchange> <coin> [vs]`
 Get a real-time price for a coin directly from a specific exchange.
@@ -281,8 +283,9 @@ that any server admin can override, and it does not apply in DMs at all.
 | `/usage features` | What users have **set up** rather than run: active price alerts (by coin, above/below, expiring), portfolios (users, holdings, most-held coins), scheduled posts (by type, interval, servers, stale jobs) and watchlists (sizes, favourite coins), with the window's activity against each and the change since a daily snapshot. |
 | `/usage storage` | Table size, row count, and write-buffer health. |
 | `/usage dashboard` | A sign-in link for the browser dashboard (see below). |
-| `/usage digest` | Build the weekly digest now instead of waiting for Monday. |
+| `/usage digest` | Build the weekly digest now instead of waiting for Monday. With AI configured it opens with a short "What changed" summary, and it shows AI spend and coin lookups that found nothing. |
 | `/usage watchdog` | Run the watchdog checks now and show what would alert. |
+| `/usage error-summary` | Build the daily error summary now: failed commands, the bot's own error log collapsed, and with AI configured, what each failure is and what to fix first. Sent by DM each morning when anything failed. |
 | `/usage prune` | Permanently delete events older than a cutoff. Shows the row count and a red confirm button; `confirm: True` skips the button. |
 
 Most subcommands take a `days` window (default 30) and a `limit`. The time-based ones take an IANA

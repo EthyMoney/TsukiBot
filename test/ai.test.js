@@ -274,3 +274,47 @@ test('/ask that runs out of iterations mid-lookup reports that instead of a part
   ]);
   await assert.rejects(ai.answerQuestion(client, 'q', []), err => err instanceof ai.AiDeclinedError && /more lookups/.test(err.message));
 });
+
+/* --------------------------------------------
+    Alert context, owner report summaries and coin guesses
+  -------------------------------------------- */
+
+test('alert context searches the news and keeps at most one verified source', async () => {
+  const content = [
+    { type: 'server_tool_use', id: 's', name: 'web_search', input: {} },
+    {
+      type: 'web_search_tool_result',
+      tool_use_id: 's',
+      content: [
+        { type: 'web_search_result', url: 'https://a.example/1', title: 'A' },
+        { type: 'web_search_result', url: 'https://b.example/2', title: 'B' }
+      ]
+    },
+    text('ETH broke $2,300 as the whole market rallied 3%.\nSources: https://a.example/1 https://b.example/2')
+  ];
+  const client = fakeClient([{ content }]);
+  const result = await ai.writeAlertContext(client, {
+    name: 'Ethereum', symbol: 'ETH', direction: 'above', target: 2300, price: 2301, facts: 'x', marketFacts: 'y'
+  });
+  assert.equal(client.requests[0].tools[0].type, 'web_search_20260209');
+  assert.equal(result.text, 'ETH broke $2,300 as the whole market rallied 3%.');
+  assert.deepEqual(result.sources, [{ title: 'A', url: 'https://a.example/1' }]);
+});
+
+test('report summaries pick the prompt by kind and pass the facts through', async () => {
+  const client = fakeClient([{ content: [text('• errors')] }, { content: [text('• digest')] }]);
+  await ai.summarizeReport(client, 'errors', 'hmap | 50013 | 6');
+  await ai.summarizeReport(client, 'digest', 'events 1.2k');
+  assert.match(client.requests[0].system, /daily error summary/);
+  assert.match(client.requests[1].system, /What changed/);
+  assert.equal(client.requests[0].messages[0].content, 'hmap | 50013 | 6');
+});
+
+test('coin guesses use structured output, fence the query, and drop malformed entries', async () => {
+  const client = fakeClient([{ content: [text('{"guesses":[{"name":"dogwifhat","symbol":"WIF"},{"name":"oops"}]}')] }]);
+  const result = await ai.guessCoins(client, 'the dog with a hat');
+  const request = client.requests[0];
+  assert.equal(request.output_config.format.type, 'json_schema');
+  assert.equal(request.messages[0].content, '<query>the dog with a hat</query>');
+  assert.deepEqual(result.guesses, [{ name: 'dogwifhat', symbol: 'WIF' }]);
+});
