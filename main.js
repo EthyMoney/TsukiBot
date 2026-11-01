@@ -97,11 +97,6 @@ const ccxt = require('ccxt');
 const { CoinGeckoOnchainError, getApiConfig, isLikelyContractAddress, lookupOnchainToken } = require('./coingecko-onchain');
 const finnhub = require('finnhub');
 
-// Google Cloud language translations
-const googleProjectID = keys.googleCloudProjectID;
-const googleProjectApiKeyPath = keys.googleCloudProjectKeyPath;
-const { Translate } = require('@google-cloud/translate').v2;
-
 // Express server for charts
 const path = require('path');
 const express = require('express');
@@ -392,7 +387,6 @@ const clientBinanceFutures = new ccxt.binance({ options: { defaultType: 'swap' }
 const clientBybit = new ccxt.bybit();
 const clientOkx = new ccxt.okx();
 const finnhubClient = new finnhub.DefaultApi(keys.finnhub);
-const translate = new Translate({ projectId: googleProjectID, keyFilename: googleProjectApiKeyPath });
 const ethereumRpcUrl = `https://mainnet.infura.io/v3/${keys.infura}`;
 
 // Reload Coins
@@ -407,6 +401,11 @@ const {
 
 // ENS lookups, hex quantities and address checks, in place of web3.js (archived upstream).
 const { getEnsOwner, hexToNumber, isAddress } = require('./src/util/ethereum');
+
+// Claude-backed features: prompts and requests, the /ask market tools, and chart explanation helpers.
+const ai = require('./src/ai');
+const { buildMarketTools, coinFacts, coinFactsText } = require('./src/ai-tools');
+const chartAi = require('./src/ai-chart');
 
 // Donation and footer stuff
 const quote = 'Enjoying TsukiBot? Tell your friends!';
@@ -2911,6 +2910,23 @@ async function compareCoins(coin1Input, coin2Input, channel, interaction) {
 
 // Trending searches on CoinGecko. Prices are resolved from the local cache where possible so the
 // embed stays useful even if the trending endpoint returns coins we have no market data for.
+/**
+ * CoinGecko's trending searches, cached. Trending is a slow-moving list, and it is reachable from a
+ * scheduled post that can run every 30 minutes in every server, and from /ask. Fetching it per
+ * invocation was a standing credit drain.
+ * @returns {Promise<object|null>} the /search/trending payload, or null when CoinGecko refused
+ */
+async function getTrendingData() {
+  if (cgTrendingCache.data && Date.now() - cgTrendingCache.at < CG_TRENDING_CACHE_MS) {
+    return cgTrendingCache.data;
+  }
+  const res = await cgFetch('/search/trending');
+  if (!res.ok) return null;
+  const data = await res.json();
+  cgTrendingCache = { at: Date.now(), data };
+  return data;
+}
+
 async function getTrendingCoins(channel, interaction) {
   const reply = async (payload) => {
     if (interaction) return interaction.editReply(payload);
@@ -2918,17 +2934,10 @@ async function getTrendingCoins(channel, interaction) {
   };
 
   try {
-    // Trending is a slow-moving list, and this is reachable from a scheduled post that can run
-    // every 30 minutes in every server. Fetching it per invocation was a standing credit drain.
-    let data = cgTrendingCache.data;
-    if (!data || Date.now() - cgTrendingCache.at >= CG_TRENDING_CACHE_MS) {
-      const res = await cgFetch('/search/trending');
-      if (!res.ok) {
-        await reply('Sorry, CoinGecko trending data is unavailable right now. Please try again shortly.');
-        return;
-      }
-      data = await res.json();
-      cgTrendingCache = { at: Date.now(), data };
+    const data = await getTrendingData();
+    if (!data) {
+      await reply('Sorry, CoinGecko trending data is unavailable right now. Please try again shortly.');
+      return;
     }
     const trending = (data.coins || []).slice(0, 10);
     if (trending.length === 0) {
@@ -3530,19 +3539,23 @@ async function clearPortfolio(interaction) {
 
 /* --------------------------------------------
 
-    AI market brief.
+    AI features.
 
-    Composes the data the bot already caches into one glanceable summary. The result is cached
-    globally for 20 minutes: the underlying market data is identical for every server, so there is
-    no reason to pay for the same summary twice.
+    /brief, /why, /ask, /translate and the Explain button under charts all call Claude through
+    src/ai.js. This section owns the Discord side of them: the shared client, the daily limits,
+    logging what each call cost, and turning a failure into a reply.
 
-    Gracefully unavailable when no Anthropic key is configured, matching how /ls handles a missing
-    Coinalyze key.
+    Every one of them says it is not configured, rather than failing, when there is no Anthropic key.
+
+    Limits are optional and live under "ai" in keys.api:
+
+      "ai": { "perUserDaily": 15, "dailyBudgetUsd": 10 }
+
+    perUserDaily caps how many answers one person can generate per UTC day (bot admins are exempt).
+    dailyBudgetUsd stops all AI generation for the rest of the UTC day once the estimated spend
+    reaches it. Cached answers count against neither. Both reset on restart.
 
   -------------------------------------------- */
-
-const BRIEF_CACHE_MS = 20 * 60 * 1000;
-let briefCache = { text: null, generatedAt: 0 };
 
 // Discord rejects an embed whose description exceeds 4096 characters. A user with dozens of
 // holdings or alerts can generate more than that, so lists are trimmed to fit with a note saying so.
@@ -3563,68 +3576,271 @@ function fitEmbedDescription(lines, overflowNote) {
   return description;
 }
 
+function positiveNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const aiSettings = (keys && keys.ai) || {};
+const aiQuota = ai.createAiQuota({
+  perUserDaily: positiveNumber(aiSettings.perUserDaily, 15),
+  dailyBudgetUsd: positiveNumber(aiSettings.dailyBudgetUsd, 10)
+});
+
+const AI_EMBED_COLOR = '#9d8dff';
+
+let anthropicClient;
+
+// One client for the life of the process, so its connection pool is reused between calls.
 function getAnthropicClient() {
+  if (anthropicClient !== undefined) return anthropicClient;
   const apiKey = process.env.ANTHROPIC_API_KEY || keys.anthropic;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    anthropicClient = null;
+    return null;
+  }
   const Anthropic = require('@anthropic-ai/sdk');
   const AnthropicClient = Anthropic.default || Anthropic;
-  return new AnthropicClient({ apiKey: apiKey });
+  anthropicClient = new AnthropicClient({ apiKey: apiKey });
+  return anthropicClient;
 }
+
+/**
+ * Gate for a user-triggered AI command: configured, started up, and within the daily limits.
+ * Replies ephemerally when the answer is no, so it must run before the interaction is deferred.
+ * @param {object} interaction
+ * @param {{needsMarketData?: boolean}} [options]
+ * @returns {Promise<boolean>} true when the caller may go ahead
+ */
+async function aiCommandReady(interaction, { needsMarketData = true } = {}) {
+  if (!getAnthropicClient()) {
+    await interaction.reply({ content: 'Sorry, AI features are not configured on this bot. The bot administrator needs to add an Anthropic API key.', flags: MessageFlags.Ephemeral });
+    return false;
+  }
+  if (needsMarketData && cacheUpdateRunning) {
+    await interaction.reply({ content: `I'm still completing my initial startup procedures. Currently ${startupProgress}% done, try again in a moment please.`, flags: MessageFlags.Ephemeral });
+    return false;
+  }
+  const allowance = aiQuota.take(interaction.user.id, { exempt: isBotAdmin(interaction.user.id) });
+  if (!allowance.ok) {
+    await interaction.reply({
+      content: allowance.reason === 'user'
+        ? `You've used your ${aiQuota.limits.perUserDaily} AI answers for today. They reset at midnight UTC.`
+        : 'TsukiBot\'s AI features have reached their limit for today. They reset at midnight UTC.',
+      flags: MessageFlags.Ephemeral
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Adds a finished call to today's spend, logs it, and records it in telemetry, so AI cost can be
+ * read back per feature with the rest of the usage data.
+ * @param {string} feature
+ * @param {object} usage from src/ai.js sumUsage
+ * @param {{userId?: string, guildId?: string, channelId?: string, durationMs?: number}} [context]
+ */
+function recordAiCall(feature, usage, context = {}) {
+  aiQuota.spend(usage.costUsd);
+  const tokensIn = usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
+  console.log(pc.magenta(`AI ${feature}: `) + pc.cyan(`${tokensIn} tokens in, ${usage.outputTokens} out` +
+    (usage.webSearches ? `, ${usage.webSearches} web searches` : '') + `, ~$${usage.costUsd.toFixed(4)}`) +
+    (usage.fellBack ? pc.yellow(' (answered by the fallback model)') : ''));
+  telemetry.recordSystemEvent('ai-call', {
+    subcommand: feature,
+    userId: context.userId,
+    guildId: context.guildId,
+    channelId: context.channelId,
+    params: {
+      model: ai.MODEL,
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cache_read_tokens: usage.cacheReadTokens,
+      cache_write_tokens: usage.cacheWriteTokens,
+      web_searches: usage.webSearches,
+      requests: usage.requests,
+      fell_back: usage.fellBack,
+      est_cost_usd: usage.costUsd
+    },
+    durationMs: context.durationMs
+  });
+}
+
+function aiContext(interaction, startedAt) {
+  return { userId: interaction.user.id, guildId: interaction.guildId, channelId: interaction.channelId, durationMs: Date.now() - startedAt };
+}
+
+const AI_BUDGET_ERROR = 'AI_BUDGET';
+
+/** What to tell the user when an AI request fails. */
+function aiFailureMessage(err) {
+  if (err && err.code === AI_BUDGET_ERROR) {
+    return 'TsukiBot\'s AI features have reached their limit for today. They reset at midnight UTC.';
+  }
+  if (err instanceof ai.AiDeclinedError) {
+    return 'Sorry, I couldn\'t produce an answer for that. Try rephrasing it, or try again later.';
+  }
+  const Anthropic = require('@anthropic-ai/sdk');
+  const sdk = Anthropic.default || Anthropic;
+  if (err instanceof sdk.RateLimitError || err instanceof sdk.InternalServerError || err instanceof sdk.APIConnectionError) {
+    return 'The AI service is busy right now. Please try again in a minute.';
+  }
+  return 'Sorry, the AI request failed. Please try again later.';
+}
+
+function logAiFailure(feature, err) {
+  console.log(pc.yellow(`AI ${feature} failed: `) + pc.cyan(err && err.message ? err.message : String(err)));
+}
+
+/**
+ * An embed field linking the web pages an answer cites. Titles come from the web, so the
+ * characters that would break a markdown link are removed and the URL is percent-escaped.
+ * @param {Array<{title: string, url: string}>} sources
+ * @returns {{name: string, value: string}|null}
+ */
+function sourcesField(sources) {
+  let value = '';
+  for (const source of sources || []) {
+    if (!/^https?:\/\//i.test(source.url)) continue;
+    const title = source.title.replace(/[[\]]/g, '').slice(0, 90) || 'source';
+    const url = source.url.replace(/\)/g, '%29').replace(/\s/g, '%20');
+    const line = `• [${title}](${url})\n`;
+    if (value.length + line.length > 1024) break;
+    value += line;
+  }
+  return value ? { name: 'Sources', value: value.trim() } : null;
+}
+
+/** Bounded insert for the answer caches below: the oldest entry goes once the map is full. */
+function cacheSet(map, key, value, limit = 200) {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > limit) map.delete(map.keys().next().value);
+}
+
+async function fetchFearGreed() {
+  try {
+    const res = await fetch('https://api.alternative.me/fng/?limit=1');
+    if (!res.ok) return null;
+    const data = await res.json();
+    const entry = data && data.data && data.data[0];
+    return entry ? { value: Number(entry.value), classification: entry.value_classification } : null;
+  }
+  catch {
+    return null;
+  }
+}
+
+/* --------------------------------------------
+
+    AI market brief.
+
+    Composes the data the bot already caches into one glanceable summary. The result is cached
+    globally: the underlying market data is identical for every server, so there is no reason to
+    pay for the same summary twice. /brief accepts a brief up to 20 minutes old, and scheduled posts
+    one up to an hour old, so a server posting every 30 minutes does not trigger a new one each time.
+
+    When the market has moved notably, the brief may search the web for the news behind the move.
+
+  -------------------------------------------- */
+
+const BRIEF_CACHE_MS = 20 * 60 * 1000;
+const BRIEF_SCHEDULED_MAX_AGE_MS = 60 * 60 * 1000;
+let briefCache = { text: null, sources: [], generatedAt: 0 };
+let briefInFlight = null;
 
 // Gather the market data the brief is written from, entirely out of the existing caches.
 async function collectMarketSnapshot() {
-  const topCoins = cgArrayDictParsed
+  const ranked = cgArrayDictParsed
     .filter(coin => coin && coin.market_cap_rank && coin.market_cap_rank <= 10)
-    .sort((a, b) => a.market_cap_rank - b.market_cap_rank)
+    .sort((a, b) => a.market_cap_rank - b.market_cap_rank);
+  const topCoins = ranked
     .map(coin => `${coin.symbol.toUpperCase()}: ${formatUsd(coin.current_price)} ` +
       `(24h ${coin.price_change_percentage_24h == null ? 'n/a' : coin.price_change_percentage_24h.toFixed(2) + '%'})`);
 
   const movable = cgArrayDictParsed.filter(coin =>
     coin.market_cap_rank != null && coin.price_change_percentage_24h != null && coin.total_volume >= 1000000);
   const sorted = [...movable].sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h);
-  const describeMover = coin => `${coin.symbol.toUpperCase()} ${coin.price_change_percentage_24h.toFixed(1)}%`;
+  // Named as well as ticked: small tokens reuse big tickers (there are movers listed as "BTC"), and
+  // a bare symbol made the brief describe a 30% crash in a token that is not Bitcoin.
+  const describeMover = coin => `${coin.symbol.toUpperCase()} (${coin.name}) ${coin.price_change_percentage_24h.toFixed(1)}%`;
 
-  let fearGreed = 'unavailable';
-  try {
-    const res = await fetch('https://api.alternative.me/fng/?limit=1');
-    if (res.ok) {
-      const data = await res.json();
-      if (data.data && data.data[0]) {
-        fearGreed = `${data.data[0].value} (${data.data[0].value_classification})`;
-      }
-    }
-  }
-  catch {
-    // Non-fatal: the brief simply omits sentiment.
-  }
+  const fearGreed = await fetchFearGreed();
 
   let globalStats = 'unavailable';
+  let marketCap24h = null;
   try {
-    const res = await cgFetch('/global');
-    if (res.ok) {
-      const { data } = await res.json();
-      globalStats = `total market cap $${abbreviateNumber(data.total_market_cap.usd, 2)}, ` +
-        `24h volume $${abbreviateNumber(data.total_volume.usd, 2)}, ` +
-        `BTC dominance ${data.market_cap_percentage.btc.toFixed(1)}%, ` +
-        `market cap 24h change ${data.market_cap_change_percentage_24h_usd.toFixed(2)}%`;
-    }
+    const { data } = await cgGlobal();
+    marketCap24h = data.market_cap_change_percentage_24h_usd;
+    globalStats = `total market cap $${abbreviateNumber(data.total_market_cap.usd, 2)}, ` +
+      `24h volume $${abbreviateNumber(data.total_volume.usd, 2)}, ` +
+      `BTC dominance ${data.market_cap_percentage.btc.toFixed(1)}%, ` +
+      `market cap 24h change ${marketCap24h.toFixed(2)}%`;
   }
   catch {
-    // Non-fatal.
+    // Non-fatal: the brief simply omits the global figures.
   }
 
-  return [
-    `Global: ${globalStats}`,
-    `Fear & Greed index: ${fearGreed}`,
-    `Top 10 by market cap: ${topCoins.join('; ')}`,
-    `Biggest 24h gainers: ${sorted.slice(0, 5).map(describeMover).join(', ')}`,
-    `Biggest 24h losers: ${sorted.slice(-5).reverse().map(describeMover).join(', ')}`
-  ].join('\n');
+  const btc = ranked.find(coin => coin.id === 'bitcoin');
+  return {
+    text: [
+      `Global: ${globalStats}`,
+      `Fear & Greed index: ${fearGreed ? `${fearGreed.value} (${fearGreed.classification})` : 'unavailable'}`,
+      `Top 10 by market cap: ${topCoins.join('; ')}`,
+      `Biggest 24h gainers: ${sorted.slice(0, 5).map(describeMover).join(', ')}`,
+      `Biggest 24h losers: ${sorted.slice(-5).reverse().map(describeMover).join(', ')}`
+    ].join('\n'),
+    moves: {
+      btc24h: btc ? btc.price_change_percentage_24h : null,
+      marketCap24h,
+      topCoin24h: ranked.map(coin => coin.price_change_percentage_24h)
+    }
+  };
+}
+
+async function generateBrief() {
+  if (!aiQuota.take(null).ok) {
+    throw Object.assign(new Error('the daily AI budget is used up'), { code: AI_BUDGET_ERROR });
+  }
+  const startedAt = Date.now();
+  const snapshot = await collectMarketSnapshot();
+  const result = await ai.writeMarketBrief(getAnthropicClient(), snapshot.text, { searchNews: ai.briefNeedsNews(snapshot.moves) });
+  recordAiCall('brief', result.usage, { durationMs: Date.now() - startedAt });
+  briefCache = { text: result.text, sources: result.sources, generatedAt: Date.now() };
+  return { ...briefCache, cached: false };
+}
+
+/**
+ * The current brief, generating a new one only when the cached one is older than maxAgeMs.
+ * Callers that arrive while one is being written share it rather than starting another.
+ * @param {number} maxAgeMs
+ * @returns {Promise<{text: string, sources: Array<object>, generatedAt: number, cached: boolean}>}
+ */
+async function getBrief(maxAgeMs) {
+  if (briefCache.text && Date.now() - briefCache.generatedAt < maxAgeMs) {
+    return { ...briefCache, cached: true };
+  }
+  if (!briefInFlight) {
+    briefInFlight = generateBrief().finally(() => { briefInFlight = null; });
+  }
+  return briefInFlight;
+}
+
+function buildBriefEmbed(brief) {
+  const embed = new EmbedBuilder()
+    .setTitle('Market Brief')
+    .setDescription(brief.text.slice(0, 4000))
+    .setColor(AI_EMBED_COLOR)
+    .setFooter({ text: 'AI summary of CoinGecko data · not financial advice' })
+    .setTimestamp(new Date(brief.generatedAt));
+  const sources = sourcesField(brief.sources);
+  if (sources) embed.addFields(sources);
+  return embed;
 }
 
 async function getMarketBrief(interaction) {
-  const client = getAnthropicClient();
-  if (!client) {
+  if (!getAnthropicClient()) {
     await interaction.editReply('Sorry, the market brief command is not configured. The bot administrator needs to add an Anthropic API key.');
     return;
   }
@@ -3634,71 +3850,211 @@ async function getMarketBrief(interaction) {
     return;
   }
 
-  const now = Date.now();
-  let briefText = null;
-  let cached = false;
-
-  if (briefCache.text && (now - briefCache.generatedAt) < BRIEF_CACHE_MS) {
-    briefText = briefCache.text;
-    cached = true;
+  try {
+    const brief = await getBrief(BRIEF_CACHE_MS);
+    await interaction.editReply({ embeds: [buildBriefEmbed(brief)] });
   }
-  else {
-    const snapshot = await collectMarketSnapshot();
+  catch (err) {
+    logAiFailure('brief', err);
+    await interaction.editReply(aiFailureMessage(err));
+  }
+}
 
-    const response = await client.beta.messages.create({
-      model: 'claude-opus-5',
-      max_tokens: 8000,
-      // Summarizing numbers that are already gathered is a simple task, so low effort keeps this
-      // fast and cheap. Raise it if you want more interpretation in the write-up.
-      output_config: { effort: 'low' },
-      // Safety classifiers can decline a request; letting the API re-run it on a fallback model
-      // server-side means a decline recovers instead of surfacing as a failed command.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      // The embed already carries a "Market Brief" title, so the model is told to open on its first
-      // observation. Saying "no markdown headers" alone was not enough — it complied literally and
-      // wrote a plain-text title instead, which read as a duplicate of the embed's own.
-      system: 'You write short crypto market briefs for a Discord bot. ' +
-        'The message already has a title, so open with your first observation about the market. ' +
-        'Keep the whole brief under about 120 words, in two or three short paragraphs of plain prose. ' +
-        'Use only the data you are given, and never invent numbers, prices, or news. ' +
-        'Say what moved and what the overall tone is. Prefer the specific over the general: ' +
-        'name the coins and the figures rather than describing the market in the abstract. ' +
-        'No headings, no bullet lists, no greeting, no sign-off, and no financial advice.',
-      messages: [{
-        role: 'user',
-        content: `Here is the current crypto market data. Write the brief.\n\n${snapshot}`
-      }]
-    });
+/* --------------------------------------------
 
-    if (response.stop_reason === 'refusal') {
-      console.log(pc.yellow('Market brief request was declined by safety classifiers.'));
-      await interaction.editReply('Sorry, I could not generate a market brief right now. Please try again later.');
+    /why <coin>
+
+    Explains a coin's recent move from its figures, the wider market's, and a web search for news.
+    Cached per coin for 30 minutes across every server, so a coin everyone is asking about costs
+    one answer rather than one per question.
+
+  -------------------------------------------- */
+
+const WHY_CACHE_MS = 30 * 60 * 1000;
+const whyCache = new Map();
+
+/** Bitcoin and whole-market figures, so an explanation can tell a coin's own move from the market's. */
+async function marketContextText() {
+  const lines = [];
+  const btc = findCachedCoinById('bitcoin');
+  if (btc) {
+    const facts = coinFacts(btc);
+    lines.push(`Bitcoin: price $${facts.price_usd}, 24h ${facts.change_24h_pct}%, 7d ${facts.change_7d_pct}%, 30d ${facts.change_30d_pct}%`);
+  }
+  try {
+    const { data } = await cgGlobal();
+    lines.push(`Total crypto market cap: $${abbreviateNumber(data.total_market_cap.usd, 2)}, ` +
+      `24h change ${data.market_cap_change_percentage_24h_usd.toFixed(2)}%`);
+  }
+  catch {
+    // Optional context.
+  }
+  return lines.join('\n') || 'unavailable';
+}
+
+async function explainCoinMove(interaction, coinInput) {
+  const startedAt = Date.now();
+  try {
+    const coin = await resolveCoin(coinInput);
+    if (!coin) {
+      aiQuota.refund(interaction.user.id);
+      await interaction.editReply(`I couldn't find a coin matching \`${sanitizeCoinGeckoText(coinInput).slice(0, 40)}\`. Try its ticker or full name.`);
       return;
     }
 
-    briefText = response.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('')
-      .trim();
-
-    if (!briefText) {
-      await interaction.editReply('Sorry, I could not generate a market brief right now. Please try again later.');
-      return;
+    let entry = whyCache.get(coin.id);
+    if (entry && Date.now() - entry.generatedAt < WHY_CACHE_MS) {
+      aiQuota.refund(interaction.user.id); // cached answers are free
+    }
+    else {
+      const result = await ai.explainMove(getAnthropicClient(), {
+        name: coin.name,
+        symbol: coin.symbol.toUpperCase(),
+        facts: coinFactsText(coinFacts(coin)),
+        marketFacts: await marketContextText()
+      });
+      recordAiCall('why', result.usage, aiContext(interaction, startedAt));
+      entry = { text: result.text, sources: result.sources, generatedAt: Date.now() };
+      cacheSet(whyCache, coin.id, entry);
     }
 
-    briefCache = { text: briefText, generatedAt: now };
+    const embed = new EmbedBuilder()
+      .setTitle(`Why ${coin.name} (${coin.symbol.toUpperCase()}) moved`)
+      .setDescription(entry.text.slice(0, 4000))
+      .setColor(AI_EMBED_COLOR)
+      .setFooter({ text: 'AI summary · prices from CoinGecko · not financial advice' })
+      .setTimestamp(new Date(entry.generatedAt));
+    if (coin.image) embed.setThumbnail(coin.image);
+    const sources = sourcesField(entry.sources);
+    if (sources) embed.addFields(sources);
+    await interaction.editReply({ embeds: [embed] });
   }
+  catch (err) {
+    aiQuota.refund(interaction.user.id);
+    logAiFailure('why', err);
+    await interaction.editReply(aiFailureMessage(err));
+  }
+}
 
-  const embed = new EmbedBuilder()
-    .setTitle('Market Brief')
-    .setDescription(briefText.slice(0, 4000))
-    .setColor('#9d8dff')
-    .setFooter({ text: cached ? 'Cached · refreshes every 20 minutes' : 'Generated just now · data from CoinGecko' })
-    .setTimestamp(new Date(briefCache.generatedAt));
+/* --------------------------------------------
 
-  await interaction.editReply({ embeds: [embed] });
+    /ask <question>
+
+    A free-form question, answered by Claude with the bot's own market lookups as tools (see
+    src/ai-tools.js) plus web search. The tools only read the caches and public APIs the slash
+    commands already use, so a question can never change anything.
+
+  -------------------------------------------- */
+
+const ASK_MAX_QUESTION_CHARS = 300;
+
+/** Data access for the /ask tools, reading the same caches the slash commands do. */
+function aiMarketDeps() {
+  return {
+    resolveCoin,
+    marketCoins: () => cgArrayDictParsed,
+    marketOverview: async () => {
+      const [global, fearGreed] = await Promise.all([cgGlobal().catch(() => null), fetchFearGreed()]);
+      const data = global && global.data;
+      if (!data && !fearGreed) return { error: 'market overview is unavailable right now' };
+      return {
+        total_market_cap_usd: data ? Number(data.total_market_cap.usd.toPrecision(4)) : null,
+        market_cap_change_24h_pct: data ? Number(data.market_cap_change_percentage_24h_usd.toFixed(2)) : null,
+        total_volume_24h_usd: data ? Number(data.total_volume.usd.toPrecision(4)) : null,
+        btc_dominance_pct: data ? Number(data.market_cap_percentage.btc.toFixed(2)) : null,
+        eth_dominance_pct: data ? Number(data.market_cap_percentage.eth.toFixed(2)) : null,
+        active_cryptocurrencies: data ? data.active_cryptocurrencies : null,
+        fear_greed_index: fearGreed
+      };
+    },
+    forexRates: () => forexRates,
+    trending: async () => {
+      const data = await getTrendingData();
+      if (!data) return { error: 'CoinGecko trending data is unavailable right now' };
+      return (data.coins || []).slice(0, 10).map(({ item }) => ({
+        name: item.name,
+        symbol: (item.symbol || '').toUpperCase(),
+        market_cap_rank: item.market_cap_rank || null,
+        change_24h_pct: item.data && item.data.price_change_percentage_24h && item.data.price_change_percentage_24h.usd != null
+          ? Number(item.data.price_change_percentage_24h.usd.toFixed(2)) : null
+      }));
+    },
+    fundingRates: async (base) => {
+      const results = await Promise.all(FUNDING_EXCHANGES.map(exchange => fetchFundingRateFrom(exchange, base)));
+      return results.filter(Boolean).map(rate => ({
+        exchange: rate.exchange,
+        symbol: rate.symbol,
+        funding_rate_pct: Number((rate.fundingRate * 100).toFixed(4)),
+        next_funding: rate.fundingDatetime || rate.nextFundingDatetime || null
+      }));
+    },
+    ethGas: async () => {
+      // The URL carries the Etherscan key, so errors here describe the failure without it.
+      const res = await fetch(`https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle&apikey=${keys.etherscan}`);
+      if (!res.ok) return { error: `Etherscan returned HTTP ${res.status}` };
+      const data = await res.json();
+      if (data.status !== '1' || typeof data.result !== 'object') return { error: 'Etherscan gas data is unavailable right now' };
+      return {
+        safe_gwei: Number(data.result.SafeGasPrice),
+        standard_gwei: Number(data.result.ProposeGasPrice),
+        fast_gwei: Number(data.result.FastGasPrice),
+        base_fee_gwei: Number(data.result.suggestBaseFee)
+      };
+    }
+  };
+}
+
+async function answerAsk(interaction, rawQuestion) {
+  const startedAt = Date.now();
+  const question = rawQuestion.trim().slice(0, ASK_MAX_QUESTION_CHARS);
+  try {
+    const result = await ai.answerQuestion(getAnthropicClient(), question, buildMarketTools(aiMarketDeps()));
+    recordAiCall('ask', result.usage, aiContext(interaction, startedAt));
+
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: `${interaction.user.username} asked`, iconURL: interaction.user.displayAvatarURL() })
+      .setTitle(question.length > 250 ? question.slice(0, 247) + '...' : question)
+      .setDescription(result.text.slice(0, 4000))
+      .setColor(AI_EMBED_COLOR)
+      .setFooter({ text: 'AI answer from live market data · not financial advice' })
+      .setTimestamp();
+    const sources = sourcesField(result.sources);
+    if (sources) embed.addFields(sources);
+    await interaction.editReply({ embeds: [embed] });
+  }
+  catch (err) {
+    aiQuota.refund(interaction.user.id);
+    logAiFailure('ask', err);
+    await interaction.editReply(aiFailureMessage(err));
+  }
+}
+
+/* --------------------------------------------
+
+    /translate <text> [to]
+
+    Claude in place of Google Translate: it keeps tickers and crypto slang intact, translates into
+    any language rather than English only, and needs no Google Cloud project. The reply is an embed
+    so a translated @everyone or role mention cannot ping anyone.
+
+  -------------------------------------------- */
+
+async function translateMessage(interaction, text, targetLanguage) {
+  const startedAt = Date.now();
+  try {
+    const result = await ai.translateText(getAnthropicClient(), text, targetLanguage);
+    recordAiCall('translate', result.usage, aiContext(interaction, startedAt));
+    const embed = new EmbedBuilder()
+      .setDescription(result.translation.slice(0, 4000))
+      .setColor(AI_EMBED_COLOR)
+      .setFooter({ text: `Translated from ${result.sourceLanguage || 'the original'} to ${targetLanguage} by AI` });
+    await interaction.editReply({ embeds: [embed] });
+  }
+  catch (err) {
+    aiQuota.refund(interaction.user.id);
+    logAiFailure('translate', err);
+    await interaction.editReply(aiFailureMessage(err));
+  }
 }
 
 
@@ -3722,8 +4078,12 @@ const SCHEDULABLE_COMMANDS = {
   movers: 'Biggest 24h movers',
   trending: 'Trending coins',
   pop: 'Top 10 coins',
-  cg: 'Prices for specific coins'
+  cg: 'Prices for specific coins',
+  brief: 'AI market brief'
 };
+
+// Scheduled briefs reuse one that is up to an hour old, so anything more frequent would repeat it.
+const BRIEF_MIN_SCHEDULE_MINUTES = 60;
 
 const SCHEDULE_INTERVALS = {
   '30m': 30,
@@ -3765,6 +4125,16 @@ async function createSchedule(interaction, command, channel, intervalKey, args) 
   if (command === 'cg' && !args) {
     await interaction.editReply('Scheduling `cg` needs a list of coins. Add them with the `coins` option, e.g. `coins: btc eth`.');
     return;
+  }
+  if (command === 'brief') {
+    if (!getAnthropicClient()) {
+      await interaction.editReply('AI briefs are not configured on this bot. The bot administrator needs to add an Anthropic API key.');
+      return;
+    }
+    if (intervalMinutes < BRIEF_MIN_SCHEDULE_MINUTES) {
+      await interaction.editReply('AI market briefs can be scheduled at most hourly. Pick `Hourly` or longer.');
+      return;
+    }
   }
 
   if (!channel.isTextBased()) {
@@ -3878,6 +4248,13 @@ async function runScheduledPost(post) {
     case 'cg':
       await getPriceCG((post.args || '').split(' ').filter(v => v !== ''), channel, '-', 'd');
       break;
+    case 'brief': {
+      if (!getAnthropicClient()) throw new Error('AI briefs are not configured (no Anthropic key)');
+      if (cacheUpdateRunning) throw new Error('market cache still loading');
+      const brief = await getBrief(BRIEF_SCHEDULED_MAX_AGE_MS);
+      await channel.send({ embeds: [buildBriefEmbed(brief)] });
+      break;
+    }
     default:
       throw new Error(`unknown scheduled command "${post.command}"`);
   }
@@ -4433,6 +4810,119 @@ async function handleAutocomplete(interaction) {
   }
 }
 
+/* --------------------------------------------
+
+    Explain button under a chart.
+
+    Sends the chart image Claude is explaining together with exact statistics computed from the
+    same pair's candles on Binance (see src/ai-chart.js), when the pair trades there. The
+    explanation is posted publicly as a reply under the chart, and the button is then greyed out.
+
+    Explanations are kept per chart image, so a second click on the same chart costs nothing. A
+    timeframe switch replaces the image, which gets a fresh Explain button.
+
+  -------------------------------------------- */
+
+const chartExplanations = new Map();
+
+async function fetchChartImage(attachment) {
+  const res = await fetch(attachment.url);
+  if (!res.ok) throw new Error(`could not download the chart image (HTTP ${res.status})`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const mediaType = attachment.contentType && attachment.contentType.startsWith('image/')
+    ? attachment.contentType.split(';')[0]
+    : 'image/png';
+  return { data: buffer.toString('base64'), mediaType };
+}
+
+/** Candle statistics for the chart's pair, or null when it does not trade on Binance spot. */
+async function chartCandleStats(pairToken, interval, wide) {
+  if (!interval.timeframe) return null;
+  try {
+    const symbol = chartAi.findMarketSymbol(await clientBinance.loadMarkets(), pairToken);
+    if (!symbol) return null;
+    const ohlcv = await clientBinance.fetchOHLCV(symbol, interval.timeframe, undefined, chartAi.CANDLES_TO_FETCH);
+    const text = chartAi.summarizeCandles(ohlcv, {
+      symbol,
+      exchange: 'Binance',
+      timeframeLabel: interval.label,
+      visible: wide ? chartAi.VISIBLE_CANDLES.wide : chartAi.VISIBLE_CANDLES.normal
+    });
+    return text ? { symbol, exchange: 'Binance', text } : null;
+  }
+  catch (err) {
+    console.log(pc.yellow('Candles unavailable for a chart explanation: ') + pc.cyan(err.message));
+    return null;
+  }
+}
+
+// The chart message's buttons with Explain greyed out, so the channel doesn't fill with repeats.
+function withExplainDisabled(rows) {
+  return (rows || []).map(row => new ActionRowBuilder().addComponents(row.components.map(component => {
+    const button = ButtonBuilder.from(component);
+    if (component.customId && component.customId.startsWith(chartAi.EXPLAIN_PREFIX)) {
+      button.setDisabled(true).setLabel('Explained below');
+    }
+    return button;
+  })));
+}
+
+async function handleChartExplain(interaction) {
+  const decoded = chartAi.decodeExplainId(interaction.customId);
+  const attachment = interaction.message && interaction.message.attachments ? interaction.message.attachments.first() : null;
+  if (!decoded || !attachment) {
+    await interaction.reply({ content: 'This chart can no longer be explained. Make a new one with `/c`.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const existing = chartExplanations.get(attachment.id);
+  if (existing) {
+    await interaction.reply(existing.embed
+      ? { content: 'This chart was already explained:', embeds: [existing.embed], flags: MessageFlags.Ephemeral }
+      : { content: 'This chart is being explained right now. The explanation will appear under it in a moment.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (!await aiCommandReady(interaction, { needsMarketData: false })) return;
+
+  chartExplanations.set(attachment.id, { pending: true });
+  await interaction.deferReply();
+  const startedAt = Date.now();
+  try {
+    const image = await fetchChartImage(attachment);
+    const { pairToken, studies } = chartAi.parseChartQuery(decoded.baseQuery);
+    const interval = chartAi.intervalInfo(decoded.intervalCode);
+    const candles = await chartCandleStats(pairToken, interval, decoded.baseQuery.split(' ').includes('wide'));
+    const label = candles ? candles.symbol : pairToken.toUpperCase();
+
+    const result = await ai.explainChart(getAnthropicClient(), {
+      image,
+      label,
+      interval: interval.label,
+      studies,
+      candleStats: candles ? candles.text : null
+    });
+    recordAiCall('chart-explain', result.usage, aiContext(interaction, startedAt));
+
+    const embed = new EmbedBuilder()
+      .setTitle(`Chart explained: ${label} · ${interval.label}`)
+      .setDescription(result.text.slice(0, 4000))
+      .setColor(AI_EMBED_COLOR)
+      .setFooter({ text: 'AI reading of the chart above' + (candles ? ` · figures from ${candles.exchange}` : '') + ' · not financial advice' });
+    await interaction.editReply({ embeds: [embed] });
+    cacheSet(chartExplanations, attachment.id, { embed });
+
+    // Best effort: the bot may not be able to edit the original message, for example in a DM.
+    await interaction.message.edit({ components: withExplainDisabled(interaction.message.components) }).catch(() => { });
+  }
+  catch (err) {
+    chartExplanations.delete(attachment.id);
+    aiQuota.refund(interaction.user.id);
+    logAiFailure('chart-explain', err);
+    await interaction.editReply(aiFailureMessage(err)).catch(() => { });
+  }
+}
+
 // Re-render a chart at a different timeframe when one of the buttons under it is clicked.
 async function handleChartButton(interaction) {
   // Split on the first two colons only: an exchange-qualified pair (e.g. "binance:btcusdt") contains
@@ -4773,6 +5263,7 @@ client.on('interactionCreate', async interaction => {
     const buttonStart = Date.now();
     try {
       if (interaction.customId.startsWith('chart:')) await handleChartButton(interaction);
+      else if (interaction.customId.startsWith(chartAi.EXPLAIN_PREFIX)) await handleChartExplain(interaction);
       else if (interaction.customId.startsWith('usage')) await handleUsageComponent(interaction);
       telemetry.recordButton(interaction, { durationMs: Date.now() - buttonStart });
     }
@@ -4939,6 +5430,20 @@ client.on('interactionCreate', async interaction => {
         await getMarketBrief(interaction);
         break;
 
+      // ---- AI: why did a coin move ----
+      case 'why':
+        if (!await aiCommandReady(interaction)) break;
+        await interaction.deferReply();
+        await explainCoinMove(interaction, opts.getString('coin'));
+        break;
+
+      // ---- AI: free-form market question ----
+      case 'ask':
+        if (!await aiCommandReady(interaction)) break;
+        await interaction.deferReply();
+        await answerAsk(interaction, opts.getString('question'));
+        break;
+
       // ---- Recurring scheduled posts ----
       case 'schedule': {
         if (!interaction.guildId) {
@@ -5020,9 +5525,17 @@ client.on('interactionCreate', async interaction => {
         break;
 
       // ---- Translation ----
-      case 'translate':
-        translateEN(null, opts.getString('text'), interaction);
+      case 'translate': {
+        const targetLanguage = ai.normalizeTargetLanguage(opts.getString('to'));
+        if (!targetLanguage) {
+          await interaction.reply({ content: 'Please give the language to translate into by name, e.g. `Spanish` or `Japanese`.', flags: MessageFlags.Ephemeral });
+          break;
+        }
+        if (!await aiCommandReady(interaction, { needsMarketData: false })) break;
+        await interaction.deferReply();
+        await translateMessage(interaction, opts.getString('text'), targetLanguage);
         break;
+      }
 
       // ---- Etherscan address/tx/ENS lookup ----
       case 'eth': {
@@ -5193,75 +5706,6 @@ client.on('interactionCreate', async interaction => {
 //   }
 // }
 
-// Translate message to english using google cloud
-async function translateEN(channel, message, interaction) {
-
-  let messageText = '';
-
-  if (!interaction) {
-    messageText = message.content + '';
-    // strip out mentions, emojis, and command prefixes
-    messageText = messageText.replace(/<.*>/, '');
-    messageText = messageText.replace(RegExp('.tb translate', 'gi'), '');
-    messageText = messageText.replace(RegExp('-t translate', 'gi'), '');
-    messageText = messageText.replace(RegExp('.tb trans', 'gi'), '');
-    messageText = messageText.replace(RegExp('-t trans', 'gi'), '');
-    messageText = messageText.replace(RegExp('.tb t', 'gi'), '');
-    messageText = messageText.replace(RegExp('-t t', 'gi'), '');
-    messageText = messageText.replace(RegExp('.tbt', 'gi'), '');
-    messageText = messageText.replace(RegExp('-tt', 'gi'), '');
-  }
-  else {
-    messageText = message;
-  }
-
-  // check for empty input and send help response
-  if (messageText.length == 0) {
-    if (interaction) {
-      interaction.reply('Please enter a message to translate.');
-      return;
-    }
-    else {
-      channel.send('Give me something to translate!\nUsage: `.tbt <your text to translate>`.  Example: `.tbt hola como estas`.');
-      //console.log(chalk.green(`Translation command help sent to: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
-      return;
-    }
-  }
-  // do the translation
-  const target = 'en';
-  const [translation] = await translate.translate(messageText, target).catch((err) => {
-    if (interaction) {
-      interaction.reply('Translation failed.  Please try again later.');
-      return;
-    }
-    else {
-      channel.send('Translation failed. Try again later.');
-      console.log(pc.red(`Translation command failed and was rejected at client side: \n ${err}`));
-      return;
-    }
-  });
-  console.log(pc.magenta(`Translation: ${pc.cyan(translation)}`));
-  if (!translation) {
-    if (interaction) {
-      interaction.reply('Translation failed.  Please try shortening your input or try again later.');
-      return;
-    }
-    else {
-      channel.send('Translation failed. Try shortening your input, otherwise try again later.');
-      console.log(pc.red('Translation command failed and was undefined. Sent notification to user.'));
-      return;
-    }
-  }
-  //console.log(chalk.green(`Translation command called by: ${chalk.yellow(message.author.username)} in ${chalk.cyan(message.guild.name)}`));
-
-  if (interaction) {
-    interaction.reply(`Translation:  \`${translation.trimStart()}\``);
-  }
-  else {
-    channel.send(`Translation:  \`${translation.trimStart()}\``);
-  }
-}
-
 // Split up large strings by length provided without breaking words or links within them
 
 // Valid string checker
@@ -5384,8 +5828,16 @@ function swapChartInterval(query, newInterval) {
   return tokens.join(' ');
 }
 
-// Build the timeframe button row shown under a chart. The original (pre-normalization) query is
-// carried in the button's customId so a click can re-run the exact same request at a new interval.
+// The TradingView interval code a chart was drawn at: the button's timeframe after a click,
+// otherwise the interval named in the query, otherwise the chart server's 1h default.
+function chartIntervalCode(originalQuery, activeInterval) {
+  const key = activeInterval || (originalQuery || '').split(' ').find(token => CHART_INTERVAL_KEYS.includes(token));
+  return (key && CHART_INTERVAL_MAP[key]) || CHART_INTERVAL_MAP['1h'];
+}
+
+// Build the timeframe button row shown under a chart, plus the Explain button when AI is
+// configured. The original (pre-normalization) query is carried in each button's customId so a
+// click can re-run the exact same request at a new interval, or explain this one.
 function buildChartControls(originalQuery, activeInterval) {
   if (!originalQuery) return [];
 
@@ -5403,7 +5855,19 @@ function buildChartControls(originalQuery, activeInterval) {
         .setStyle(timeframe === activeInterval ? ButtonStyle.Primary : ButtonStyle.Secondary)
     );
   }
-  return [new ActionRowBuilder().addComponents(buttons)];
+  const rows = [new ActionRowBuilder().addComponents(buttons)];
+
+  const explainId = getAnthropicClient() ? chartAi.encodeExplainId(chartIntervalCode(originalQuery, activeInterval), baseQuery) : null;
+  if (explainId) {
+    rows.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(explainId)
+        .setLabel('Explain this chart')
+        .setEmoji('🧠')
+        .setStyle(ButtonStyle.Secondary)
+    ));
+  }
+  return rows;
 }
 
 async function chartsProcessingCluster() {
@@ -6578,9 +7042,7 @@ function applyEnvironmentOverrides() {
     COINALYZE_API_KEY: 'coinalyze',
     OPENEXCHANGERATES_APP_ID: 'openexchangerates.org',
     COINGECKO_API_KEY: 'coingecko',
-    COINGECKO_PRO_API_KEY: 'coingeckoPro',
-    GOOGLE_CLOUD_PROJECT_ID: 'googleCloudProjectID',
-    GOOGLE_CLOUD_KEY_PATH: 'googleCloudProjectKeyPath'
+    COINGECKO_PRO_API_KEY: 'coingeckoPro'
   };
 
   for (const [envName, keyName] of Object.entries(envKeyOverrides)) {

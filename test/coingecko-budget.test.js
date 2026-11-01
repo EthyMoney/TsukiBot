@@ -157,7 +157,7 @@ test('slow-moving endpoints are cached rather than fetched per command', () => {
   // every 30 minutes in every server, so uncached they scale with usage without any ceiling.
   assert.match(mainSource, /if \(cgGlobalCache\.data && Date\.now\(\) - cgGlobalCache\.at < CG_GLOBAL_CACHE_MS\)/,
     '/global must be served from a TTL cache');
-  assert.match(mainSource, /Date\.now\(\) - cgTrendingCache\.at >= CG_TRENDING_CACHE_MS/,
+  assert.match(mainSource, /if \(cgTrendingCache\.data && Date\.now\(\) - cgTrendingCache\.at < CG_TRENDING_CACHE_MS\)/,
     '/search/trending must be served from a TTL cache');
 });
 

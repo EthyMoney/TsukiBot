@@ -39,7 +39,6 @@
   "dependencies": {
     "@adraffy/ens-normalize": "^1.11.1",
     "@anthropic-ai/sdk": "^0.117.1",
-    "@google-cloud/translate": "^10.0.1",
     "ccxt": "^4.5.73",
     "chart.js": "^4.5.1",
     "didyoumean": "^1.2.2",

@@ -63,6 +63,8 @@ Supported options inside the query:
 + **Exchanges:** binance, bitstamp, bitbay, bitfinex, bittrex, bybit, coinbase, gemini, hitbtc, kraken, kucoin, okcoin, okex, poloniex
 + **Other options:** `wide` (widens the image to show more history), plus a couple of fun easter eggs — try `bera`, `blul`, or `crab`.
 
+Under each chart are buttons to switch timeframe, and an **Explain this chart** button. It posts a plain-language reading of the chart below it: the trend, levels where price has bounced or stalled, and what any indicators on it are saying. Exact figures come from the same pair's candles on Binance when it trades there. Written by AI; it describes what happened and never predicts or gives advice.
+
 <br>
 
 ## Market Data
@@ -79,7 +81,18 @@ Get a coin's description and purpose.
 Show the biggest 24h gainers and losers (filtered to coins with a valid market cap and 24h volume over 10k USD).
 
 ### `/brief`
-Get a short written summary of what the market is doing right now — what moved, the overall tone, and where sentiment sits. Composed from the same data the other commands use, and refreshed every 20 minutes.
+Get a short written summary of what the market is doing right now — what moved, the overall tone, and where sentiment sits. Composed from the same data the other commands use, and refreshed every 20 minutes. On days with a big move it also checks the news for the cause and links its sources. Can be scheduled with `/schedule`.
+
+### `/why <coin>`
+Find out why a coin's price moved recently. Compares the coin's move with Bitcoin and the wider market, searches recent news for a cause, and links its sources. If there is no clear catalyst it says so rather than guessing. Answers are shared for 30 minutes, so asking about the same coin again is instant.
++ `coin` *(required)* — coin ticker, name, or rank.
+
+### `/ask <question>`
+Ask a question about crypto markets in plain English, e.g. "what's 0.5 ETH in euros?", "which top 20 coin did worst this week?", or "what are BTC funding rates right now?". Answered by AI from the bot's live data (prices, conversions, rankings, market overview, trending, funding rates, gas), plus a web search for news. It explains and compares, but never predicts prices or tells you what to buy or sell.
++ `question` *(required)* — up to 300 characters.
+
+#### AI features
+`/brief`, `/why`, `/ask`, `/translate`, and the chart **Explain** button are written by AI (Claude). To keep things fair, each person can generate a limited number of AI answers per day (15 by default, resetting at midnight UTC), and the bot has an overall daily limit. Answers that are already cached, like a brief or a recent `/why`, don't count.
 
 ### `/trending`
 Show the coins people are searching for most on CoinGecko right now, with live prices from the bot's cache.
@@ -175,9 +188,9 @@ Have the bot post market updates into a channel on a repeating schedule. Require
 
 ### `/schedule create <command> <channel> <every> [coins]`
 Schedule a recurring post.
-+ `command` *(required)* — market heatmap, Fear & Greed index, biggest movers, trending coins, top 10 coins, or prices for specific coins.
++ `command` *(required)* — market heatmap, Fear & Greed index, biggest movers, trending coins, top 10 coins, prices for specific coins, or the AI market brief.
 + `channel` *(required)* — the channel to post in.
-+ `every` *(required)* — every 30 minutes, hourly, every 4 hours, every 12 hours, or daily.
++ `every` *(required)* — every 30 minutes, hourly, every 4 hours, every 12 hours, or daily. The AI market brief can be scheduled hourly or less often.
 + `coins` *(optional)* — only for "prices for specific coins", e.g. `btc eth sol`.
 
 ### `/schedule list`
@@ -217,9 +230,10 @@ Example: `/tag create name:google link:www.google.com`
 
 ## Translation
 
-### `/translate <text>`
-Translate the provided text to English using Google Translate.
-+ `text` *(required)* — text to translate
+### `/translate <text> [to]`
+Translate text into English, or into any other language you name. Tickers, coin names, numbers and links are left as they are, and crypto slang is translated by meaning. Written by AI.
++ `text` *(required)* — text to translate, up to 1000 characters
++ `to` *(optional)* — the language to translate into, e.g. `Spanish` or `Japanese` (default English)
 
 <br>
 

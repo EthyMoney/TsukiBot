@@ -16,8 +16,6 @@ Create a file named keys.api in the common folder. Put the following structure i
     "coingecko": "",
     "anthropic": "",
     "openexchangerates.org": "",
-    "googleCloudProjectID": "",
-    "googleCloudProjectKeyPath": "",
     "coinmarketcap1": "",
     "coinmarketcap2": "",
     "coinmarketcap3": "",
@@ -38,8 +36,9 @@ This is where you put your api keys and other various keys and passwords that wi
 
 Every field above is read by the code. Keys for services the bot no longer uses have been removed from
 this template: Graviex and STEX (support dropped), Alpha Vantage (stocks moved to Finnhub),
-exchangeratesapi.io (superseded by openexchangerates.org), and the authenticated Coinbase pair
-(only Coinbase's public endpoints are used). If your existing keys file still has them, they are
+exchangeratesapi.io (superseded by openexchangerates.org), the authenticated Coinbase pair
+(only Coinbase's public endpoints are used), and googleCloudProjectID / googleCloudProjectKeyPath
+(/translate now uses the Anthropic key). If your existing keys file still has them, they are
 dead weight — and worth revoking at the provider rather than only deleting.
 
 
@@ -60,7 +59,9 @@ For reference, here's what a few of the others actually are:
 "infura"     -> your infura project key (ENS lookups)
 "finnhub"    -> your api key for finnhub (/stocks)
 "coinalyze"  -> your api key for coinalyze (/ls). Without it, /ls says it is not configured.
-"anthropic"  -> your Anthropic api key (/brief). Without it, /brief says it is not configured.
+"anthropic"  -> your Anthropic api key, for the AI features: /brief, /why, /ask, /translate and
+                the Explain button under charts. Without it those commands say they are not
+                configured and the Explain button is not shown. See AI OPTIONS below for limits.
 "coingecko"  -> your optional free CoinGecko Demo API key
 "openexchangerates.org" -> your app id for openexchangerates (fiat rates used by /convert)
 
@@ -87,7 +88,7 @@ The names are:
   TSUKIBOT_TOKEN, TSUKIBOT_DEV_TOKEN, TSUKIBOT_DB_PASSWORD, TSUKIBOT_DB_ADDRESS,
   ETHERSCAN_API_KEY, INFURA_API_KEY, FINNHUB_API_KEY, CRYPTOCOMPARE_API_KEY,
   COINALYZE_API_KEY, OPENEXCHANGERATES_APP_ID, COINGECKO_API_KEY,
-  COINGECKO_PRO_API_KEY, GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_KEY_PATH
+  COINGECKO_PRO_API_KEY
 
 The Anthropic key is read from ANTHROPIC_API_KEY, which is the standard name their
 SDK already looks for.
@@ -225,3 +226,28 @@ Monday digest to the application owner without any configuration.
 
 Neither the digest nor the watchdog runs in dev mode (-d), so a development
 instance never DMs anyone.
+
+
+AI OPTIONS (optional)
+
+The AI features (/brief, /why, /ask, /translate, and the Explain button under charts)
+use Claude through the "anthropic" key. Two limits keep the spend predictable:
+
+  "ai": { "perUserDaily": 15, "dailyBudgetUsd": 10 }
+
+"perUserDaily"   -> how many AI answers one person can generate per UTC day.
+                    Bot admins (the application owner and "botAdmins") are exempt.
+"dailyBudgetUsd" -> once the estimated spend for the UTC day reaches this, every AI
+                    feature says it has hit today's limit until midnight UTC.
+                    Scheduled AI briefs stop too.
+
+Both are optional; the values above are the defaults. Answers served from cache (a
+brief under 20 minutes old, a /why for the same coin within 30 minutes, a chart that
+was already explained) are free and count against neither. The counts live in
+memory, so a restart resets them.
+
+Rough cost per answer at Claude Opus 5.5 prices: /translate well under a cent, chart
+explanations about 2 cents, /ask about 4 cents (around 12 when it searches the news),
+a brief 1 cent on a quiet day and about 10 cents when it searches the news, and /why
+10 to 20 cents because it always searches. Every AI call is logged to the console and recorded in the usage telemetry
+as an "ai-call" system event with its token counts and estimated cost.

@@ -146,6 +146,16 @@ const commands = [
   new SlashCommandBuilder().setName('brief').setDescription('Get a short written summary of what the market is doing right now.'),
 
   new SlashCommandBuilder()
+    .setName('why')
+    .setDescription('Find out why a coin\'s price moved recently, with news sources. Written by AI.')
+    .addStringOption(o => o.setName('coin').setDescription('Coin ticker, name, or rank').setRequired(true).setAutocomplete(true)),
+
+  new SlashCommandBuilder()
+    .setName('ask')
+    .setDescription('Ask a question about crypto markets, answered by AI from live data.')
+    .addStringOption(o => o.setName('question').setDescription('e.g. "Which top 20 coin did worst this week?"').setRequired(true).setMaxLength(300)),
+
+  new SlashCommandBuilder()
     .setName('ath')
     .setDescription('Show a coin\'s all-time high and low, and how far it is from each.')
     .addStringOption(o => o.setName('coin').setDescription('Coin ticker, name, or rank').setRequired(true).setAutocomplete(true)),
@@ -175,8 +185,9 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('translate')
-    .setDescription('Translate text to English.')
-    .addStringOption(o => o.setName('text').setDescription('Text to translate').setRequired(true)),
+    .setDescription('Translate text into English, or into another language you choose.')
+    .addStringOption(o => o.setName('text').setDescription('Text to translate').setRequired(true).setMaxLength(1000))
+    .addStringOption(o => o.setName('to').setDescription('Language to translate into (default English)').setRequired(false).setMaxLength(40)),
 
   new SlashCommandBuilder()
     .setName('eth')
@@ -220,7 +231,8 @@ const commands = [
         { name: 'Biggest 24h movers', value: 'movers' },
         { name: 'Trending coins', value: 'trending' },
         { name: 'Top 10 coins', value: 'pop' },
-        { name: 'Prices for specific coins', value: 'cg' }
+        { name: 'Prices for specific coins', value: 'cg' },
+        { name: 'AI market brief (hourly or less often)', value: 'brief' }
       ))
       .addChannelOption(o => o.setName('channel').setDescription('Channel to post in').setRequired(true)
         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
