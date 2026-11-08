@@ -148,3 +148,29 @@ test('bot offline for multiple intervals catches up cleanly to the latest interv
   lastRun = advanceScheduledPost(lastRun, intervalMinutes, nextHour);
   assert.equal(lastRun, Date.UTC(2026, 7, 1, 17, 0, 0));
 });
+
+/* --------------------------------------------------------------------------
+ *  Channel access checks
+ * -------------------------------------------------------------------------- */
+
+function functionSource(signature) {
+  const start = mainSource.indexOf(signature);
+  assert.notEqual(start, -1, `${signature} not found in main.js`);
+  const end = mainSource.indexOf('\n}\n', start);
+  return mainSource.slice(start, end);
+}
+
+test('scheduled-post permission checks include View Channel', () => {
+  // Without it, a private channel passes the Send Messages check and every post then fails with 50001.
+  assert.match(mainSource, /const SCHEDULE_POST_PERMISSIONS = \[[^\]]*PermissionFlagsBits\.ViewChannel/);
+  assert.match(functionSource('async function createSchedule('), /botPermissions\.has\(SCHEDULE_POST_PERMISSIONS\)/);
+  assert.match(functionSource('async function runScheduledPost('), /botPermissions\.has\(SCHEDULE_POST_PERMISSIONS\)/);
+});
+
+test('channel sends from /cg and movers are returned so the scheduled runner can catch them', () => {
+  // runScheduledPost awaits these; a send that is not returned rejects unhandled and the job is never retired.
+  const priceCG = functionSource('function getPriceCG(');
+  assert.match(priceCG, /return channel\.send\(messageHeader \+ message\);/);
+  assert.match(priceCG, /return channel\.send\(messageHeader \+ message_part1\)\.then/);
+  assert.match(functionSource('function getBiggestMovers('), /return sent;/);
+});

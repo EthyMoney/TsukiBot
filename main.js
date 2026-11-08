@@ -1113,13 +1113,12 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
       interaction.reply(messageHeader + message);
     }
     else {
+      // Returned so the scheduled-post runner, which awaits this, sees a failed send instead of an
+      // unhandled rejection. The second part waits for the first so the two always arrive in order.
       if (message_part1.length > 0) {
-        channel.send(messageHeader + message_part1);
-        channel.send(message);
+        return channel.send(messageHeader + message_part1).then(() => channel.send(message));
       }
-      else {
-        channel.send(messageHeader + message);
-      }
+      return channel.send(messageHeader + message);
     }
   }
 }
@@ -2410,9 +2409,10 @@ function getBiggestMovers(channel, author) {
   preparedArr.forEach((value) => {
     idArr.push(value.id);
   });
-  getPriceCG(idArr, channel, 'm');
+  const sent = getPriceCG(idArr, channel, 'm');
 
   console.log(pc.green('CoinGecko biggest movers command called in: ' + pc.yellow(describeGuild(channel)) + ' by ' + pc.yellow(author.username)));
+  return sent;
 }
 
 
@@ -4368,6 +4368,10 @@ const SCHEDULE_INTERVALS = {
 
 const MAX_SCHEDULES_PER_GUILD = 10;
 
+// View Channel is listed explicitly because discord.js's permissionsFor() still reports Send Messages
+// in a channel the bot cannot see, and Discord then rejects every post with 50001 Missing Access.
+const SCHEDULE_POST_PERMISSIONS = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
+
 async function ensureSchedulesTable() {
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS tsukibot.scheduled_posts (
@@ -4417,8 +4421,8 @@ async function createSchedule(interaction, command, channel, intervalKey, args) 
 
   // Check up front that the bot can actually post there, rather than failing silently every cycle.
   const botPermissions = channel.permissionsFor(interaction.guild.members.me);
-  if (!botPermissions || !botPermissions.has(PermissionFlagsBits.SendMessages) || !botPermissions.has(PermissionFlagsBits.EmbedLinks)) {
-    await interaction.editReply(`I need permission to send messages and embed links in ${channel} before I can post there.`);
+  if (!botPermissions || !botPermissions.has(SCHEDULE_POST_PERMISSIONS)) {
+    await interaction.editReply(`I need permission to view ${channel}, send messages and embed links before I can post there.`);
     return;
   }
 
@@ -4496,8 +4500,8 @@ async function runScheduledPost(post) {
   // revoked permission would otherwise fail silently and re-fail every cycle forever. Checking here
   // turns that into a thrown error the caller can act on, and the codes below retire the job.
   const botPermissions = channel.guild ? channel.permissionsFor(channel.guild.members.me) : null;
-  if (botPermissions && (!botPermissions.has(PermissionFlagsBits.SendMessages) || !botPermissions.has(PermissionFlagsBits.EmbedLinks))) {
-    const err = new Error(`missing send or embed permission in channel ${post.channel_id}`);
+  if (botPermissions && !botPermissions.has(SCHEDULE_POST_PERMISSIONS)) {
+    const err = new Error(`missing view, send or embed permission in channel ${post.channel_id}`);
     err.code = 50013; // Discord's "Missing Permissions", so the caller retires this job
     throw err;
   }
