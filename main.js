@@ -1474,30 +1474,27 @@ async function getCoinDescription(coin1, channel, author, interaction) {
 
     // grabbing for each coin found with matching input
     for (let index = 0, len = foundCoins.length; index < len; index++) {
-      // grab logo and description if found by id in the cache
-      for (let j = 0, len = metadata.data.length; j < len; j++) {
-        if (metadata.data[j].slug === foundCoins[index].id) {
-          if (metadata.data[j].logo) {
-            logos.push(metadata.data[j].logo);
-            let color = await colorAverager.getAverageColor(metadata.data[j].logo);
-            logoColors.push(color.hex);
-          } else {
-            // default to CoinGecko logo if coin doesn't have one yet
-            logos.push('https://i.imgur.com/EnWbbrN.png');
-            logoColors.push('#1b51be');
-          }
-          if (metadata.data[j].description) {
-            descriptions.push(metadata.data[j].description);
-          } else {
-            descriptions.push('*No description available for this coin from CoinGecko yet. Check again later!*');
-          }
+      // one logo, colour and description per coin, so the arrays stay aligned with foundCoins
+      const meta = metadata.data.find(m => m.slug === foundCoins[index].id);
+      let logo = 'https://i.imgur.com/EnWbbrN.png'; // CoinGecko logo when the coin has none (yet)
+      let logoColor = '#1b51be';
+      if (meta && meta.logo) {
+        logo = meta.logo;
+        try {
+          logoColor = (await colorAverager.getAverageColor(meta.logo)).hex || logoColor;
+        } catch (err) {
+          console.log(pc.yellow('Could not average logo colour for ' + foundCoins[index].id + ': ' + err));
         }
       }
-
-      // for if coin was found in the tickers cache, but not the metadata cache yet (for brand new coins)
-      if (!descriptions[index]) {
-        logos.push('https://i.imgur.com/EnWbbrN.png');
+      logos.push(logo);
+      logoColors.push(logoColor);
+      if (!meta) {
+        // found in the tickers cache, but not the metadata cache yet (brand new coins)
         descriptions.push('*Data for this coin has not been cached yet. Check again later!*');
+      } else if (meta.description) {
+        descriptions.push(meta.description);
+      } else {
+        descriptions.push('*No description available for this coin from CoinGecko yet. Check again later!*');
       }
 
       // check against discord's embed field size limit and cleanly split if necessary
@@ -5797,7 +5794,10 @@ client.on('interactionCreate', async interaction => {
       // ---- Coin info/description ----
       case 'info':
         await interaction.deferReply();
-        getCoinDescription(opts.getString('coin').toUpperCase(), makeResponder(interaction), author, null);
+        await getCoinDescription(opts.getString('coin').toUpperCase(), makeResponder(interaction), author, null).catch(err => {
+          console.log(pc.red('Error building coin info response: ' + pc.cyan(err)));
+          return interaction.editReply('Sorry, something went wrong looking up that coin. Please try again.').catch(() => {});
+        });
         break;
 
       // ---- Market cap ----
