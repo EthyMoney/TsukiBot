@@ -275,6 +275,24 @@ function resolveUsageConfig(source) {
 const usageConfig = resolveUsageConfig(keys);
 setMonthlyCreditBudget(usageConfig.creditBudget);
 
+// Per-feature failure alerts. Features whose work finishes after the command returns (charts render
+// on the puppeteer cluster) report their own outcomes, because telemetry records those commands as
+// successful the moment they are queued. Dev mode logs instead of DMing anyone.
+const { createFeatureHealth } = require('./src/feature-health');
+const featureHealth = createFeatureHealth({
+  send: (payload) => {
+    if (devMode) {
+      console.log(pc.yellow('Feature health (dev mode, not sent): ' + payload.embeds.map(e => e.toJSON().title).join(', ')));
+      return Promise.resolve();
+    }
+    return sendUsageReport(payload);
+  },
+  log: (msg) => console.log(pc.green(msg)),
+  logError: (msg) => console.error(pc.red(msg))
+});
+const CHART_FEATURE = '/c chart';
+const PORTFOLIO_CARD_FEATURE = 'portfolio card';
+
 // The dashboard app is created up front (cheap: an Express app and a token map) and only listens
 // once the client is ready, so a port clash cannot take the bot down before it has logged in.
 const usageDashboard = createDashboard({
@@ -3356,20 +3374,24 @@ async function renderPortfolioChart(payload) {
   const url = `http://127.0.0.1:${devMode ? 8086 : 8080}/portfolio/${id}`;
 
   try {
-    return await cluster.execute(url, async ({ page, data }) => {
+    const card = await cluster.execute(url, async ({ page, data }) => {
       // Portrait and full-page: the card's height varies with how many holdings there are.
       await page.setViewport({ width: 520, height: 390, deviceScaleFactor: 2 });
       // 'load' rather than 'networkidle0': the page is entirely inline CSS and SVG with no
       // subresources, and waiting for network idle on a page that makes no requests can stall.
       await page.goto(data, { waitUntil: 'load', timeout: 15000 });
-      const shot = await page.screenshot({ type: 'png' });
+      // Buffer.from: newer Node makes Puppeteer return a plain Uint8Array, which discord.js rejects.
+      const shot = Buffer.from(await page.screenshot({ type: 'png' }));
       // Release the page's memory before it goes back to the pool.
       await page.goto('about:blank');
       return shot;
     });
+    featureHealth.ok(PORTFOLIO_CARD_FEATURE);
+    return card;
   }
   catch (err) {
     console.log(pc.yellow('Portfolio chart render failed, sending the embed without it: ' + err.message));
+    featureHealth.fail(PORTFOLIO_CARD_FEATURE, { detail: err });
     return null;
   }
   finally {
@@ -4911,6 +4933,14 @@ client.on('clientReady', () => {
     if (usageConfig.errorSummary.enabled) {
       schedule.scheduleJob(usageInsights.errorSummaryRule(), insightTask('errorSummary', () => usageInsights.sendErrorSummary()));
     }
+    // Chart self-test: shortly after startup (a restart is when the environment changes under the
+    // bot, e.g. a Node upgrade) and then every few hours, so a broken chart pipeline is found
+    // without waiting for a user to hit it.
+    if (!chartSelfTestScheduled) {
+      chartSelfTestScheduled = true;
+      setTimeout(runChartSelfTest, CHART_SELF_TEST_FIRST_MS);
+      setInterval(runChartSelfTest, CHART_SELF_TEST_EVERY_MS);
+    }
   }
 
   // Load CG cache from file first for instant availability
@@ -6399,6 +6429,11 @@ async function chartsProcessingCluster() {
       if (!rendered) {
         // Chart never produced a price axis, treat as an invalid pair / failed chart
         console.log(pc.blue(`(ID:${chartID})`) + ` chart validation test ${pc.red('<FAILED>')}`);
+        // Usually a pair that does not exist (soft), but a long run of these means TradingView itself broke.
+        featureHealth.fail(CHART_FEATURE, {
+          soft: !data.selfTest, selfTest: !!data.selfTest,
+          detail: `The chart for "${data.originalQuery}" never drew a price axis (unknown pair, or TradingView not loading).`
+        });
         if (data.interaction) {
           data.interaction.editReply('Error: Chart failed to generate with your provided pair. Please try again.');
         }
@@ -6425,7 +6460,8 @@ async function chartsProcessingCluster() {
         // Capture the final chart from the browser window.
         // Uploaded straight from the buffer: writing every chart to disk left files that nothing ever
         // deleted, and a synchronous multi-hundred-KB write blocked the event loop on each render.
-        const chartScreenshot = await page.screenshot();
+        // Buffer.from: newer Node makes Puppeteer return a plain Uint8Array, which discord.js rejects.
+        const chartScreenshot = Buffer.from(await page.screenshot());
 
         const end = performance.now();
         console.log(pc.blue(`(ID:${chartID})`) + ' Execution time: ' + pc.green(`${((end - start) / 1000).toFixed(3)} seconds`));
@@ -6438,6 +6474,7 @@ async function chartsProcessingCluster() {
             }],
             components: buildChartControls(data.originalQuery, data.activeInterval)
           });
+          featureHealth.ok(CHART_FEATURE);
         }
         else {
           message.channel.send({
@@ -6446,6 +6483,7 @@ async function chartsProcessingCluster() {
               name: 'tsukibotchart.png'
             }]
           }).then(() => {
+            featureHealth.ok(CHART_FEATURE);
             chartMessage.delete(); // Remove the placeholder
           });
         }
@@ -6465,15 +6503,17 @@ async function chartsProcessingCluster() {
           'activeInterval': data.activeInterval,
           'chartMessage': chartMessage,
           'attempt': attempt,
-          'chartID': chartID
+          'chartID': chartID,
+          'selfTest': data.selfTest
         };
         cluster.queue(data2);
       }
       else {
         // Every retry is spent. Both callers need telling; the slash-command path used to be left
-        // hanging on a deferred reply that nothing would ever edit.
+        // hanging on a deferred reply that nothing would ever edit. So does the owner.
+        featureHealth.fail(CHART_FEATURE, { detail: err, selfTest: !!data.selfTest });
         if (data.interaction) {
-          await data.interaction.editReply('Sorry, chart generation failed after 3 attempts. TradingView may be unreachable right now, please try again shortly.')
+          await data.interaction.editReply('Sorry, chart generation failed after 3 attempts. Please try again shortly.')
             .catch(() => { /* interaction expired */ });
         }
         else {
@@ -6481,6 +6521,57 @@ async function chartsProcessingCluster() {
         }
       }
     }
+  });
+}
+
+const CHART_SELF_TEST_FIRST_MS = 5 * 60 * 1000;
+let chartSelfTestScheduled = false;
+const CHART_SELF_TEST_EVERY_MS = 3 * 60 * 60 * 1000;
+const CHART_SELF_TEST_QUERY = 'binance:btcusdt 1h';
+
+// discord.js's own attachment check, so the self-test rejects exactly what Discord uploads would.
+// Not part of the package's public exports, hence the path; falls back to the Buffer test it makes.
+let resolveDiscordFile = null;
+try {
+  resolveDiscordFile = require(path.join(path.dirname(require.resolve('discord.js')), 'util', 'DataResolver.js')).resolveFile;
+}
+catch {
+  resolveDiscordFile = async (resource) => {
+    if (!Buffer.isBuffer(resource)) throw new Error('The resource must be a string, Buffer or a valid file stream.');
+    return { data: resource };
+  };
+}
+
+/**
+ * Renders a known-good chart through the same cluster task users hit, with a stand-in interaction
+ * whose editReply checks the image the way a real upload would. The task itself reports the result
+ * to featureHealth (as a self-test, so one failure is enough to alert).
+ */
+function runChartSelfTest() {
+  if (!cluster) {
+    featureHealth.fail(CHART_FEATURE, { selfTest: true, detail: 'The puppeteer cluster is not running.' });
+    return;
+  }
+  if (chartTagID > 25) chartTagID = 1;
+  const probe = {
+    async editReply(payload) {
+      if (typeof payload === 'string') return; // an error message; the task has already reported it
+      const file = payload && payload.files && payload.files[0];
+      if (!file) throw new Error('Self-test: the chart reply carried no image.');
+      const { data } = await resolveDiscordFile(file.attachment);
+      if (!data || data.length < 10000) throw new Error(`Self-test: the chart image is only ${data ? data.length : 0} bytes.`);
+    }
+  };
+  console.log(pc.cyan('Running chart self-test (' + CHART_SELF_TEST_QUERY + ')'));
+  cluster.queue({
+    message: '',
+    interaction: probe,
+    args: ('.tbc ' + CHART_SELF_TEST_QUERY).split(' '),
+    originalQuery: CHART_SELF_TEST_QUERY,
+    chartMessage: '',
+    attempt: 1,
+    chartID: ++chartTagID,
+    selfTest: true
   });
 }
 
