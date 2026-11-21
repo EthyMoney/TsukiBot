@@ -109,7 +109,11 @@ const apiApp = express();
 const apiAppPort = 3330;
 
 // Automatic color selector for embeds
-const colorAverager = require('fast-average-color-node');
+// fast-average-color-node v4 is ESM-only with no "require" export condition, so it cannot be
+// require()d from this CommonJS file. It is loaded with import() on first use instead.
+const colorAverager = {
+  getAverageColor: async (...args) => (await import('fast-average-color-node')).getAverageColor(...args)
+};
 
 // Puppeteer for interacting with the headless server and manipulating charts
 const { Cluster } = require('puppeteer-cluster');

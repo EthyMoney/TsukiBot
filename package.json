@@ -38,26 +38,26 @@
   "homepage": "https://github.com/EthyMoney/TsukiBot#readme",
   "dependencies": {
     "@adraffy/ens-normalize": "^1.11.1",
-    "@anthropic-ai/sdk": "^0.117.1",
-    "ccxt": "^4.5.73",
-    "chart.js": "^4.5.1",
+    "@anthropic-ai/sdk": "^1.12.0",
+    "ccxt": "4.5.83",
+    "chart.js": "^4.6.1",
     "didyoumean": "^1.2.2",
-    "discord.js": "^14.27.0",
-    "express": "^5.2.1",
-    "fast-average-color-node": "^3.2.0",
-    "finnhub": "^2.0.15",
-    "jsdom": "^30.0.1",
-    "node-schedule": "^2.1.1",
-    "pg": "^8.23.0",
+    "discord.js": "^14.28.1",
+    "express": "^5.3.0",
+    "fast-average-color-node": "^4.0.0",
+    "finnhub": "^2.0.16",
+    "jsdom": "^31.0.1",
+    "node-schedule": "^2.1.2",
+    "pg": "^8.23.1",
     "picocolors": "^1.1.1",
-    "puppeteer": "^25.7.0",
+    "puppeteer": "^25.18.1",
     "puppeteer-cluster": "^0.25.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.5",
     "topgg-autoposter": "^2.0.2"
   },
   "overrides": {
     "fast-average-color-node": {
-      "sharp": "^0.35.3"
+      "sharp": "^0.35.5"
     },
     "@top-gg/sdk": {
       "undici": "^6.28.0"
@@ -67,10 +67,10 @@
     }
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.6",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.8.1",
-    "globals": "^17.11.0"
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0"
   },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
@@ -78,8 +78,7 @@
   },
   "allowScripts": {
     "bufferutil@4.1.0": true,
-    "protobufjs@7.6.5": true,
-    "ccxt@4.5.73": true,
-    "puppeteer@25.7.0": true
+    "puppeteer@25.18.1": true,
+    "ccxt@4.5.83": true
   }
 }
