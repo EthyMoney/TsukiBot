@@ -4560,6 +4560,12 @@ async function runScheduledPost(post) {
   }
 }
 
+// Discord codes meaning a job's channel is gone or unreachable for good: Unknown Channel, Missing
+// Access, Missing Permissions. A job that hits one is deleted, and its telemetry error kind carries
+// SCHEDULE_RETIRED_SUFFIX so owner reports can tell it was already dealt with.
+const SCHEDULE_RETIRE_CODES = new Set([10003, 50001, 50013]);
+const SCHEDULE_RETIRED_SUFFIX = '(job removed)';
+
 async function runDueScheduledPosts() {
   // Claim due jobs by stamping last_run in the same statement that selects them, so a slow post
   // can never be picked up twice by the next tick.
@@ -4600,6 +4606,10 @@ async function runDueScheduledPosts() {
     }
     catch (err) {
       console.log(pc.yellow(`Scheduled job #${post.job_id} failed: ${err.message}`));
+      // A channel the bot can no longer reach (deleted, kicked, permissions revoked) would fail
+      // forever, so the job is retired below. The error kind says so, so the daily error summary
+      // reports it as already handled instead of as a bug to chase.
+      const retire = SCHEDULE_RETIRE_CODES.has(err.code);
       telemetry.recordSystemEvent('scheduled-post', {
         userId: String(post.created_by || 'system'),
         guildId: post.guild_id,
@@ -4608,11 +4618,10 @@ async function runDueScheduledPosts() {
         params: { job_id: String(post.job_id) },
         outcome: 'error',
         error: err,
+        errorKind: retire ? `${telemetry.classifyError(err)} ${SCHEDULE_RETIRED_SUFFIX}` : undefined,
         durationMs: Date.now() - startedAt
       });
-      // A channel the bot can no longer reach (deleted, kicked, permissions revoked) would fail
-      // forever, so retire the job rather than logging the same error every cycle.
-      if (err.code === 10003 || err.code === 50001 || err.code === 50013) {
+      if (retire) {
         await dbPool.query('DELETE FROM tsukibot.scheduled_posts WHERE job_id = $1;', [post.job_id]);
         console.log(pc.yellow(`Removed scheduled job #${post.job_id}: its channel is gone or unreadable.`));
       }

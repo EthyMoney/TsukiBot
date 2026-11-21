@@ -174,3 +174,13 @@ test('channel sends from /cg and movers are returned so the scheduled runner can
   assert.match(priceCG, /return channel\.send\(messageHeader \+ message_part1\)\.then/);
   assert.match(functionSource('function getBiggestMovers('), /return sent;/);
 });
+
+test('scheduled jobs retired for an unreachable channel are labelled in telemetry', () => {
+  const fn = mainSource.slice(mainSource.indexOf('async function runDueScheduledPosts()'));
+  const body = fn.slice(0, fn.indexOf('\n}\n'));
+  assert.match(mainSource, /const SCHEDULE_RETIRE_CODES = new Set\(\[10003, 50001, 50013\]\);/);
+  assert.match(body, /const retire = SCHEDULE_RETIRE_CODES\.has\(err\.code\);/);
+  assert.match(body, /errorKind: retire \? `\$\{telemetry\.classifyError\(err\)\} \$\{SCHEDULE_RETIRED_SUFFIX\}` : undefined/);
+  assert.match(body, /if \(retire\) \{\s*await dbPool\.query\('DELETE FROM tsukibot\.scheduled_posts/);
+  assert.ok(body.indexOf('const retire') < body.indexOf('errorKind: retire'), 'decided before telemetry is recorded');
+});

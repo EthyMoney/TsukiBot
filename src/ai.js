@@ -609,6 +609,10 @@ const ERRORS_SYSTEM = 'You write the daily error summary a Discord bot sends its
   'You get the failed command counts from the bot\'s usage telemetry for the last 24 hours, and the collapsed lines of its ' +
   'error log with how many times each appeared. Group related failures and say what each group most likely is (a bug, an ' +
   'outside service failing, a user mistake, or harmless noise), how often it happened, and what to check or fix first. ' +
+  'An error kind ending in "(job removed)" is a scheduled post whose channel was deleted or became unreachable; the bot ' +
+  'already deleted that job, so report it in one short line as handled automatically and suggest no fix. ' +
+  'Failed commands and jobs are recorded in telemetry, not in the error log, so an empty error log next to them is ' +
+  'expected and is not a logging gap. ' +
   'Put whatever needs action first. If it is all noise, say so in one line. Use only what is in the data. ' +
   'Write bullet points starting with "• ", under about 170 words in total, with no heading. ' +
   'Wrap file names, functions and error codes in backticks.';
