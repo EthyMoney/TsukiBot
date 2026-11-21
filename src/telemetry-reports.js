@@ -118,7 +118,7 @@ async function getOverview(days) {
       COUNT(*) FILTER (WHERE event_type = 'system')               AS system_events,
       COUNT(*) FILTER (WHERE outcome = 'error')                   AS errors,
       COUNT(*) FILTER (WHERE guild_id IS NULL)                    AS dm_events,
-      ROUND(AVG(duration_ms))     FILTER (WHERE event_type = 'command')  AS avg_ms,
+      ROUND(AVG(duration_ms) FILTER (WHERE event_type = 'command'))  AS avg_ms,
       PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY duration_ms)
                                   FILTER (WHERE event_type = 'command')  AS p50_ms,
       PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY duration_ms)
