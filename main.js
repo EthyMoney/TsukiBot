@@ -876,7 +876,7 @@ async function getPriceCGByContract(contractAddress, interaction) {
   }
 }
 
-function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false, interaction) {
+async function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTickers = false, interaction) {
 
   // don't let command run if cache is still updating for the first time
   if (cacheUpdateRunning && !devMode) {
@@ -920,6 +920,18 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     coins[i] = coins[i].toUpperCase(); //make all input coins uppercase
   }
 
+  // The market cache only holds the top 1,000 coins. Real coins past that (RTM, KMD...) used to
+  // come back "not found" with themselves as the suggestion. Price them live instead, all in one
+  // request, deferring first because that request can outlast Discord's 3 second reply window.
+  let uncachedCoins = new Map();
+  if (action !== 'm') {
+    const candidates = uncachedCoinCandidates(coins.filter(coin => coin !== 'HELP' && !cgArrayDict[coin] && !findCachedCoin(coin)));
+    if (candidates.size > 0) {
+      if (interaction && !interaction.deferred && !interaction.replied) await interaction.deferReply();
+      uncachedCoins = await priceUncachedCoins(candidates);
+    }
+  }
+
   for (let i = 0; i < coins.length; i++) {
     // for getting coin by ID (biggest movers action call)
     if (action === 'm') {
@@ -939,7 +951,12 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     }
     // otherwise process as normal call and look for symbols
     else {
-      if (!cgArrayDict[coins[i]]) {
+      const liveCoin = !cgArrayDict[coins[i]] && uncachedCoins.get(coins[i]);
+      if (liveCoin) {
+        selectedCoinObjects.push(liveCoin);
+        coins[i] = liveCoin.symbol.toUpperCase(); // a name ("raptoreum") is shown as its ticker
+      }
+      else if (!cgArrayDict[coins[i]]) {
         // A full name ("bitcoin") or a rank is not a ticker. Resolve those before guessing at a
         // typo: they used to fall through to didyoumean and, finding nothing, vanish silently.
         const byName = findCachedCoin(coins[i]);
@@ -953,7 +970,7 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
         coins[i] = g;
       }
       // look through cache and get each matching coin, but skip those damn worthless peg coins!
-      cgArrayDictParsed.forEach((coinObject) => {
+      if (!liveCoin) cgArrayDictParsed.forEach((coinObject) => {
         if (coinObject.symbol.toUpperCase() == coins[i]) {
           if (coinObject.name.includes('Binance-Peg')) {
             return; //skip adding this peg coin
@@ -1127,7 +1144,7 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
   // Check for message being too long even after the 2-message split
   if (message.length > 2000) {
     if (interaction) {
-      interaction.reply('Error: Your tbpa is too long to send! Please remove some coins and try again. Use `/tbpa-remove` to remove coins.');
+      replyOrEdit(interaction, 'Error: Your tbpa is too long to send! Please remove some coins and try again. Use `/tbpa-remove` to remove coins.');
       return;
     }
     else {
@@ -1139,7 +1156,7 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
 
   if (message.length > 0) {
     if (interaction) {
-      interaction.reply(messageHeader + message);
+      replyOrEdit(interaction, messageHeader + message);
     }
     else {
       // Returned so the scheduled-post runner, which awaits this, sees a failed send instead of an
@@ -2846,6 +2863,57 @@ async function resolveCoinsByIds(coinIds) {
   }
 
   return found;
+}
+
+/**
+ * For each price input the market cache does not hold, every listed coin it could mean: all coins
+ * sharing the ticker (resolveCoinIdFromList would take whichever id sorts first), else an exact
+ * id or name. Capped so one batched request covers every input.
+ * @param {Array<string>} inputs upper-cased tickers or names
+ * @returns {Map<string, Array<string>>} input -> candidate CoinGecko ids
+ */
+function uncachedCoinCandidates(inputs) {
+  const candidates = new Map();
+  let total = 0;
+  for (const input of new Set(inputs)) {
+    const needle = String(input || '').trim().toLowerCase();
+    if (!needle) continue;
+    const bySymbol = [];
+    const byIdOrName = [];
+    for (const coin of cgCoinList) {
+      if (!coin || !coin.id || !coin.symbol) continue;
+      if (coin.symbol.toLowerCase() === needle) bySymbol.push(coin.id);
+      else if (coin.id === needle || (coin.name || '').toLowerCase() === needle) byIdOrName.push(coin.id);
+    }
+    const ids = (bySymbol.length ? bySymbol : byIdOrName).slice(0, 25);
+    if (ids.length === 0 || total + ids.length > 250) continue;
+    total += ids.length;
+    candidates.set(input, ids);
+  }
+  return candidates;
+}
+
+/**
+ * Prices the candidates in one request and keeps, per input, the coin with the biggest market cap.
+ * Coins CoinGecko returns without a price (dead listings) are skipped.
+ * @param {Map<string, Array<string>>} candidates from uncachedCoinCandidates
+ * @returns {Promise<Map<string, object>>} input -> coin
+ */
+async function priceUncachedCoins(candidates) {
+  const found = await resolveCoinsByIds([...candidates.values()].flat());
+  const chosen = new Map();
+  for (const [input, ids] of candidates) {
+    const best = ids.map(id => found.get(id))
+      .filter(coin => coin && coin.current_price != null)
+      .sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0))[0];
+    if (best) chosen.set(input, best);
+  }
+  return chosen;
+}
+
+/** Replies to an interaction, or edits the reply when it was already deferred or answered. */
+function replyOrEdit(interaction, payload) {
+  return (interaction.deferred || interaction.replied) ? interaction.editReply(payload) : interaction.reply(payload);
 }
 
 // Resolve user input (ticker, full name, or market cap rank) to a cached coin. Prefers an exact
@@ -4739,7 +4807,7 @@ function getCoinArray(id, channel, message, coins = '', action = '', interaction
           const coins = inStr.split(',').filter(function (value) {
             return !isNaN(value) || pairs_CG_arr.indexOf(value.toUpperCase()) > -1;
           });
-          getPriceCG(coins, channel, action, 'd', true, interaction);
+          getPriceCG(coins, channel, action, 'd', true, interaction).catch(err => console.log(pc.red('Error in tbpa price call: ') + pc.cyan(err && err.message ? err.message : err)));
         } else {
           //console.log(chalk.green('Sent missing tbpa notice to ') + chalk.blue(message.member.user.tag));
           if (interaction) {
@@ -5705,7 +5773,7 @@ client.on('interactionCreate', async interaction => {
           await getPriceCGByContract(coins[0], interaction);
         }
         else {
-          getPriceCG(coins, null, '-', 'd', false, interaction);
+          getPriceCG(coins, null, '-', 'd', false, interaction).catch(err => console.log(pc.red('Error in /cg price call: ') + pc.cyan(err && err.message ? err.message : err)));
         }
         break;
       }
@@ -5951,7 +6019,7 @@ client.on('interactionCreate', async interaction => {
       // ---- Top 10 popular coins ----
       case 'pop': {
         await interaction.deferReply();
-        getPriceCG(getTop10Symbols(), makeResponder(interaction), 'p');
+        getPriceCG(getTop10Symbols(), makeResponder(interaction), 'p').catch(err => console.log(pc.red('Error in top 10 price call: ') + pc.cyan(err && err.message ? err.message : err)));
         break;
       }
 
