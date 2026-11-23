@@ -283,6 +283,7 @@ setMonthlyCreditBudget(usageConfig.creditBudget);
 // on the puppeteer cluster) report their own outcomes, because telemetry records those commands as
 // successful the moment they are queued. Dev mode logs instead of DMing anyone.
 const { createFeatureHealth } = require('./src/feature-health');
+const stockHint = require('./src/stock-hint');
 const featureHealth = createFeatureHealth({
   send: (payload) => {
     if (devMode) {
@@ -416,6 +417,8 @@ const clientBinanceFutures = new ccxt.binance({ options: { defaultType: 'swap' }
 const clientBybit = new ccxt.bybit();
 const clientOkx = new ccxt.okx();
 const finnhubClient = new finnhub.DefaultApi(keys.finnhub);
+// Points coin lookups that found nothing at /stocks when the query names a listed company.
+const stockHints = stockHint.createStockHints({ client: keys.finnhub ? finnhubClient : null });
 const ethereumRpcUrl = `https://mainnet.infura.io/v3/${keys.infura}`;
 
 // Reload Coins
@@ -1104,6 +1107,10 @@ function getPriceCG(coins, channel, action = '-', ext = 'd', tbpaIgnoreMultiTick
     const notes = missingCoins.slice(0, 5).map(query => {
       const suggestions = coinSuggest.suggestCoins(query, coinSuggestionPool(), { limit: 1 });
       if (interaction) noteCoinMiss(interaction, 'cg', query, suggestions);
+      const stock = stockHints.peek(query);
+      const coinTicker = suggestions.some(coin => String(coin.symbol).toUpperCase() === String(query).toUpperCase());
+      if (stock && !(stock.byTicker && coinTicker)) return '`' + cleanQuery(query) + '`' + ` (the stock? use \`/stocks ${stock.symbol}\`)`;
+      if (stock === undefined) stockHints.lookup(query); // warms the cache for next time; never throws
       return '`' + cleanQuery(query) + '`' + (suggestions.length ? ` (did you mean ${suggestions[0].symbol.toUpperCase()}?)` : '');
     });
     message += '\nNot found: ' + notes.join(', ');
@@ -1952,11 +1959,8 @@ function priceConversionTool(coin1, coin2, amount, channel, author, interaction)
     else {
       // Name which side was not found, with suggestions, rather than "one or more of your coins".
       const missing = [!found1 && coin1, !found2 && coin2].filter(Boolean);
-      Promise.all(missing.map(query => coinNotFoundMessage(query, { interaction, command: 'convert' })))
-        .then(lines => {
-          const text = lines.join('\n') + '\nFiat currencies work too, e.g. `usd` or `eur`.';
-          return interaction ? interaction.editReply(text) : channel.send(text);
-        })
+      coinsNotFoundPayload(missing, { interaction, command: 'convert', footer: '\nFiat currencies work too, e.g. `usd` or `eur`.' })
+        .then(payload => interaction ? interaction.editReply(payload) : channel.send(payload))
         .catch(err => console.log(pc.red('Could not send the conversion not-found reply: ') + pc.cyan(err && err.message ? err.message : err)));
     }
   }
@@ -4224,24 +4228,70 @@ function noteCoinMiss(interaction, command, query, suggestions) {
 
 /**
  * The reply for a coin that was not found, with suggestions. Records the miss when it came from
- * a user, so scheduled posts with a dead coin do not count every half hour.
+ * a user, so scheduled posts with a dead coin do not count every half hour. When the query names
+ * a listed company, the reply also points at /stocks.
  * @param {string} query
  * @param {{interaction?: object|null, command: string}} options
- * @returns {Promise<string>}
+ * @returns {Promise<{text: string, stock: {symbol: string, name: string}|null}>}
  */
-async function coinNotFoundMessage(query, { interaction = null, command }) {
-  const suggestions = await suggestCoinsFor(query).catch(() => []);
+async function coinNotFoundReply(query, { interaction = null, command }) {
+  let [suggestions, stock] = await Promise.all([
+    suggestCoinsFor(query).catch(() => []),
+    stockHints.lookup(query)
+  ]);
   if (interaction) noteCoinMiss(interaction, command, query, suggestions);
+  // A bare ticker that CoinGecko also knows as a coin's ticker was meant as the coin.
+  const wanted = String(query).toUpperCase();
+  if (stock && stock.byTicker && suggestions.some(coin => String(coin.symbol).toUpperCase() === wanted)) stock = null;
   const hint = coinSuggest.formatSuggestions(suggestions);
-  return `Couldn't find **${cleanQuery(query)}** on CoinGecko. ` + (hint || 'Try the ticker symbol or the full name.');
+  let text = `Couldn't find **${cleanQuery(query)}** on CoinGecko. ` + (hint || (stock ? '' : 'Try the ticker symbol or the full name.'));
+  if (stock) text = text.trimEnd() + '\n' + stockHint.formatStockHint(stock);
+  return { text, stock };
+}
+
+/** The not-found reply as text only, for replies that carry no buttons. */
+async function coinNotFoundMessage(query, options) {
+  return (await coinNotFoundReply(query, options)).text;
+}
+
+/** Quick-tap /stocks buttons for the stocks a set of not-found replies named (none when there are none). */
+function stockButtonRows(stocks) {
+  const symbols = [...new Set(stocks.filter(Boolean).map(stock => stock.symbol))].slice(0, 5);
+  if (symbols.length === 0) return [];
+  return [new ActionRowBuilder().addComponents(symbols.map(symbol => new ButtonBuilder()
+    .setCustomId(stockHint.stockButtonId(symbol))
+    .setLabel(`${symbol} stock price`)
+    .setEmoji('📈')
+    .setStyle(ButtonStyle.Primary)))];
+}
+
+/**
+ * Not-found replies for several queries as one message, with a /stocks button for each that
+ * named a listed company.
+ * @returns {Promise<{content: string, components: object[]}>}
+ */
+async function coinsNotFoundPayload(queries, { interaction = null, command, footer = '' }) {
+  const replies = await Promise.all(queries.slice(0, 3).map(query => coinNotFoundReply(query, { interaction, command })));
+  return {
+    content: replies.map(reply => reply.text).join('\n') + footer,
+    components: stockButtonRows(replies.map(reply => reply.stock))
+  };
 }
 
 /** Answers a price request where nothing matched, deferring first because suggestions can take a moment. */
 async function replyCoinsNotFound(interaction, channel, queries, command) {
   if (interaction && !interaction.deferred && !interaction.replied) await interaction.deferReply();
-  const lines = await Promise.all(queries.slice(0, 3).map(query => coinNotFoundMessage(query, { interaction, command })));
-  if (interaction) await interaction.editReply(lines.join('\n'));
-  else if (channel) await channel.send(lines.join('\n'));
+  const payload = await coinsNotFoundPayload(queries, { interaction, command });
+  if (interaction) await interaction.editReply(payload);
+  else if (channel) await channel.send(payload);
+}
+
+/** A quick-tap /stocks button under a not-found reply: posts that stock's price, as /stocks would. */
+async function handleStockButton(interaction) {
+  const symbol = stockHint.parseStockButtonId(interaction.customId);
+  if (!symbol) return;
+  await interaction.deferReply();
+  getStocks(symbol, makeResponder(interaction));
 }
 
 /* --------------------------------------------
@@ -5601,6 +5651,7 @@ client.on('interactionCreate', async interaction => {
       if (interaction.customId.startsWith('chart:')) await handleChartButton(interaction);
       else if (interaction.customId.startsWith(chartAi.EXPLAIN_PREFIX)) await handleChartExplain(interaction);
       else if (interaction.customId.startsWith('usage')) await handleUsageComponent(interaction);
+      else if (interaction.customId.startsWith('stocks:')) await handleStockButton(interaction);
       telemetry.recordButton(interaction, { durationMs: Date.now() - buttonStart });
     }
     catch (err) {
